@@ -10,10 +10,6 @@ from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from pdf2image import convert_from_path
 
-# Groq
-import groq
-from groq import Groq
-
 # Word export
 try:
     from docx import Document
@@ -22,10 +18,16 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# Load Groq API key from .env
-load_dotenv()
+# --- Load Groq API key ---
+load_dotenv()  # Load environment variables from .env
 GROQ_API_KEY = os.getenv("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")
-client = Groq(api_key=GROQ_API_KEY)
+
+if not GROQ_API_KEY:
+    st.error("❌ Groq API key not found. Please add it to your .env file.")
+else:
+    import groq
+    from groq import Groq
+    client = Groq(api_key=GROQ_API_KEY)
 
 # Session state
 if "chat_history" not in st.session_state:
@@ -73,9 +75,9 @@ except:
 # PDF extraction
 pdf_path = gsk_brands[brand]
 st.subheader(f"📄 {brand} PDF Content & Visuals")
+text_content = ""
 try:
     reader = PdfReader(pdf_path)
-    text_content = ""
     for page in reader.pages[:3]:  # Extract first 3 pages text
         text_content += page.extract_text() + "\n"
     st.text_area("PDF Text Preview", text_content, height=200)
@@ -113,16 +115,21 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    # Call Groq API
-    prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nPDF summary: {text_content[:500]}..."
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot."},
-                  {"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+    if GROQ_API_KEY:
+        # Call Groq API
+        prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nPDF summary: {text_content[:500]}..."
+        try:
+            response = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot."},
+                          {"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            ai_output = response.choices[0].message.content
+            st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+        except Exception as e:
+            st.error(f"❌ Groq API call failed: {e}")
+
     display_chat()
 
 # Word download
