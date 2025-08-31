@@ -1,9 +1,3 @@
-
----
-
-### **5️⃣ `app.py`** (updated version)
-
-```python
 import streamlit as st
 from PIL import Image
 import requests
@@ -43,7 +37,7 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 # GSK Logo
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
+col1, col2 = st.columns([1, 5])
 with col1:
     try:
         logo_img = Image.open(logo_local_path)
@@ -55,7 +49,9 @@ with col2:
 
 # Brands & Images
 gsk_brands = {"Shingrix": "Shingrix.pdf"}
-gsk_brands_images = {"Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png"}
+gsk_brands_images = {
+    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png"
+}
 
 # Sidebar filters
 st.sidebar.header("Filters & Options")
@@ -74,7 +70,7 @@ except:
     st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
-# --- PDF extraction ---
+# PDF extraction
 pdf_path = gsk_brands[brand]
 st.subheader(f"📄 {brand} PDF Content & Visuals")
 try:
@@ -83,7 +79,7 @@ try:
     for page in reader.pages[:3]:  # Extract first 3 pages text
         text_content += page.extract_text() + "\n"
     st.text_area("PDF Text Preview", text_content, height=200)
-    
+
     # Extract figures as images
     pages = convert_from_path(pdf_path, dpi=150)
     st.subheader("Medical Figures / Charts from PDF")
@@ -92,7 +88,7 @@ try:
 except Exception as e:
     st.error(f"⚠️ Failed to extract PDF content: {e}")
 
-# --- Chatbot Section ---
+# Chatbot Section
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
@@ -116,9 +112,9 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-    
+
     # Call Groq API
-    prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nPDF summary: {text_content[:500]}..."  # include first 500 chars
+    prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nPDF summary: {text_content[:500]}..."
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot."},
