@@ -1,10 +1,3 @@
-
----
-
-### 4️⃣ Updated `app.py`
-I condensed it for clarity while keeping **Shingrix CDC URL fetching + images + Groq integration**:
-
-```python
 import streamlit as st
 from PIL import Image
 import requests
