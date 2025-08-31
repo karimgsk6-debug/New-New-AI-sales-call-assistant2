@@ -20,7 +20,7 @@ except ImportError:
 
 # --- Load Groq API key ---
 load_dotenv()  # Load environment variables from .env
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("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")
 
 # Sidebar input as fallback
 st.sidebar.subheader("Groq API Key")
