@@ -3,11 +3,20 @@ from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
 from datetime import datetime
-import os
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import os
+from dotenv import load_dotenv
 import groq
 from groq import Groq
+
+# Load .env
+load_dotenv()
+GROQ_API_KEY = os.getenv("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")
+if not GROQ_API_KEY:
+    st.error("❌ Groq API key not found. Add it to .env or environment variables.")
+else:
+    client = Groq(api_key=GROQ_API_KEY)
 
 # Optional Word export
 try:
@@ -16,13 +25,6 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
-
-# Groq API
-GROQ_API_KEY = os.getenv("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")
-if not GROQ_API_KEY:
-    st.error("❌ Groq API key not found. Add it to .env or environment variables.")
-else:
-    client = Groq(api_key=GROQ_API_KEY)
 
 # Session state
 if "chat_history" not in st.session_state:
@@ -43,7 +45,7 @@ with col1:
 with col2:
     st.title("🧠 AI Sales Call Assistant")
 
-# Brand data
+# Brands
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://example.com/trelegy-leaflet",
@@ -136,42 +138,3 @@ if brand=="Shingrix":
             st.image(img, caption=f"Figure {i+1}")
         except:
             continue
-
-# Chat input
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...")
-    submitted = st.form_submit_button("➤")
-
-if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
-    prompt = f"""
-Language: {language}
-User input: {user_input}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
-{flow_str}
-Reference URL content (if Shingrix):
-{text_summary}
-Number of extracted figures: {len(url_images)}
-Use APACT technique.
-Response Length: {response_length}
-Response Tone: {response_tone}
-Provide actionable suggestions tailored to this persona.
-"""
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},{"role":"user","content":prompt}],
-        temperature=0.7
-    )
-    ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-    display_chat()
