@@ -1,14 +1,6 @@
 streamlit
 Pillow
 requests
-python-dotenv
-python-docx
-PyPDF2
-pdf2image
-groq
-streamlit
-Pillow
-requests
 beautifulsoup4
 groq
 python-docx
