@@ -2,9 +2,11 @@ import streamlit as st
 from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
+from datetime import datetime
+import os
+from bs4 import BeautifulSoup
 import groq
 from groq import Groq
-from datetime import datetime
 
 # --- Optional dependency for Word download ---
 try:
@@ -15,7 +17,11 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # Add your Groq API key here
+GROQ_API_KEY = os.getenv("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")  # Or set in .env
+if not GROQ_API_KEY:
+    st.error("❌ Groq API key not found. Please add it to your environment variables.")
+else:
+    client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
@@ -39,7 +45,7 @@ with col2:
 
 # --- Brand & product data ---
 gsk_brands = {
-    "Shingrix": "https://example.com/shingrix-leaflet",
+    "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://example.com/trelegy-leaflet",
     "Zejula": "https://example.com/zejula-leaflet",
 }
@@ -110,33 +116,57 @@ if st.button("🗑️ Clear Chat / مسح المحادثة"):
 # --- Chat history display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
-
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
-
-        # Bold APACT steps
         apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
         for step in apact_steps:
             content = content.replace(step, f"<b>{step}</b><br>")
-
         if msg["role"] == "user":
-            chat_html += f"""
-            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
         else:
-            chat_html += f"""
-            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
 display_chat()
+
+# --- Fetch Shingrix URL content & images ---
+from urllib.parse import urljoin
+
+def fetch_url_content_and_images(url):
+    text_summary = ""
+    images = []
+    try:
+        r = requests.get(url, timeout=10)
+        soup = BeautifulSoup(r.content, "html.parser")
+        paragraphs = [p.get_text() for p in soup.find_all("p")]
+        text_summary = "\n".join(paragraphs[:10])
+        # Extract images
+        for img_tag in soup.find_all("img"):
+            img_url = img_tag.get("src")
+            if img_url:
+                if not img_url.startswith("http"):
+                    img_url = urljoin(url, img_url)
+                images.append(img_url)
+    except Exception as e:
+        text_summary = f"Could not fetch content: {e}"
+    return text_summary, images
+
+url_summary = ""
+url_images = []
+if brand == "Shingrix":
+    url_summary, url_images = fetch_url_content_and_images(gsk_brands[brand])
+    st.subheader("📝 Shingrix URL Summary (from CDC)")
+    st.text_area("CDC Content Summary", url_summary, height=200)
+    st.subheader("📊 Shingrix Images from URL")
+    for i, img_url in enumerate(url_images[:10]):  # Show first 10 images
+        try:
+            r = requests.get(img_url)
+            img = Image.open(BytesIO(r.content))
+            st.image(img, caption=f"Figure {i+1}")
+        except:
+            continue
 
 # --- Chat input using Streamlit form ---
 with st.form("chat_form", clear_on_submit=True):
@@ -163,6 +193,9 @@ Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
 {flow_str}
+Reference URL content (if Shingrix): 
+{text_summary}
+Number of extracted figures: {len(url_images)}
 Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
 Response Length: {response_length}
 Response Tone: {response_tone}
@@ -183,17 +216,3 @@ Provide actionable suggestions tailored to this persona in a friendly and profes
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     
     display_chat()
-
-# --- Word download outside the form ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-# --- Brand leaflet ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
