@@ -20,14 +20,22 @@ except ImportError:
 
 # --- Load Groq API key ---
 load_dotenv()  # Load environment variables from .env
-GROQ_API_KEY = os.getenv("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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# Sidebar input as fallback
+st.sidebar.subheader("Groq API Key")
+manual_key = st.sidebar.text_input("Enter your Groq API key (optional)")
+if manual_key:
+    GROQ_API_KEY = manual_key.strip()
 
 if not GROQ_API_KEY:
-    st.error("❌ Groq API key not found. Please add it to your .env file.")
+    st.error("❌ Groq API key not found. Please add it to your .env file or enter it in the sidebar.")
+    GROQ_AVAILABLE = False
 else:
     import groq
     from groq import Groq
     client = Groq(api_key=GROQ_API_KEY)
+    GROQ_AVAILABLE = True
 
 # Session state
 if "chat_history" not in st.session_state:
@@ -115,7 +123,7 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    if GROQ_API_KEY:
+    if GROQ_AVAILABLE:
         # Call Groq API
         prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nPDF summary: {text_content[:500]}..."
         try:
@@ -129,6 +137,8 @@ if submitted and user_input.strip():
             st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
         except Exception as e:
             st.error(f"❌ Groq API call failed: {e}")
+    else:
+        st.warning("⚠️ Cannot call Groq API without a valid API key.")
 
     display_chat()
 
