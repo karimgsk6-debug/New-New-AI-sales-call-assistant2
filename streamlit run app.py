@@ -8,6 +8,7 @@ import base64
 import groq
 from groq import Groq
 from datetime import datetime
+import re
 
 # --- Optional dependency for Word download ---
 try:
@@ -148,13 +149,14 @@ def display_chat():
             </div>
             """
         else:
-            # AI bubble: split by APACT steps
-            # Simple regex to detect APACT headings
-            steps = re.split(r'(?<=\b)(Acknowledge|Probing|Answer|Confirm|Transition)\b', content)
+            # AI bubble with APACT steps
+            steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
+            pattern = r'(' + '|'.join(steps) + r')'
+            parts = re.split(pattern, content)
             current_step = ""
-            for part in steps:
+            for part in parts:
                 part = part.strip()
-                if part in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+                if part in steps:
                     current_step = part
                     continue
                 if part:
@@ -166,7 +168,6 @@ def display_chat():
                         </div>
                     </div>
                     """
-
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
@@ -209,8 +210,7 @@ Response Tone: {response_tone}
 """
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-                  {"role": "user", "content": prompt}],
+        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},{"role": "user", "content": prompt}],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
