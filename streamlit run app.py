@@ -1,7 +1,9 @@
 import streamlit as st
 from PIL import Image
-from io import BytesIO
+from io import BytesIO, BytesIO as io_bytes
 from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 import requests
 from groq import Groq
 
@@ -12,6 +14,13 @@ if not GROQ_API_KEY:
     st.error("❌ Groq API key not set. Please add it in the script.")
 else:
     client = Groq(api_key=GROQ_API_KEY)
+
+# Optional Word export
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
 
 # --- References ---
 REFERENCES = """
@@ -58,75 +67,157 @@ h1, h2, h3, h4, h5, h6 {
 
 st.markdown("💊 **AI Sales Call Assistant**", unsafe_allow_html=True)
 
-# --- Chat history ---
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
+# --- Session state ---
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
+
+# --- Sidebar filters ---
+st.sidebar.header("Filters & Options")
+brand = st.sidebar.selectbox("Select Brand", ["Shingrix", "Trelegy", "Zejula"])
+segment = st.sidebar.selectbox("Select RACE Segment", [
+    "R – Reach: Did not start to prescribe yet",
+    "A – Acquisition: Prescribe to patients who initiate discussion",
+    "C – Conversion: Proactively initiate discussion with specific patients",
+    "E – Engagement: Proactively prescribe to different patient profiles"
+])
+barrier = st.sidebar.multiselect("Select Doctor Barrier", [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+])
+objective = st.sidebar.selectbox("Select Objective", ["Awareness", "Adoption", "Retention"])
+specialty = st.sidebar.selectbox("Select Doctor Specialty", ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"])
+persona = st.sidebar.selectbox("Select HCP Persona", [
+    "Uncommitted Vaccinator",
+    "Reluctant Efficiency",
+    "Patient Influenced",
+    "Committed Vaccinator"
+])
+response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
+
+# --- Brand images ---
+gsk_brands_images = {
+    "Trelegy": "https://www.example.com/trelegy.png",
+    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
+}
+
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        img = Image.open(BytesIO(requests.get(image_path).content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+
+# --- Fetch CDC Shingrix content ---
+def fetch_shingrix_content():
+    url = "https://www.cdc.gov/shingles/hcp/clinical-overview"
+    text_summary = ""
+    images = []
+    try:
+        r = requests.get(url, timeout=10)
+        soup = BeautifulSoup(r.content, "html.parser")
+        paragraphs = [p.get_text() for p in soup.find_all("p")]
+        text_summary = "\n".join(paragraphs[:10])
+        for img_tag in soup.find_all("img"):
+            img_url = img_tag.get("src")
+            if img_url and not img_url.startswith("http"):
+                img_url = urljoin(url,img_url)
+            if img_url:
+                images.append(img_url)
+    except Exception as e:
+        text_summary = f"Could not fetch content: {e}"
+    return text_summary, images
+
+cdc_text, cdc_images = ("", [])
+if brand=="Shingrix":
+    cdc_text, cdc_images = fetch_shingrix_content()
 
 # --- Display chat ---
-for msg in st.session_state["messages"]:
+st.subheader("💬 AI Sales Response")
+for msg in st.session_state["chat_history"]:
     if msg["role"] == "user":
         st.markdown(f'<div class="user-bubble">👤 {msg["content"]}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="ai-bubble">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-        # --- Show visuals dynamically based on AI response keywords ---
+        # --- Show visuals dynamically ---
         text_lower = msg["content"].lower()
         with st.container():
             if any(k in text_lower for k in ["rash", "shingles symptoms"]):
-                st.image(
-                    "https://www.cdc.gov/shingles/images/shingles-rash.jpg",
-                    caption="Shingles rash (CDC)", use_column_width=True
-                )
+                st.image("https://www.cdc.gov/shingles/images/shingles-rash.jpg", caption="Shingles rash (CDC)", use_column_width=True)
             if any(k in text_lower for k in ["incidence", "cases", "risk by age"]):
-                st.image(
-                    "https://upload.wikimedia.org/wikipedia/commons/3/3a/Herpes_zoster_incidence_chart.png",
-                    caption="Herpes Zoster Incidence by Age", use_column_width=True
-                )
+                st.image("https://upload.wikimedia.org/wikipedia/commons/3/3a/Herpes_zoster_incidence_chart.png", caption="Herpes Zoster Incidence by Age", use_column_width=True)
             if any(k in text_lower for k in ["disease burden", "complications", "population ≥50"]):
-                st.image(
-                    "https://upload.wikimedia.org/wikipedia/commons/8/87/Herpes_zoster_burden.png",
-                    caption="Disease burden due to Herpes Zoster", use_column_width=True
-                )
+                st.image("https://upload.wikimedia.org/wikipedia/commons/8/87/Herpes_zoster_burden.png", caption="Disease burden due to Herpes Zoster", use_column_width=True)
 
-            # --- Collapsible references ---
             with st.expander("📚 References"):
                 st.markdown(REFERENCES)
 
-# --- Chat input ---
+# --- Chat input with send and clear ---
 with st.container():
     cols = st.columns([10, 1, 1])
-    user_input = cols[0].text_input(
-        "Type your message...",
-        key="chat_input",
-        label_visibility="collapsed",
-        on_change=lambda: st.session_state.update(send_triggered=True)
-    )
+    user_input = cols[0].text_input("Type your message...", key="chat_input", label_visibility="collapsed", on_change=lambda: st.session_state.update(send_triggered=True))
     send_clicked = cols[1].button("⏩")
     clear_clicked = cols[2].button("🗑️ Clear Chat")
 
 # --- Clear chat ---
 if clear_clicked:
-    st.session_state["messages"] = []
+    st.session_state["chat_history"] = []
     st.experimental_rerun()
 
-# --- Process input ---
+# --- Process AI prompt ---
 if user_input and (send_clicked or st.session_state.get("send_triggered", False)):
-    st.session_state["messages"].append({"role": "user", "content": user_input})
+    st.session_state["chat_history"].append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
     st.session_state["send_triggered"] = False
 
-    # AI response
+    prompt = f"""
+Language: English
+User input: {user_input}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Brand: {brand}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+Reference content from Shingrix CDC: {cdc_text}
+Number of extracted figures: {len(cdc_images)}
+Use APACT technique.
+Response Length: {response_length}
+Response Tone: {response_tone}
+Provide actionable suggestions and include insights from CDC content and figures in your response.
+Always align your response with the following references:
+{REFERENCES}
+"""
+
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "system", "content": "You are an AI assistant for pharma sales discussions."}] +
-                     [{"role": m["role"], "content": m["content"]} for m in st.session_state["messages"]],
-            temperature=0.7,
-            max_tokens=500,
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role":"system","content":"You are a helpful sales assistant chatbot."},
+                {"role":"user","content":prompt}
+            ],
+            temperature=0.7
         )
-
-        ai_reply = response.choices[0].message.content.strip()
-        st.session_state["messages"].append({"role": "assistant", "content": ai_reply})
+        ai_output = response.choices[0].message.content.strip()
+        st.session_state["chat_history"].append({"role":"assistant","content":ai_output,"time":datetime.now().strftime("%H:%M")})
         st.experimental_rerun()
-
     except Exception as e:
         st.error(f"⚠️ Error generating response: {e}")
+
+# --- Word download ---
+if DOCX_AVAILABLE and st.session_state["chat_history"]:
+    latest_ai = [msg["content"] for msg in st.session_state["chat_history"] if msg["role"]=="assistant"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_paragraph(latest_ai[-1] + "\n\nReferences:\n" + REFERENCES.replace("\n","\n"))
+        word_buffer = io_bytes()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
