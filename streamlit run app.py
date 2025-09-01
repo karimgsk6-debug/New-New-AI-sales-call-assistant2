@@ -54,9 +54,9 @@ st.markdown("💊 **AI Sales Call Assistant**", unsafe_allow_html=True)
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
-# --- Sidebar filters ---
+# --- Sidebar filters & options ---
 st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand", ["Shingrix", "Trelegy", "Zejula"])
+brands = st.sidebar.multiselect("Select Brand(s)", ["Shingrix", "Trelegy", "Zejula"], default=["Shingrix"])
 segment = st.sidebar.selectbox("Select RACE Segment", [
     "R – Reach: Did not start to prescribe yet",
     "A – Acquisition: Prescribe to patients who initiate discussion",
@@ -81,6 +81,13 @@ persona = st.sidebar.selectbox("Select HCP Persona", [
 response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
 
+# --- Extra options ---
+st.sidebar.header("Extra Options")
+include_cdc = st.sidebar.checkbox("Include CDC Shingrix content", value=True)
+markdown_output = st.sidebar.checkbox("Display AI response as Markdown", value=True)
+max_visuals = st.sidebar.slider("Max number of visuals to display", 1, 10, 5)
+show_disclaimer = st.sidebar.checkbox("Show disclaimer", value=True)
+
 # --- Brand images ---
 gsk_brands_images = {
     "Trelegy": "https://www.example.com/trelegy.png",
@@ -88,15 +95,17 @@ gsk_brands_images = {
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 
-image_path = gsk_brands_images.get(brand)
-try:
-    if image_path.startswith("http"):
-        img = Image.open(BytesIO(requests.get(image_path).content))
-    else:
-        img = Image.open(image_path)
-    st.image(img, width=200)
-except:
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+# Display brand images for selected brands
+for brand in brands:
+    image_path = gsk_brands_images.get(brand)
+    try:
+        if image_path.startswith("http"):
+            img = Image.open(BytesIO(requests.get(image_path).content))
+        else:
+            img = Image.open(image_path)
+        st.image(img, width=200)
+    except:
+        st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # --- Fetch CDC Shingrix content ---
 def fetch_shingrix_content():
@@ -116,7 +125,7 @@ def fetch_shingrix_content():
     return text_summary, images
 
 cdc_text, cdc_images = ("", [])
-if brand=="Shingrix":
+if "Shingrix" in brands and include_cdc:
     cdc_text, cdc_images = fetch_shingrix_content()
 
 # --- Smart visuals mapping ---
@@ -141,19 +150,30 @@ for msg in st.session_state["chat_history"]:
     if msg["role"] == "user":
         st.markdown(f'<div class="user-bubble">👤 {msg["content"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="ai-bubble">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
+        content = msg["content"]
+        if markdown_output:
+            st.markdown(f'<div class="ai-bubble">{content}</div>', unsafe_allow_html=True)
+        else:
+            st.text(content)
 
-        text_lower = msg["content"].lower()
-        # --- Show only relevant images ---
-        if brand == "Shingrix":
+        text_lower = content.lower()
+        # --- Show relevant images ---
+        if "Shingrix" in brands:
             with st.container():
                 st.markdown("### 📊 Relevant Visuals")
+                count = 0
                 for caption, img_info in smart_images.items():
                     if any(k.lower() in text_lower for k in img_info["keywords"]):
+                        if count >= max_visuals:
+                            break
                         try:
                             st.image(img_info["url"], caption=caption, use_container_width=True)
+                            count += 1
                         except:
                             st.warning(f"Could not load image: {img_info['url']}")
+
+        if show_disclaimer:
+            st.info("⚠️ Always refer to approved GSK references and local guidelines when discussing with HCPs.")
 
         with st.expander("📚 References"):
             st.markdown(REFERENCES)
@@ -180,10 +200,11 @@ User input: {user_input}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
-Brand: {brand}
+Brand(s): {', '.join(brands)}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Reference content from Shingrix CDC: {cdc_text}
+Include CDC Shingrix content: {include_cdc}
+Reference content from Shingrix CDC: {cdc_text if include_cdc else 'None'}
 Number of extracted figures: {len(cdc_images)}
 Use APACT technique.
 Response Length: {response_length}
