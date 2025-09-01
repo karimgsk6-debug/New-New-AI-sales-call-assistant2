@@ -1,1 +1,10 @@
+ai_sales_app/
+│
+├── app.py
+├── requirements.txt
+└── visuals/
+    └── shingrix/
+        ├── 1-intro.png
+        ├── 2-BURDEN OF DISEASE.png
+        └── 3-BURDEN OF DISEASE.png
 
