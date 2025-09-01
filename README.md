@@ -1,8 +1,13 @@
-# --- Modern Collapsible README / Top Panel ---
-st.markdown("""
+# --- Modern Collapsible README / Top Panel with uploaded logo ---
+from PIL import Image
+
+# Load the uploaded logo
+gsk_logo = Image.open("[/mnt/data/b3b2d83d-5adc-43ec-a380-bd05c337d9c1.png](https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png)")
+
+st.markdown(f"""
 <div style='max-width:800px; margin:auto; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); overflow:hidden; transition:all 0.3s; background:white;'>
     <div style='display:flex; align-items:center; gap:15px; padding:10px; background:#FF8C00; cursor:pointer;' onclick="document.getElementById('readme_content').style.display = document.getElementById('readme_content').style.display === 'none' ? 'block' : 'none'; this.querySelector('span').innerText = this.querySelector('span').innerText === 'Show Info' ? 'Hide Info' : 'Show Info';">
-        <img src='https://www.gsk.com/media/1234/gsk-logo.png' width='100' style='border-radius:5px'>
+        <img src='data:image/png;base64,{gsk_logo.convert("RGBA").tobytes().hex()}' width='100' style='border-radius:5px'>
         <h3 style='margin:0; color:white;'>💊 AI Sales Call Assistant <span style='font-weight:normal; font-size:0.8em; margin-left:10px;'>Show Info</span></h3>
     </div>
     <div id='readme_content' style='display:none; padding:15px; background:#fff3e0; color:#333;'>
