@@ -8,7 +8,6 @@ import base64
 import groq
 from groq import Groq
 from datetime import datetime
-import re
 
 # --- Optional dependency for Word download ---
 try:
@@ -67,7 +66,6 @@ specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmon
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
 gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
-apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
 # --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
@@ -129,51 +127,45 @@ if all_images:
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# --- Chat history display with icons and bordered bubbles ---
+# --- Chat history display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = ""
-    user_icon = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
-    ai_icon = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
-    
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
 
-        # Embed uploaded images
-        for idx, img in enumerate(all_images):
-            buffered = BytesIO()
-            img.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
-
         if msg["role"] == "user":
+            # User bubble with icon
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                    <img src="{user_icon}" width="30" style='margin-left:10px;'>
+                    <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
                 </div>
             </div>
             """
-        else:  # AI response with APACT steps as sub-bubbles
-            # Split content by APACT steps
-            for step in apact_steps:
-                pattern = re.compile(rf"(?i){step}.*?(?=(?:{'|'.join(apact_steps)})|$)", re.DOTALL)
-                matches = pattern.findall(content)
-                for match in matches:
-                    match = match.strip()
-                    if match:
-                        chat_html += f"""
-                        <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                            <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                                <img src="{ai_icon}" width="30" style='margin-right:10px;'>
-                                <div style='flex:1;'>{match}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                            </div>
+        else:
+            # AI bubble: split by APACT steps
+            # Simple regex to detect APACT headings
+            steps = re.split(r'(?<=\b)(Acknowledge|Probing|Answer|Confirm|Transition)\b', content)
+            current_step = ""
+            for part in steps:
+                part = part.strip()
+                if part in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+                    current_step = part
+                    continue
+                if part:
+                    chat_html += f"""
+                    <div style='display:flex; justify-content:flex-start; margin:5px;'>
+                        <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
+                            <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
+                            <div style='flex:1;'><b>{current_step}</b>: {part}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
                         </div>
-                        """
+                    </div>
+                    """
 
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
