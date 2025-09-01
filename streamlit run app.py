@@ -6,8 +6,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import requests
 from groq import Groq
+import os
 
-# --- API Key (set directly here) ---
+# --- API Key ---
 GROQ_API_KEY = "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"
 
 if not GROQ_API_KEY:
@@ -22,6 +23,12 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
 
+# --- README file display ---
+if os.path.exists("README.md"):
+    with open("README.md", "r", encoding="utf-8") as f:
+        readme_text = f.read()
+    st.markdown(f"<div style='background:#fff3e0;padding:15px;border-radius:10px'>{readme_text}</div>", unsafe_allow_html=True)
+
 # --- References ---
 REFERENCES = """
 1. Clinical Overview about Shingles. CDC. https://www.cdc.gov/shingles/hcp/clinical-overview.html (Accessed: 04 Feb 2024).  
@@ -32,36 +39,12 @@ REFERENCES = """
 6. SHINGRIX Egyptian Drug Authority Approved leaflet, approval date 11/09/2023.  
 """
 
-# --- Streamlit page setup ---
-st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💊", layout="wide")
-
-# --- CSS for styling ---
+# --- CSS styling ---
 st.markdown("""
 <style>
-.user-bubble {
-    background-color: #dcf8c6;
-    color: black;
-    padding: 10px;
-    border-radius: 15px;
-    margin: 5px;
-    max-width: 70%;
-    float: right;
-    clear: both;
-}
-.ai-bubble {
-    background-color: #f1f0f0;
-    color: black;
-    padding: 10px;
-    border-radius: 15px;
-    margin: 5px;
-    max-width: 70%;
-    float: left;
-    clear: both;
-}
-h1, h2, h3, h4, h5, h6 {
-    color: orange !important;
-    font-weight: bold;
-}
+.user-bubble {background:#dcf8c6;padding:10px;border-radius:15px;margin:5px;max-width:70%;float:right;clear:both;}
+.ai-bubble {background:#f1f0f0;padding:10px;border-radius:15px;margin:5px;max-width:70%;float:left;clear:both;}
+h1,h2,h3,h4,h5,h6 {color:orange !important;font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,17 +101,15 @@ except:
 # --- Fetch CDC Shingrix content ---
 def fetch_shingrix_content():
     url = "https://www.cdc.gov/shingles/hcp/clinical-overview"
-    text_summary = ""
-    images = []
+    text_summary, images = "", []
     try:
         r = requests.get(url, timeout=10)
         soup = BeautifulSoup(r.content, "html.parser")
-        paragraphs = [p.get_text() for p in soup.find_all("p")]
-        text_summary = "\n".join(paragraphs[:10])
+        text_summary = "\n".join([p.get_text() for p in soup.find_all("p")][:10])
         for img_tag in soup.find_all("img"):
             img_url = img_tag.get("src")
             if img_url and not img_url.startswith("http"):
-                img_url = urljoin(url,img_url)
+                img_url = urljoin(url, img_url)
             if img_url:
                 images.append(img_url)
     except Exception as e:
@@ -147,7 +128,7 @@ for msg in st.session_state["chat_history"]:
     else:
         st.markdown(f'<div class="ai-bubble">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-        # --- Show visuals dynamically ---
+        # --- Visuals ---
         text_lower = msg["content"].lower()
         with st.container():
             if any(k in text_lower for k in ["rash", "shingles symptoms"]):
@@ -160,22 +141,21 @@ for msg in st.session_state["chat_history"]:
             with st.expander("📚 References"):
                 st.markdown(REFERENCES)
 
-# --- Chat input with send and clear ---
-with st.container():
-    cols = st.columns([10, 1, 1])
-    user_input = cols[0].text_input("Type your message...", key="chat_input", label_visibility="collapsed", on_change=lambda: st.session_state.update(send_triggered=True))
-    send_clicked = cols[1].button("⏩")
-    clear_clicked = cols[2].button("🗑️ Clear Chat")
+# --- Chat input ---
+cols = st.columns([10,1,1])
+user_input = cols[0].text_input("Type your message...", key="chat_input", label_visibility="collapsed")
+send_clicked = cols[1].button("⏩")
+clear_clicked = cols[2].button("🗑️ Clear Chat")
 
 # --- Clear chat ---
 if clear_clicked:
     st.session_state["chat_history"] = []
-    st.experimental_rerun()
+    st.experimental_rerun = None
+    st.experimental_rerun = False
 
-# --- Process AI prompt ---
-if user_input and (send_clicked or st.session_state.get("send_triggered", False)):
+# --- Send AI message ---
+if send_clicked and user_input.strip():
     st.session_state["chat_history"].append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-    st.session_state["send_triggered"] = False
 
     prompt = f"""
 Language: English
@@ -191,7 +171,6 @@ Number of extracted figures: {len(cdc_images)}
 Use APACT technique.
 Response Length: {response_length}
 Response Tone: {response_tone}
-Provide actionable suggestions and include insights from CDC content and figures in your response.
 Always align your response with the following references:
 {REFERENCES}
 """
@@ -207,7 +186,6 @@ Always align your response with the following references:
         )
         ai_output = response.choices[0].message.content.strip()
         st.session_state["chat_history"].append({"role":"assistant","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-        st.experimental_rerun()
     except Exception as e:
         st.error(f"⚠️ Error generating response: {e}")
 
