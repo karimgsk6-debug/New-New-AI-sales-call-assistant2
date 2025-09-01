@@ -1,17 +1,16 @@
-import streamlit as st
+import streamlit as st 
 from PIL import Image
+import requests
 from io import BytesIO, BytesIO as io_bytes
-import fitz
-from pptx import Presentation
+import fitz  # PyMuPDF for PDF extraction
+from pptx import Presentation  # For PPT extraction
 import base64
 import groq
 from groq import Groq
 from datetime import datetime
 import re
-import time
-import html  # for escaping
 
-# Optional Word export
+# --- Optional dependency for Word download ---
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -19,17 +18,17 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# Initialize Groq client
+# --- Initialize Groq client ---
 client = Groq(api_key="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")
 
-# Session state
+# --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Language selection
+# --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# GSK Logo
+# --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
@@ -42,14 +41,14 @@ with col1:
 with col2:
     st.title("🧠 AI Sales Call Assistant")
 
-# Brands
+# --- Brand & product data ---
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
     "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
 
-# Filters/options
+# --- Filters & options ---
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
     "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
@@ -69,7 +68,7 @@ personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influence
 gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
-# Sidebar filters
+# --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
@@ -81,11 +80,11 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# Upload PDF/PPT
+# --- Upload PDF / PPT ---
 uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
 
-# Extract PDF images
+# --- Extract images from PDF ---
 def extract_pdf_images(pdf_file):
     images = []
     try:
@@ -100,7 +99,7 @@ def extract_pdf_images(pdf_file):
         st.warning("⚠️ Could not extract images from PDF")
     return images
 
-# Extract PPT images
+# --- Extract images from PPT ---
 def extract_ppt_images(ppt_file):
     images = []
     try:
@@ -114,82 +113,76 @@ def extract_ppt_images(ppt_file):
         st.warning("⚠️ Could not extract images from PPT")
     return images
 
+# --- Extracted visuals ---
 pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
 ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
 
-# Display visuals
+# --- Display uploaded visuals ---
 if all_images:
     st.subheader("Uploaded Brand Visuals")
     for img in all_images:
         st.image(img, width=300)
 
-# Clear chat
+# --- Clear chat ---
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# Chat placeholder
+# --- Chat history display with icons and bordered bubbles ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
-def display_chat(typing_effect=True, delay=0.2):
-    chat_html = "<div id='chat-container' style='max-height:600px; overflow-y:auto; padding:10px;'>"
+def display_chat():
+    chat_html = ""
+    user_icon = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
+    ai_icon = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
+    
     for msg in st.session_state.chat_history:
-        content = msg["content"]
-        time_msg = msg.get("time","")
-        # Split AI messages into steps if needed
-        if msg["role"] == "ai":
-            steps = re.split(r"(Acknowledge|Probing|Answer|Confirm|Transition)", content)
-            steps = [s.strip() for s in steps if s.strip()]
-        else:
-            steps = [content]
+        time = msg.get("time", "")
+        content = msg["content"].replace('\n', '<br>')
+        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+            content = content.replace(step, f"<b>{step}</b><br>")
 
-        for step in steps:
-            step_safe = html.escape(step).replace("\n","<br>")
-            if msg["role"]=="ai":
-                step_safe = re.sub(r"(Acknowledge|Probing|Answer|Confirm|Transition)", r"<b>\1</b>", step_safe)
+        # Embed uploaded images
+        for idx, img in enumerate(all_images):
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
 
-            # Sender styling
-            if msg["role"]=="user":
-                icon_url = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
-                align="right"
-                bg_color="#dcf8c6"
-                border_radius="15px 15px 0px 15px"
-            else:
-                icon_url = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
-                align="left"
-                bg_color="#f0f2f6"
-                border_radius="15px 15px 15px 0px"
-
-            # Bubble HTML
+        if msg["role"] == "user":
             chat_html += f"""
-            <div style='display:flex; justify-content:{'flex-end' if align=='right' else 'flex-start'}; margin:5px;'>
-                <div style='background:{bg_color}; padding:10px; border-radius:{border_radius}; max-width:80%; display:flex; align-items:flex-start; border:2px solid #888;'>
-                    <img src="{icon_url}" width="30" style='margin-right:10px;'>
-                    <div style='flex:1;'>{step_safe}<div style='font-size:10px; color:gray; text-align:right;'>{time_msg}</div></div>
+            <div style='display:flex; justify-content:flex-end; margin:5px;'>
+                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    <img src="{user_icon}" width="30" style='margin-left:10px;'>
                 </div>
             </div>
             """
-            chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-            if typing_effect and msg["role"]=="ai":
-                time.sleep(delay)
-    chat_html += "</div>"
+        else:  # AI response
+            chat_html += f"""
+            <div style='display:flex; justify-content:flex-start; margin:5px;'>
+                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
+                    <img src="{ai_icon}" width="30" style='margin-right:10px;'>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                </div>
+            </div>
+            """
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
-# Chat input
+# --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-
+    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.
+1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
@@ -217,24 +210,24 @@ Response Tone: {response_tone}
 """
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-                  {"role":"user","content":prompt}],
+        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
+                  {"role": "user", "content": prompt}],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
 
-# Word download
+# --- Word download ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
     if latest_ai:
         doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
+        doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
         word_buffer = io_bytes()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
-# Brand leaflet
+# --- Brand leaflet link ---
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
