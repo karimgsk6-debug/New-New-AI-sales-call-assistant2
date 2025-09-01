@@ -28,7 +28,16 @@ if os.path.exists("README.md"):
     with open("README.md", "r", encoding="utf-8") as f:
         readme_text = f.read()
     st.markdown(f"<div style='background:#fff3e0;padding:15px;border-radius:10px'>{readme_text}</div>", unsafe_allow_html=True)
-
+# --- GSK Logo ---
+logo_local_path = "images/gsk_logo.png"
+logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+col1, col2 = st.columns([1,5])
+with col1:
+    try:
+        logo_img = Image.open(logo_local_path)
+        st.image(logo_img, width=120)
+    except:
+        st.image(logo_fallback_url, width=120)
 # --- References ---
 REFERENCES = """
 1. Clinical Overview about Shingles. CDC. https://www.cdc.gov/shingles/hcp/clinical-overview.html (Accessed: 04 Feb 2024).  
