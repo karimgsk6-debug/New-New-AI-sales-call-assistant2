@@ -67,6 +67,7 @@ specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmon
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
 gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
+apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
 # --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
@@ -140,8 +141,6 @@ def display_chat():
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
-        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
 
         # Embed uploaded images
         for idx, img in enumerate(all_images):
@@ -159,15 +158,23 @@ def display_chat():
                 </div>
             </div>
             """
-        else:  # AI response
-            chat_html += f"""
-            <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <img src="{ai_icon}" width="30" style='margin-right:10px;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                </div>
-            </div>
-            """
+        else:  # AI response with APACT steps as sub-bubbles
+            # Split content by APACT steps
+            for step in apact_steps:
+                pattern = re.compile(rf"(?i){step}.*?(?=(?:{'|'.join(apact_steps)})|$)", re.DOTALL)
+                matches = pattern.findall(content)
+                for match in matches:
+                    match = match.strip()
+                    if match:
+                        chat_html += f"""
+                        <div style='display:flex; justify-content:flex-start; margin:5px;'>
+                            <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
+                                <img src="{ai_icon}" width="30" style='margin-right:10px;'>
+                                <div style='flex:1;'>{match}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                            </div>
+                        </div>
+                        """
+
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
