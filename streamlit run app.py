@@ -5,7 +5,6 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import requests
-import groq
 from groq import Groq
 
 # --- API Key (set it directly here) ---
@@ -58,7 +57,7 @@ persona = st.sidebar.selectbox("Select HCP Persona", [
 response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
 
-# Brand images (optional display)
+# Brand images
 gsk_brands_images = {
     "Trelegy": "https://www.example.com/trelegy.png",
     "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
@@ -104,14 +103,12 @@ def display_chat():
 
 display_chat()
 
-# Chat input with send button
-col1, col2 = st.columns([8,1])
-with col1:
+# Chat input with inline send button (Telegram/Teams style)
+with st.form(key="chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="chat_input")
-with col2:
-    send_pressed = st.button("📩")
+    send_pressed = st.form_submit_button("📨 Send")
 
-# Fetch CDC Shingrix content (for AI only)
+# Fetch CDC Shingrix content
 def fetch_shingrix_content():
     url = "https://www.cdc.gov/shingles/hcp/clinical-overview"
     text_summary = ""
@@ -136,11 +133,10 @@ if brand=="Shingrix":
     cdc_text, cdc_images = fetch_shingrix_content()
 
 # Prepare and send AI prompt
-if (send_pressed or (user_input.strip() and st.session_state.get("chat_input"))) and GROQ_API_KEY:
-    if user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+if send_pressed and user_input.strip() and GROQ_API_KEY:
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
 
-        prompt = f"""
+    prompt = f"""
 Language: {language}
 User input: {user_input}
 RACE Segment: {segment}
@@ -160,19 +156,19 @@ Always align your response with the following references:
 {references}
 """
 
-        response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-                {"role":"user","content":prompt}
-            ],
-            temperature=0.7
-        )
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        messages=[
+            {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
+            {"role":"user","content":prompt}
+        ],
+        temperature=0.7
+    )
 
-        ai_output = response.choices[0].message.content
-        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+    ai_output = response.choices[0].message.content
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-        display_chat()
+    display_chat()
 
 # Word download
 if DOCX_AVAILABLE and st.session_state.chat_history:
