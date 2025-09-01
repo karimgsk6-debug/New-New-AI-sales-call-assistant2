@@ -128,51 +128,46 @@ if all_images:
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# --- Chat history display ---
+# --- Chat history display with icons and bordered bubbles ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = ""
-    steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
-
+    user_icon = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
+    ai_icon = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
+    
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>').strip()
+        content = msg["content"].replace('\n', '<br>')
+        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+            content = content.replace(step, f"<b>{step}</b><br>")
+
+        # Embed uploaded images
+        for idx, img in enumerate(all_images):
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
 
         if msg["role"] == "user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                    <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
+                    <img src="{user_icon}" width="30" style='margin-left:10px;'>
                 </div>
             </div>
             """
-        else:
-            pattern = r'(' + '|'.join(steps) + r')'
-            parts = re.split(pattern, content)
-            if parts[0].strip() and parts[0].strip() not in steps:
-                parts = ["Info"] + parts
-            i = 0
-            while i < len(parts):
-                step_name = parts[i].strip()
-                text = ""
-                if i + 1 < len(parts):
-                    text = parts[i + 1].strip()
-                if step_name not in steps + ["Info"]:
-                    text = step_name + "<br>" + text
-                    step_name = "Info"
-                if text:
-                    chat_html += f"""
-                    <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                        <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                            <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
-                            <div style='flex:1;'><b>{step_name}</b>: {text}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                        </div>
-                    </div>
-                    """
-                i += 2
+        else:  # AI response
+            chat_html += f"""
+            <div style='display:flex; justify-content:flex-start; margin:5px;'>
+                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
+                    <img src="{ai_icon}" width="30" style='margin-right:10px;'>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                </div>
+            </div>
+            """
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
@@ -215,7 +210,8 @@ Response Tone: {response_tone}
 """
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},{"role": "user", "content": prompt}],
+        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
+                  {"role": "user", "content": prompt}],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
