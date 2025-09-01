@@ -1,6 +1,5 @@
 import streamlit as st 
 from PIL import Image
-import requests
 from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF for PDF extraction
 from pptx import Presentation  # For PPT extraction
@@ -66,7 +65,8 @@ objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
 gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
-sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
+sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
+apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
 # --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
@@ -128,42 +128,29 @@ if all_images:
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# --- Chat history display with icons and bordered bubbles ---
+# --- Chat history display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = ""
-    user_icon = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
-    ai_icon = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
-    
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
-        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
-
-        # Embed uploaded images
-        for idx, img in enumerate(all_images):
-            buffered = BytesIO()
-            img.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
-
+        content = msg["content"].replace('\n', '<br>').strip()
         if msg["role"] == "user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                    <img src="{user_icon}" width="30" style='margin-left:10px;'>
+                    <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
                 </div>
             </div>
             """
-        else:  # AI response
+        else:
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
                 <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <img src="{ai_icon}" width="30" style='margin-right:10px;'>
+                    <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
                 </div>
             </div>
@@ -179,6 +166,8 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+
+    # --- Construct the prompt ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
@@ -198,20 +187,23 @@ Doctor Specialty: {specialty}
 HCP Persona: {persona}
 Approved Sales Approaches:
 {approaches_str}
-Sales Call Flow Steps:
+Sales Call Flow Steps (Main structure the rep should follow):
 {flow_str}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique.
+APACT Steps (only to handle objections or concerns):
+Acknowledge → Probing → Answer → Confirm → Transition
+Use APACT only where relevant to overcome barriers or objections.
 Include references:
 {references}
 Embed the uploaded PDF/PPT visuals where relevant.
-Provide actionable suggestions tailored to this persona.
+Provide actionable suggestions step by step in a 'thinking guide' style so the rep can follow each step of the sales call flow.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
+
+    # --- Generate AI response ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-                  {"role": "user", "content": prompt}],
+        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},{"role": "user", "content": prompt}],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
