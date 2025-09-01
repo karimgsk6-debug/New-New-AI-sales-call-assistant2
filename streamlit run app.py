@@ -9,6 +9,7 @@ import groq
 from groq import Groq
 from datetime import datetime
 import re
+import time
 
 # --- Optional dependency for Word download ---
 try:
@@ -132,23 +133,61 @@ if st.button("🗑️ Clear Chat / مسح المحادثة"):
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
-def display_chat():
-    chat_html = ""
+def display_chat(typing_effect=True, delay=0.5):
+    chat_placeholder.empty()  # Clear previous content
+    chat_html = "<div style='max-height:600px; overflow-y:auto; padding:10px;'>"
+
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
-        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
-        # Embed uploaded images
-        for idx, img in enumerate(all_images):
-            buffered = BytesIO()
-            img.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
-        if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
+        time_msg = msg.get("time", "")
+        content = msg["content"]
+
+        # Split AI response into APACT steps
+        if msg["role"] == "ai":
+            steps = re.split(r"(Acknowledge|Probing|Answer|Confirm|Transition)", content)
+            steps = [s.strip() for s in steps if s.strip()]
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
+            steps = [content]
+
+        for step in steps:
+            # Styles per sender
+            if msg["role"] == "user":
+                icon_url = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
+                align = "right"
+                bg_color = "#dcf8c6"
+                border_radius = "15px 15px 0px 15px"
+            else:
+                icon_url = "https://img.icons8.com/emoji/48/000000/robot-emoji.png"
+                align = "left"
+                bg_color = "#f0f2f6"
+                border_radius = "15px 15px 15px 0px"
+                step = re.sub(r"(Acknowledge|Probing|Answer|Confirm|Transition)", r"<b>\1</b>", step)
+
+            # Embed images in AI bubble
+            images_html = ""
+            if msg["role"] == "ai" and all_images:
+                for img in all_images:
+                    buffered = BytesIO()
+                    img.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    images_html += f'<br><img src="data:image/png;base64,{img_str}" width="300" style="border-radius:10px;">'
+
+            # Clickable links
+            step = re.sub(r'(https?://\S+)', r'<a href="\1" target="_blank">\1</a>', step)
+
+            # Append bubble HTML
+            chat_html += f"""
+            <div style='display:flex; justify-content:{'flex-end' if align=='right' else 'flex-start'}; margin:5px;'>
+                <div style='background:{bg_color}; padding:10px; border-radius:{border_radius}; max-width:80%; display:flex; align-items:flex-start;'>
+                    <img src="{icon_url}" width="30" style='margin-right:10px;'>
+                    <div style='flex:1;'>{step}{images_html}<div style='font-size:10px; color:gray; text-align:right;'>{time_msg}</div></div>
+                </div>
+            </div>
+            """
+            chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+            if typing_effect and msg["role"] == "ai":
+                time.sleep(delay)  # Typing effect per step
+
+    chat_html += "</div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
@@ -191,7 +230,10 @@ Response Tone: {response_tone}
 """
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
