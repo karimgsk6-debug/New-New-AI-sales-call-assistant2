@@ -2,13 +2,26 @@ import streamlit as st
 from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF for PDF extraction
-from pptx import Presentation  # For PPT extraction
 import base64
 import groq
 from groq import Groq
 from datetime import datetime
-import re
+
+# --- Optional dependency for PDF ---
+try:
+    import fitz  # PyMuPDF
+    PDF_SUPPORT = True
+except ImportError:
+    st.warning("⚠️ PyMuPDF not installed. PDF extraction disabled.")
+    PDF_SUPPORT = False
+
+# --- Optional dependency for PPT ---
+try:
+    from pptx import Presentation
+    PPT_SUPPORT = True
+except ImportError:
+    st.warning("⚠️ python-pptx not installed. PPT extraction disabled.")
+    PPT_SUPPORT = False
 
 # --- Optional dependency for Word download ---
 try:
@@ -81,13 +94,16 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # --- Upload PDF / PPT ---
-uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
-uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf") if PDF_SUPPORT else None
+uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"]) if PPT_SUPPORT else None
 
 # --- Extract text and images from PDF ---
 def extract_pdf_text_and_images(pdf_file):
     data = []
+    if not PDF_SUPPORT or not pdf_file:
+        return data
     try:
+        import fitz
         doc = fitz.open(pdf_file)
         for page_number, page in enumerate(doc, start=1):
             page_text = page.get_text()
@@ -96,12 +112,7 @@ def extract_pdf_text_and_images(pdf_file):
                 base_image = doc.extract_image(xref)
                 image_bytes = base_image["image"]
                 img_obj = Image.open(BytesIO(image_bytes))
-                data.append({
-                    "type": "PDF",
-                    "page": page_number,
-                    "text": page_text[:500],
-                    "image": img_obj
-                })
+                data.append({"type": "PDF", "page": page_number, "text": page_text[:500], "image": img_obj})
     except:
         st.warning("⚠️ Could not extract PDF text/images")
     return data
@@ -109,7 +120,10 @@ def extract_pdf_text_and_images(pdf_file):
 # --- Extract text and images from PPT ---
 def extract_ppt_text_and_images(ppt_file):
     data = []
+    if not PPT_SUPPORT or not ppt_file:
+        return data
     try:
+        from pptx import Presentation
         prs = Presentation(ppt_file)
         for slide_number, slide in enumerate(prs.slides, start=1):
             slide_text = ""
@@ -120,19 +134,14 @@ def extract_ppt_text_and_images(ppt_file):
                 if shape.shape_type == 13:  # Picture
                     image = shape.image
                     img_obj = Image.open(BytesIO(image.blob))
-                    data.append({
-                        "type": "PPT",
-                        "slide": slide_number,
-                        "text": slide_text[:500],
-                        "image": img_obj
-                    })
+                    data.append({"type": "PPT", "slide": slide_number, "text": slide_text[:500], "image": img_obj})
     except:
         st.warning("⚠️ Could not extract PPT text/images")
     return data
 
 # --- Combine visuals ---
-pdf_data = extract_pdf_text_and_images(uploaded_pdf) if uploaded_pdf else []
-ppt_data = extract_ppt_text_and_images(uploaded_ppt) if uploaded_ppt else []
+pdf_data = extract_pdf_text_and_images(uploaded_pdf)
+ppt_data = extract_ppt_text_and_images(uploaded_ppt)
 all_visuals = pdf_data + ppt_data
 
 # --- Function to select relevant images ---
@@ -154,7 +163,6 @@ if st.button("🗑️ Clear Chat / مسح المحادثة"):
 # --- Chat display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
-
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
@@ -164,7 +172,6 @@ def display_chat():
             content = content.replace(step, f"<b>{step}</b><br>")
         chat_html += f"<div style='text-align:{'right' if msg['role']=='user' else 'left'}; background:{'#dcf8c6' if msg['role']=='user' else '#f0f2f6'}; padding:10px; border-radius:15px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
 display_chat()
 
 # --- Chat input ---
