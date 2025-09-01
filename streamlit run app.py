@@ -6,19 +6,22 @@ from PIL import Image
 import fitz  # PyMuPDF for PDF extraction
 
 # --- Configuration ---
-PDF_PATH = "SHINGRIX - 2025 EGYPT eDetail-aid2.pdf"
-VISUALS_FOLDER = "visuals-shingrix"
+PDF_PATH = os.path.join(os.getcwd(), "SHINGRIX - 2025 EGYPT eDetail-aid2.pdf")
+VISUALS_FOLDER = os.path.join(os.getcwd(), "visuals-shingrix")
 
 # --- Load Groq API Key securely ---
 api_key = os.environ.get("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")
 if not api_key:
-    st.error("❌ GROQ_API_KEY not found. Please set it as an environment variable.")
+    st.error("❌ GROQ_API_KEY not found. Please set it first using: setx GROQ_API_KEY \"your_api_key_here\" (then restart the terminal).")
     st.stop()
 else:
     client = Groq(api_key=api_key)
 
 # --- App Header ---
-st.image("gsk_logo.png", width=200)
+logo_path = os.path.join(os.getcwd(), "gsk_logo.png")
+if os.path.exists(logo_path):
+    st.image(logo_path, width=200)
+
 st.markdown(
     "<h2 style='color: orange; font-weight: bold;'>💊 AI Sales Call Assistant - SHINGRIX</h2>",
     unsafe_allow_html=True,
@@ -39,11 +42,15 @@ st.markdown(
 # --- Extract Pages from PDF ---
 def extract_pdf_images(pdf_path):
     images = []
+    if not os.path.exists(pdf_path):
+        st.warning("⚠️ PDF not found, please add the SHINGRIX detailing PDF.")
+        return images
+
     try:
         doc = fitz.open(pdf_path)
         for page_num in range(len(doc)):
             pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
-            img_path = f"page_{page_num+1}.png"
+            img_path = os.path.join(os.getcwd(), f"page_{page_num+1}.png")
             pix.save(img_path)
             images.append(img_path)
     except Exception as e:
@@ -93,7 +100,10 @@ if st.sidebar.button("Generate AI Response"):
     else:
         all_visuals = pdf_images + folder_images
         for img_path in all_visuals:
-            st.image(Image.open(img_path), caption=os.path.basename(img_path), use_container_width=True)
+            try:
+                st.image(Image.open(img_path), caption=os.path.basename(img_path), use_container_width=True)
+            except Exception as e:
+                st.warning(f"⚠️ Could not load image {img_path}: {e}")
 
 # --- Disclaimer ---
 st.markdown("---")
