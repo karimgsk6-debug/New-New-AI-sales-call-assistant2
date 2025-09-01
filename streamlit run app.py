@@ -119,6 +119,22 @@ cdc_text, cdc_images = ("", [])
 if brand=="Shingrix":
     cdc_text, cdc_images = fetch_shingrix_content()
 
+# --- Smart visuals mapping ---
+smart_images = {
+    "Shingles rash": {
+        "url": "https://www.cdc.gov/shingles/images/shingles-rash.jpg",
+        "keywords": ["rash", "shingles symptoms", "lesion"]
+    },
+    "Herpes Zoster Incidence by Age": {
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3a/Herpes_zoster_incidence_chart.png",
+        "keywords": ["incidence", "cases", "risk by age"]
+    },
+    "Disease burden due to Herpes Zoster": {
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Herpes_zoster_burden.png",
+        "keywords": ["disease burden", "complications", "population ≥50"]
+    }
+}
+
 # --- Display chat ---
 st.subheader("💬 AI Sales Response")
 for msg in st.session_state["chat_history"]:
@@ -127,15 +143,17 @@ for msg in st.session_state["chat_history"]:
     else:
         st.markdown(f'<div class="ai-bubble">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-        # --- Dynamically show all CDC images for Shingrix ---
-        if brand == "Shingrix" and cdc_images:
+        text_lower = msg["content"].lower()
+        # --- Show only relevant images ---
+        if brand == "Shingrix":
             with st.container():
-                st.markdown("### 📊 Visuals from CDC")
-                for idx, img_url in enumerate(cdc_images):
-                    try:
-                        st.image(img_url, caption=f"Figure {idx+1}", use_container_width=True)
-                    except:
-                        st.warning(f"Could not load image: {img_url}")
+                st.markdown("### 📊 Relevant Visuals")
+                for caption, img_info in smart_images.items():
+                    if any(k.lower() in text_lower for k in img_info["keywords"]):
+                        try:
+                            st.image(img_info["url"], caption=caption, use_container_width=True)
+                        except:
+                            st.warning(f"Could not load image: {img_info['url']}")
 
         with st.expander("📚 References"):
             st.markdown(REFERENCES)
