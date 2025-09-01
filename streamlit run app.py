@@ -20,7 +20,7 @@ except ImportError:
 
 # AI Client (Groq or any LLM provider)
 from groq import Groq
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+client = Groq(api_key=os.environ.get("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"))
 
 # --- App Header ---
 st.set_page_config(page_title="GSK AI Detailing Assistant", layout="wide")
