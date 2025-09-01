@@ -2,6 +2,9 @@ import streamlit as st
 from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
+import fitz  # PyMuPDF for PDF extraction
+from pptx import Presentation  # For PPT extraction
+import base64
 import groq
 from groq import Groq
 from datetime import datetime
@@ -45,16 +48,6 @@ gsk_brands = {
     "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
 
-# --- Visual references per brand (official URLs) ---
-gsk_brands_images = {
-    "Shingrix": [
-        "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-        "https://www.cdc.gov/shingles/images/shingles-rash.jpg"
-    ],
-    "Trelegy": ["https://www.gsk.com/en-gb/content/dam/gsk/images/trelegy-inhaler.png"],
-    "Zejula": ["https://www.gsk.com/en-gb/content/dam/gsk/images/zejula.png"]
-}
-
 # --- Filters & options ---
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
@@ -62,7 +55,6 @@ race_segments = [
     "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
-
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -70,7 +62,6 @@ doctor_barriers = [
     "Not convinced HZ Vx effective",
     "Accessibility issues"
 ]
-
 objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
@@ -89,16 +80,49 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Display brand image safely ---
-try:
-    if gsk_brands_images[brand]:
-        img_url = gsk_brands_images[brand][0]
-        response = requests.get(img_url)
-        img = Image.open(BytesIO(response.content))
-        st.image(img, width=200)
-except:
-    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+# --- Upload PDF / PPT ---
+uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
+uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+
+# --- Extract images from PDF ---
+def extract_pdf_images(pdf_file):
+    images = []
+    try:
+        doc = fitz.open(pdf_file)
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                images.append(Image.open(BytesIO(image_bytes)))
+    except:
+        st.warning("⚠️ Could not extract images from PDF")
+    return images
+
+# --- Extract images from PPT ---
+def extract_ppt_images(ppt_file):
+    images = []
+    try:
+        prs = Presentation(ppt_file)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if shape.shape_type == 13:  # Picture
+                    image = shape.image
+                    images.append(Image.open(BytesIO(image.blob)))
+    except:
+        st.warning("⚠️ Could not extract images from PPT")
+    return images
+
+# --- Extracted visuals ---
+pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
+ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
+all_images = pdf_images + ppt_images
+
+# --- Display uploaded visuals ---
+if all_images:
+    st.subheader("Uploaded Brand Visuals")
+    for img in all_images:
+        st.image(img, width=300)
 
 # --- Clear chat ---
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
@@ -113,49 +137,37 @@ def display_chat():
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
-
-        # Bold APACT steps
         for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
             content = content.replace(step, f"<b>{step}</b><br>")
-
-        # Convert Markdown image links to HTML <img>
-        content = re.sub(r'!\[.*?\]\((.*?)\)', r'<img src="\1" width="300">', content)
-
+        # Embed uploaded images
+        for idx, img in enumerate(all_images):
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            content += f'<br><img src="data:image/png;base64,{img_str}" width="300">'
         if msg["role"] == "user":
-            chat_html += f"""
-            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
         else:
-            chat_html += f"""
-            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
-# --- Chat input using Streamlit form ---
+# --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
-    # --- Prepare AI prompt with references & visuals ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
-
     references = """
 1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
 """
-
     prompt = f"""
 Language: {language}
 User input: {user_input}
@@ -169,35 +181,20 @@ Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
 {flow_str}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique.
+Include references:
+{references}
+Embed the uploaded PDF/PPT visuals where relevant.
+Provide actionable suggestions tailored to this persona.
 Response Length: {response_length}
 Response Tone: {response_tone}
-
-⚠️ Include medically accurate info referencing:
-{references}
-
-Embed relevant visuals using Markdown image links or HTML <img> tags.
-Fetch images dynamically from official CDC or GSK URLs if applicable.
-Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
-
-    # --- Call Groq API ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-            {"role": "user", "content": prompt}
-        ],
+        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},{"role": "user", "content": prompt}],
         temperature=0.7
     )
-
     ai_output = response.choices[0].message.content
-
-    # --- Append official/fallback visuals dynamically ---
-    for url in gsk_brands_images.get(brand, []):
-        if url not in ai_output:
-            ai_output += f"\n\n![Related Visual]({url})"
-
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
 
