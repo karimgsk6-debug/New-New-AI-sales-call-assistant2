@@ -45,13 +45,14 @@ gsk_brands = {
     "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
 
+# --- Visual references per brand (official URLs) ---
 gsk_brands_images = {
     "Shingrix": [
         "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
         "https://www.cdc.gov/shingles/images/shingles-rash.jpg"
     ],
-    "Trelegy": ["https://www.example.com/trelegy.png"],
-    "Zejula": ["https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"]
+    "Trelegy": ["https://www.gsk.com/en-gb/content/dam/gsk/images/trelegy-inhaler.png"],
+    "Zejula": ["https://www.gsk.com/en-gb/content/dam/gsk/images/zejula.png"]
 }
 
 # --- Filters & options ---
@@ -144,16 +145,16 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    # --- Prepare AI prompt with references and visuals ---
+    # --- Prepare AI prompt with references & visuals ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
 
     references = """
-    1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
-    2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-    3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-    4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
-    """
+1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
+4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+"""
 
     prompt = f"""
 Language: {language}
@@ -175,7 +176,8 @@ Response Tone: {response_tone}
 ⚠️ Include medically accurate info referencing:
 {references}
 
-Embed relevant visuals using Markdown image links or HTML <img> tags where appropriate.
+Embed relevant visuals using Markdown image links or HTML <img> tags.
+Fetch images dynamically from official CDC or GSK URLs if applicable.
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
 
@@ -191,7 +193,7 @@ Provide actionable suggestions tailored to this persona in a friendly and profes
 
     ai_output = response.choices[0].message.content
 
-    # --- Append fallback visuals if AI missed ---
+    # --- Append official/fallback visuals dynamically ---
     for url in gsk_brands_images.get(brand, []):
         if url not in ai_output:
             ai_output += f"\n\n![Related Visual]({url})"
