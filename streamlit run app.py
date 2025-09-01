@@ -1,9 +1,8 @@
 import streamlit as st
 from PIL import Image
-import requests
 from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF for PDF extraction
-from pptx import Presentation  # For PPT extraction
+from pptx import Presentation
 import base64
 import groq
 from groq import Groq
@@ -134,8 +133,8 @@ st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
 def display_chat(typing_effect=True, delay=0.5):
-    chat_placeholder.empty()  # Clear previous content
-    chat_html = "<div style='max-height:600px; overflow-y:auto; padding:10px;'>"
+    chat_placeholder.empty()
+    chat_html = "<div id='chat-container' style='max-height:600px; overflow-y:auto; padding:10px;'>"
 
     for msg in st.session_state.chat_history:
         time_msg = msg.get("time", "")
@@ -149,6 +148,9 @@ def display_chat(typing_effect=True, delay=0.5):
             steps = [content]
 
         for step in steps:
+            # Clean extra markdown and stray characters
+            step = step.replace("**", "").strip()
+
             # Styles per sender
             if msg["role"] == "user":
                 icon_url = "https://img.icons8.com/emoji/48/000000/person-emoji.png"
@@ -162,7 +164,7 @@ def display_chat(typing_effect=True, delay=0.5):
                 border_radius = "15px 15px 15px 0px"
                 step = re.sub(r"(Acknowledge|Probing|Answer|Confirm|Transition)", r"<b>\1</b>", step)
 
-            # Embed images in AI bubble
+            # Embed images
             images_html = ""
             if msg["role"] == "ai" and all_images:
                 for img in all_images:
@@ -184,8 +186,10 @@ def display_chat(typing_effect=True, delay=0.5):
             </div>
             """
             chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+            # Typing effect per step
             if typing_effect and msg["role"] == "ai":
-                time.sleep(delay)  # Typing effect per step
+                time.sleep(delay)
 
     chat_html += "</div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
@@ -253,3 +257,11 @@ if DOCX_AVAILABLE and st.session_state.chat_history:
 
 # --- Brand leaflet link ---
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+
+# --- Auto-scroll to latest message using JS ---
+st.markdown("""
+<script>
+var chatContainer = window.parent.document.querySelector('#chat-container');
+if(chatContainer){chatContainer.scrollTop = chatContainer.scrollHeight;}
+</script>
+""", unsafe_allow_html=True)
