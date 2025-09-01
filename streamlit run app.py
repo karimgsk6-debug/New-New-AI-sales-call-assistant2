@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
 from datetime import datetime
@@ -108,9 +108,8 @@ def fetch_shingrix_content():
         text_summary = "\n".join([p.get_text() for p in soup.find_all("p")][:10])
         for img_tag in soup.find_all("img"):
             img_url = img_tag.get("src")
-            if img_url and not img_url.startswith("http"):
-                img_url = urljoin(url, img_url)
             if img_url:
+                img_url = urljoin(url, img_url)  # make full URL
                 images.append(img_url)
     except Exception as e:
         text_summary = f"Could not fetch content: {e}"
@@ -128,18 +127,18 @@ for msg in st.session_state["chat_history"]:
     else:
         st.markdown(f'<div class="ai-bubble">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-        # --- Visuals ---
-        text_lower = msg["content"].lower()
-        with st.container():
-            if any(k in text_lower for k in ["rash", "shingles symptoms"]):
-                st.image("https://www.cdc.gov/shingles/images/shingles-rash.jpg", caption="Shingles rash (CDC)", use_column_width=True)
-            if any(k in text_lower for k in ["incidence", "cases", "risk by age"]):
-                st.image("https://upload.wikimedia.org/wikipedia/commons/3/3a/Herpes_zoster_incidence_chart.png", caption="Herpes Zoster Incidence by Age", use_column_width=True)
-            if any(k in text_lower for k in ["disease burden", "complications", "population ≥50"]):
-                st.image("https://upload.wikimedia.org/wikipedia/commons/8/87/Herpes_zoster_burden.png", caption="Disease burden due to Herpes Zoster", use_column_width=True)
+        # --- Dynamically show all CDC images for Shingrix ---
+        if brand == "Shingrix" and cdc_images:
+            with st.container():
+                st.markdown("### 📊 Visuals from CDC")
+                for idx, img_url in enumerate(cdc_images):
+                    try:
+                        st.image(img_url, caption=f"Figure {idx+1}", use_container_width=True)
+                    except:
+                        st.warning(f"Could not load image: {img_url}")
 
-            with st.expander("📚 References"):
-                st.markdown(REFERENCES)
+        with st.expander("📚 References"):
+            st.markdown(REFERENCES)
 
 # --- Chat input ---
 cols = st.columns([10,1,1])
