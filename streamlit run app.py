@@ -5,16 +5,15 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import requests
-import os
-from dotenv import load_dotenv
 import groq
 from groq import Groq
 
-# --- Load environment ---
-load_dotenv()
-GROQ_API_KEY = os.getenv("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")
+# --- API Key (set it directly here) ---
+# ⚠️ Replace with your actual key
+GROQ_API_KEY = "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"
+
 if not GROQ_API_KEY:
-    st.error("❌ Groq API key not found. Add it to .env or environment variables.")
+    st.error("❌ Groq API key not set. Please add it in the script.")
 else:
     client = Groq(api_key=GROQ_API_KEY)
 
