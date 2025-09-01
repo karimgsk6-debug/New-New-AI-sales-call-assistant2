@@ -94,7 +94,7 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # --- Link to SHINGRIX PDF directly ---
-pdf_path = "SHINGRIX - 2025 EGYPT eDetail-aid2.pdf"
+pdf_path = "Shingrix-16Dec2024Validation_DA_EGY.pdf"
 uploaded_pdf = pdf_path if PDF_SUPPORT else None
 
 # Optional: Keep PPT uploader
