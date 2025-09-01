@@ -5,6 +5,7 @@ from io import BytesIO, BytesIO as io_bytes
 import groq
 from groq import Groq
 from datetime import datetime
+import re
 
 # --- Optional dependency for Word download ---
 try:
@@ -15,13 +16,13 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # Add your Groq API key here
+client = Groq(api_key="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")
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language ---
+# --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
 # --- GSK Logo ---
@@ -39,14 +40,18 @@ with col2:
 
 # --- Brand & product data ---
 gsk_brands = {
-    "Shingrix": "https://example.com/shingrix-leaflet",
-    "Trelegy": "https://example.com/trelegy-leaflet",
-    "Zejula": "https://example.com/zejula-leaflet",
+    "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
+    "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
+    "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
+
 gsk_brands_images = {
-    "Trelegy": "https://www.example.com/trelegy.png",
-    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
+    "Shingrix": [
+        "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+        "https://www.cdc.gov/shingles/images/shingles-rash.jpg"
+    ],
+    "Trelegy": ["https://www.example.com/trelegy.png"],
+    "Zejula": ["https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"]
 }
 
 # --- Filters & options ---
@@ -56,6 +61,7 @@ race_segments = [
     "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
+
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -63,19 +69,11 @@ doctor_barriers = [
     "Not convinced HZ Vx effective",
     "Accessibility issues"
 ]
+
 objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
-personas = [
-    "Uncommitted Vaccinator",
-    "Reluctant Efficiency",
-    "Patient Influenced",
-    "Committed Vaccinator"
-]
-gsk_approaches = [
-    "Use data-driven evidence",
-    "Focus on patient outcomes",
-    "Leverage storytelling techniques"
-]
+personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
+gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
 # --- Sidebar filters ---
@@ -91,14 +89,12 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # --- Display brand image safely ---
-image_path = gsk_brands_images.get(brand)
 try:
-    if image_path.startswith("http"):
-        response = requests.get(image_path)
+    if gsk_brands_images[brand]:
+        img_url = gsk_brands_images[brand][0]
+        response = requests.get(img_url)
         img = Image.open(BytesIO(response.content))
-    else:
-        img = Image.open(image_path)
-    st.image(img, width=200)
+        st.image(img, width=200)
 except:
     st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
@@ -118,9 +114,11 @@ def display_chat():
         content = msg["content"].replace('\n', '<br>')
 
         # Bold APACT steps
-        apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
-        for step in apact_steps:
+        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
             content = content.replace(step, f"<b>{step}</b><br>")
+
+        # Convert Markdown image links to HTML <img>
+        content = re.sub(r'!\[.*?\]\((.*?)\)', r'<img src="\1" width="300">', content)
 
         if msg["role"] == "user":
             chat_html += f"""
@@ -145,10 +143,17 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-    
-    # --- Prepare AI prompt ---
+
+    # --- Prepare AI prompt with references and visuals ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
+
+    references = """
+    1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+    2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+    3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
+    4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+    """
 
     prompt = f"""
 Language: {language}
@@ -166,6 +171,11 @@ Sales Call Flow Steps:
 Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
 Response Length: {response_length}
 Response Tone: {response_tone}
+
+⚠️ Include medically accurate info referencing:
+{references}
+
+Embed relevant visuals using Markdown image links or HTML <img> tags where appropriate.
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
 
@@ -180,11 +190,16 @@ Provide actionable suggestions tailored to this persona in a friendly and profes
     )
 
     ai_output = response.choices[0].message.content
+
+    # --- Append fallback visuals if AI missed ---
+    for url in gsk_brands_images.get(brand, []):
+        if url not in ai_output:
+            ai_output += f"\n\n![Related Visual]({url})"
+
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
-    
     display_chat()
 
-# --- Word download outside the form ---
+# --- Word download ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
     if latest_ai:
@@ -195,5 +210,5 @@ if DOCX_AVAILABLE and st.session_state.chat_history:
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
-# --- Brand leaflet ---
+# --- Brand leaflet link ---
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
