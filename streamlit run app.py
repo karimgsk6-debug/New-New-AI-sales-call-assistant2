@@ -1,33 +1,29 @@
-import streamlit as st 
+import streamlit as st
 from PIL import Image
-from io import BytesIO, BytesIO as io_bytes
-from datetime import datetime
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 import requests
+from io import BytesIO, BytesIO as io_bytes
+import groq
 from groq import Groq
-import os
+from datetime import datetime
 
-# --- API Key ---
-GROQ_API_KEY = "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"
-
-if not GROQ_API_KEY:
-    st.error("❌ Groq API key not set. Please add it in the script.")
-else:
-    client = Groq(api_key=GROQ_API_KEY)
-
-# Optional Word export
+# --- Optional dependency for Word download ---
 try:
     from docx import Document
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
+    st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- README file display ---
-if os.path.exists("README.md"):
-    with open("README.md", "r", encoding="utf-8") as f:
-        readme_text = f.read()
-    st.markdown(f"<div style='background:#fff3e0;padding:15px;border-radius:10px'>{readme_text}</div>", unsafe_allow_html=True)
+# --- Initialize Groq client ---
+client = Groq(api_key="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")  # Add your Groq API key here
+
+# --- Session state ---
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# --- Language ---
+language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+
 # --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
@@ -38,211 +34,166 @@ with col1:
         st.image(logo_img, width=120)
     except:
         st.image(logo_fallback_url, width=120)
-# --- References ---
-REFERENCES = """
-1. Clinical Overview about Shingles. CDC. https://www.cdc.gov/shingles/hcp/clinical-overview.html (Accessed: 04 Feb 2024).  
-2. Harpaz R, et al. MMWR Recomm Rep 2008;57:1-30.  
-3. Kawai K, et al. BMJ Open. 2014;4(6):e004833.  
-4. Pinchinat S, et al. BMC Infect Dis. 2013;13:170.  
-5. Li Y, et al. PLoS One. 2016;11(4):e0152660.  
-6. SHINGRIX Egyptian Drug Authority Approved leaflet, approval date 11/09/2023.  
-"""
+with col2:
+    st.title("🧠 AI Sales Call Assistant")
 
-# --- CSS styling ---
-st.markdown("""
-<style>
-.user-bubble {background:#dcf8c6;padding:10px;border-radius:15px;margin:5px;max-width:70%;float:right;clear:both;}
-.ai-bubble {background:#f1f0f0;padding:10px;border-radius:15px;margin:5px;max-width:70%;float:left;clear:both;}
-h1,h2,h3,h4,h5,h6 {color:orange !important;font-weight:bold;}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("💊 **AI Sales Call Assistant**", unsafe_allow_html=True)
-
-# --- Session state ---
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
-
-# --- Sidebar filters & options ---
-st.sidebar.header("Filters & Options")
-brands = st.sidebar.multiselect("Select Brand(s)", ["Shingrix", "Trelegy", "Zejula"], default=["Shingrix"])
-segment = st.sidebar.selectbox("Select RACE Segment", [
-    "R – Reach: Did not start to prescribe yet",
-    "A – Acquisition: Prescribe to patients who initiate discussion",
-    "C – Conversion: Proactively initiate discussion with specific patients",
-    "E – Engagement: Proactively prescribe to different patient profiles"
-])
-barrier = st.sidebar.multiselect("Select Doctor Barrier", [
-    "HCP does not consider HZ as risk",
-    "No time to discuss preventive measures",
-    "Cost considerations",
-    "Not convinced HZ Vx effective",
-    "Accessibility issues"
-])
-objective = st.sidebar.selectbox("Select Objective", ["Awareness", "Adoption", "Retention"])
-specialty = st.sidebar.selectbox("Select Doctor Specialty", ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"])
-persona = st.sidebar.selectbox("Select HCP Persona", [
-    "Uncommitted Vaccinator",
-    "Reluctant Efficiency",
-    "Patient Influenced",
-    "Committed Vaccinator"
-])
-response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-
-# --- Extra options ---
-st.sidebar.header("Extra Options")
-include_cdc = st.sidebar.checkbox("Include CDC Shingrix content", value=True)
-markdown_output = st.sidebar.checkbox("Display AI response as Markdown", value=True)
-max_visuals = st.sidebar.slider("Max number of visuals to display", 1, 10, 5)
-show_disclaimer = st.sidebar.checkbox("Show disclaimer", value=True)
-
-# --- Brand images ---
+# --- Brand & product data ---
+gsk_brands = {
+    "Shingrix": "https://example.com/shingrix-leaflet",
+    "Trelegy": "https://example.com/trelegy-leaflet",
+    "Zejula": "https://example.com/zejula-leaflet",
+}
 gsk_brands_images = {
     "Trelegy": "https://www.example.com/trelegy.png",
     "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 
-# Display brand images for selected brands
-for brand in brands:
-    image_path = gsk_brands_images.get(brand)
-    try:
-        if image_path.startswith("http"):
-            img = Image.open(BytesIO(requests.get(image_path).content))
-        else:
-            img = Image.open(image_path)
-        st.image(img, width=200)
-    except:
-        st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+# --- Filters & options ---
+race_segments = [
+    "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
+    "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
+    "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
+    "E – Engagement: Proactively prescribe to different patient profiles"
+]
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = [
+    "Uncommitted Vaccinator",
+    "Reluctant Efficiency",
+    "Patient Influenced",
+    "Committed Vaccinator"
+]
+gsk_approaches = [
+    "Use data-driven evidence",
+    "Focus on patient outcomes",
+    "Leverage storytelling techniques"
+]
+sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
-# --- Fetch CDC Shingrix content ---
-def fetch_shingrix_content():
-    url = "https://www.cdc.gov/shingles/hcp/clinical-overview"
-    text_summary, images = "", []
-    try:
-        r = requests.get(url, timeout=10)
-        soup = BeautifulSoup(r.content, "html.parser")
-        text_summary = "\n".join([p.get_text() for p in soup.find_all("p")][:10])
-        for img_tag in soup.find_all("img"):
-            img_url = img_tag.get("src")
-            if img_url:
-                img_url = urljoin(url, img_url)  # make full URL
-                images.append(img_url)
-    except Exception as e:
-        text_summary = f"Could not fetch content: {e}"
-    return text_summary, images
+# --- Sidebar filters ---
+st.sidebar.header("Filters & Options")
+brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
+response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
+interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-cdc_text, cdc_images = ("", [])
-if "Shingrix" in brands and include_cdc:
-    cdc_text, cdc_images = fetch_shingrix_content()
-
-# --- Smart visuals mapping ---
-smart_images = {
-    "Shingles rash": {
-        "url": "https://www.cdc.gov/shingles/images/shingles-rash.jpg",
-        "keywords": ["rash", "shingles symptoms", "lesion"]
-    },
-    "Herpes Zoster Incidence by Age": {
-        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3a/Herpes_zoster_incidence_chart.png",
-        "keywords": ["incidence", "cases", "risk by age"]
-    },
-    "Disease burden due to Herpes Zoster": {
-        "url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Herpes_zoster_burden.png",
-        "keywords": ["disease burden", "complications", "population ≥50"]
-    }
-}
-
-# --- Display chat ---
-st.subheader("💬 AI Sales Response")
-for msg in st.session_state["chat_history"]:
-    if msg["role"] == "user":
-        st.markdown(f'<div class="user-bubble">👤 {msg["content"]}</div>', unsafe_allow_html=True)
+# --- Display brand image safely ---
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(BytesIO(response.content))
     else:
-        content = msg["content"]
-        if markdown_output:
-            st.markdown(f'<div class="ai-bubble">{content}</div>', unsafe_allow_html=True)
-        else:
-            st.text(content)
-
-        text_lower = content.lower()
-        # --- Show relevant images ---
-        if "Shingrix" in brands:
-            with st.container():
-                st.markdown("### 📊 Relevant Visuals")
-                count = 0
-                for caption, img_info in smart_images.items():
-                    if any(k.lower() in text_lower for k in img_info["keywords"]):
-                        if count >= max_visuals:
-                            break
-                        try:
-                            st.image(img_info["url"], caption=caption, use_container_width=True)
-                            count += 1
-                        except:
-                            st.warning(f"Could not load image: {img_info['url']}")
-
-        if show_disclaimer:
-            st.info("⚠️ Always refer to approved GSK references and local guidelines when discussing with HCPs.")
-
-        with st.expander("📚 References"):
-            st.markdown(REFERENCES)
-
-# --- Chat input ---
-cols = st.columns([10,1,1])
-user_input = cols[0].text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-send_clicked = cols[1].button("⏩")
-clear_clicked = cols[2].button("🗑️ Clear Chat")
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # --- Clear chat ---
-if clear_clicked:
-    st.session_state["chat_history"] = []
-    st.experimental_rerun = None
-    st.experimental_rerun = False
+if st.button("🗑️ Clear Chat / مسح المحادثة"):
+    st.session_state.chat_history = []
 
-# --- Send AI message ---
-if send_clicked and user_input.strip():
-    st.session_state["chat_history"].append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+# --- Chat history display ---
+st.subheader("💬 Chatbot Interface")
+chat_placeholder = st.empty()
+
+def display_chat():
+    chat_html = ""
+    for msg in st.session_state.chat_history:
+        time = msg.get("time", "")
+        content = msg["content"].replace('\n', '<br>')
+
+        # Bold APACT steps
+        apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
+        for step in apact_steps:
+            content = content.replace(step, f"<b>{step}</b><br>")
+
+        if msg["role"] == "user":
+            chat_html += f"""
+            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>
+                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
+            </div>
+            """
+        else:
+            chat_html += f"""
+            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>
+                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
+            </div>
+            """
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+display_chat()
+
+# --- Chat input using Streamlit form ---
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message...", key="user_input_box")
+    submitted = st.form_submit_button("➤")
+
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+    
+    # --- Prepare AI prompt ---
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
 
     prompt = f"""
-Language: English
+Language: {language}
 User input: {user_input}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
-Brand(s): {', '.join(brands)}
+Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Include CDC Shingrix content: {include_cdc}
-Reference content from Shingrix CDC: {cdc_text if include_cdc else 'None'}
-Number of extracted figures: {len(cdc_images)}
-Use APACT technique.
+Approved Sales Approaches:
+{approaches_str}
+Sales Call Flow Steps:
+{flow_str}
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
 Response Length: {response_length}
 Response Tone: {response_tone}
-Always align your response with the following references:
-{REFERENCES}
+Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
 
-    try:
-        response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role":"system","content":"You are a helpful sales assistant chatbot."},
-                {"role":"user","content":prompt}
-            ],
-            temperature=0.7
-        )
-        ai_output = response.choices[0].message.content.strip()
-        st.session_state["chat_history"].append({"role":"assistant","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-    except Exception as e:
-        st.error(f"⚠️ Error generating response: {e}")
+    # --- Call Groq API ---
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        messages=[
+            {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7
+    )
 
-# --- Word download ---
-if DOCX_AVAILABLE and st.session_state["chat_history"]:
-    latest_ai = [msg["content"] for msg in st.session_state["chat_history"] if msg["role"]=="assistant"]
+    ai_output = response.choices[0].message.content
+    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+    
+    display_chat()
+
+# --- Word download outside the form ---
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1] + "\n\nReferences:\n" + REFERENCES.replace("\n","\n"))
+        doc.add_paragraph(latest_ai[-1])
         word_buffer = io_bytes()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# --- Brand leaflet ---
+st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
