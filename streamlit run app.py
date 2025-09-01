@@ -75,15 +75,20 @@ try:
 except:
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
-# Chat input
-user_input = st.text_input("Type your message...")
-
-# Clear chat button
-if st.button("🗑️ Clear Chat"):
-    st.session_state.chat_history = []
+# References list
+references = """
+<b>References:</b><br>
+1. Clinical Overview about Shingles. Available at: <a href='https://www.cdc.gov/shingles/hcp/clinical-overview.html' target='_blank'>CDC Website</a> (Accessed: 04 February 2024).<br>
+2. Harpaz R, et al. MMWR Recomm Rep 2008;57:1-30.<br>
+3. Kawai K, Gebremeskel BG, Acosta CJ. BMJ Open. 2014;4(6):e004833.<br>
+4. Pinchinat S, et al. BMC Infect Dis. 2013;13:170.<br>
+5. Li Y, et al. PLoS One. 2016;11(4):e0152660.<br>
+6. SHINGRIX Egyptian Drug Authority Approved leaflet, approval date 11/09/2023.<br>
+"""
 
 # Chat display
 st.subheader("💬 AI Sales Response")
+
 def display_chat():
     html = ""
     for msg in st.session_state.chat_history:
@@ -92,10 +97,19 @@ def display_chat():
         if msg["role"]=="user":
             html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px;margin:5px;max-width:80%'>{content}<br><small>{time}</small></div>"
         else:
-            html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px;margin:5px;max-width:80%'>{content}<br><small>{time}</small></div>"
+            # Append references for AI messages
+            content_with_refs = content + "<br><br>" + references
+            html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px;margin:5px;max-width:80%'>{content_with_refs}<br><small>{time}</small></div>"
     st.markdown(html, unsafe_allow_html=True)
 
 display_chat()
+
+# Chat input with send button
+col1, col2 = st.columns([8,1])
+with col1:
+    user_input = st.text_input("Type your message...", key="chat_input")
+with col2:
+    send_pressed = st.button("📩")
 
 # Fetch CDC Shingrix content (for AI only)
 def fetch_shingrix_content():
@@ -122,10 +136,11 @@ if brand=="Shingrix":
     cdc_text, cdc_images = fetch_shingrix_content()
 
 # Prepare and send AI prompt
-if user_input.strip() and GROQ_API_KEY:
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+if (send_pressed or (user_input.strip() and st.session_state.get("chat_input"))) and GROQ_API_KEY:
+    if user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
 
-    prompt = f"""
+        prompt = f"""
 Language: {language}
 User input: {user_input}
 RACE Segment: {segment}
@@ -140,21 +155,24 @@ Use APACT technique.
 Response Length: {response_length}
 Response Tone: {response_tone}
 Provide actionable suggestions and include insights from CDC content and figures in your response.
+
+Always align your response with the following references:
+{references}
 """
 
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-            {"role":"user","content":prompt}
-        ],
-        temperature=0.7
-    )
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
+                {"role":"user","content":prompt}
+            ],
+            temperature=0.7
+        )
 
-    ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+        ai_output = response.choices[0].message.content
+        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    display_chat()
+        display_chat()
 
 # Word download
 if DOCX_AVAILABLE and st.session_state.chat_history:
@@ -162,7 +180,7 @@ if DOCX_AVAILABLE and st.session_state.chat_history:
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
+        doc.add_paragraph(latest_ai[-1] + "\n\nReferences:\n" + references.replace("<br>","\n").replace("<b>","").replace("</b>",""))
         word_buffer = io_bytes()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
