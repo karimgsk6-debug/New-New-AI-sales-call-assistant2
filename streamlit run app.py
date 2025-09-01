@@ -134,12 +134,13 @@ chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = ""
+    steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
+
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
+        content = msg["content"].replace('\n', '<br>').strip()
 
         if msg["role"] == "user":
-            # User bubble with icon
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
@@ -149,25 +150,29 @@ def display_chat():
             </div>
             """
         else:
-            # AI bubble with APACT steps
-            steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
             pattern = r'(' + '|'.join(steps) + r')'
             parts = re.split(pattern, content)
-            current_step = ""
-            for part in parts:
-                part = part.strip()
-                if part in steps:
-                    current_step = part
-                    continue
-                if part:
+            if parts[0].strip() and parts[0].strip() not in steps:
+                parts = ["Info"] + parts
+            i = 0
+            while i < len(parts):
+                step_name = parts[i].strip()
+                text = ""
+                if i + 1 < len(parts):
+                    text = parts[i + 1].strip()
+                if step_name not in steps + ["Info"]:
+                    text = step_name + "<br>" + text
+                    step_name = "Info"
+                if text:
                     chat_html += f"""
                     <div style='display:flex; justify-content:flex-start; margin:5px;'>
                         <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                             <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
-                            <div style='flex:1;'><b>{current_step}</b>: {part}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                            <div style='flex:1;'><b>{step_name}</b>: {text}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
                         </div>
                     </div>
                     """
+                i += 2
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
