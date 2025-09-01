@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF for PDF extraction
+import fitz
 from pptx import Presentation
 import base64
 import groq
@@ -9,6 +9,7 @@ from groq import Groq
 from datetime import datetime
 import re
 import time
+import html  # for escaping HTML
 
 # --- Optional dependency for Word download ---
 try:
@@ -106,7 +107,7 @@ def extract_ppt_images(ppt_file):
         prs = Presentation(ppt_file)
         for slide in prs.slides:
             for shape in slide.shapes:
-                if shape.shape_type == 13:  # Picture
+                if shape.shape_type == 13:
                     image = shape.image
                     images.append(Image.open(BytesIO(image.blob)))
     except:
@@ -148,8 +149,11 @@ def display_chat(typing_effect=True, delay=0.5):
             steps = [content]
 
         for step in steps:
-            # Clean extra markdown and stray characters
-            step = step.replace("**", "").strip()
+            # Escape HTML characters
+            step = html.escape(step).replace("\n", "<br>")
+            # Bold APACT steps
+            if msg["role"] == "ai":
+                step = re.sub(r"(Acknowledge|Probing|Answer|Confirm|Transition)", r"<b>\1</b>", step)
 
             # Styles per sender
             if msg["role"] == "user":
@@ -162,7 +166,6 @@ def display_chat(typing_effect=True, delay=0.5):
                 align = "left"
                 bg_color = "#f0f2f6"
                 border_radius = "15px 15px 15px 0px"
-                step = re.sub(r"(Acknowledge|Probing|Answer|Confirm|Transition)", r"<b>\1</b>", step)
 
             # Embed images
             images_html = ""
@@ -176,18 +179,16 @@ def display_chat(typing_effect=True, delay=0.5):
             # Clickable links
             step = re.sub(r'(https?://\S+)', r'<a href="\1" target="_blank">\1</a>', step)
 
-            # Append bubble HTML
+            # Bubble with border
             chat_html += f"""
             <div style='display:flex; justify-content:{'flex-end' if align=='right' else 'flex-start'}; margin:5px;'>
-                <div style='background:{bg_color}; padding:10px; border-radius:{border_radius}; max-width:80%; display:flex; align-items:flex-start;'>
+                <div style='background:{bg_color}; padding:10px; border-radius:{border_radius}; max-width:80%; display:flex; align-items:flex-start; border:2px solid #888;'>
                     <img src="{icon_url}" width="30" style='margin-right:10px;'>
                     <div style='flex:1;'>{step}{images_html}<div style='font-size:10px; color:gray; text-align:right;'>{time_msg}</div></div>
                 </div>
             </div>
             """
             chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
-            # Typing effect per step
             if typing_effect and msg["role"] == "ai":
                 time.sleep(delay)
 
@@ -244,24 +245,4 @@ Response Tone: {response_tone}
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
 
-# --- Word download ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-# --- Brand leaflet link ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
-
-# --- Auto-scroll to latest message using JS ---
-st.markdown("""
-<script>
-var chatContainer = window.parent.document.querySelector('#chat-container');
-if(chatContainer){chatContainer.scrollTop = chatContainer.scrollHeight;}
-</script>
-""", unsafe_allow_html=True)
+# ---
