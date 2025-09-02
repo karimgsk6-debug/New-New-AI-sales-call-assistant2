@@ -1,11 +1,4 @@
 streamlit
-groq
-pymupdf
-pillow
-python-docx
-python-pptx
-requests
-streamlit
 pillow
 requests
 groq
