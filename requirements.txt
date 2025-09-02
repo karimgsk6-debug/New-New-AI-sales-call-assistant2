@@ -1,6 +1,8 @@
-streamlit
-pillow
-requests
-groq
+streamlit==1.30.0
+Pillow
+PyMuPDF
+python-pptx
 gtts
-audiorecorder
+streamlit-webrtc
+groq
+python-docx
