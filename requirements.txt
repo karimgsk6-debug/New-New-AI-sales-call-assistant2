@@ -5,3 +5,9 @@ pillow
 python-docx
 python-pptx
 requests
+streamlit
+pillow
+requests
+groq
+gtts
+audiorecorder
