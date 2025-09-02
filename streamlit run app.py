@@ -8,6 +8,9 @@ import groq
 from groq import Groq
 from datetime import datetime
 import re
+import tempfile
+from gtts import gTTS
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
 # --- Optional dependency for Word download ---
 try:
@@ -38,7 +41,7 @@ with col1:
     except:
         st.image(logo_fallback_url, width=120)
 with col2:
-    st.title("🧠 AI Sales Call Assistant")
+    st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
 # --- Brand & product data ---
 gsk_brands = {
@@ -159,13 +162,40 @@ def display_chat():
 
 display_chat()
 
-# --- Chat input ---
+# --- Voice input ---
+st.subheader("🎙️ Record Your Voice")
+webrtc_ctx = webrtc_streamer(
+    key="speech",
+    mode=WebRtcMode.SENDRECV,
+    audio_receiver_size=1024,
+    media_stream_constraints={"audio": True, "video": False},
+)
+
+rep_voice_text = None
+if webrtc_ctx and webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if audio_frames:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
+            audio_path = tmp_wav.name
+
+        # --- Transcribe ---
+        transcript = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=open(audio_path, "rb")
+        )
+        rep_voice_text = transcript.text
+        st.success(f"🗣️ You said: {rep_voice_text}")
+
+# --- Chat input form ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
+    user_input = st.text_input("Type your message... (or use voice above)", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
-if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+if (submitted and user_input.strip()) or rep_voice_text:
+    # Rep input (voice overrides text if available)
+    rep_message = rep_voice_text if rep_voice_text else user_input
+    st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
 
     # --- Construct the prompt ---
     approaches_str = "\n".join(gsk_approaches)
@@ -178,7 +208,7 @@ if submitted and user_input.strip():
 """
     prompt = f"""
 Language: {language}
-User input: {user_input}
+User input: {rep_message}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
@@ -208,6 +238,13 @@ Response Tone: {response_tone}
     )
     ai_output = response.choices[0].message.content
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+
+    # --- AI voice reply ---
+    tts = gTTS(ai_output, lang="en" if language == "English" else "ar")
+    audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(audio_file.name)
+    st.audio(audio_file.name, format="audio/mp3")
+
     display_chat()
 
 # --- Word download ---
