@@ -1,9 +1,8 @@
-streamlit==1.29.0
-streamlit-webrtc==0.51.0
-gTTS==2.3.2
+streamlit==1.27.0
+Pillow==10.0.0
 PyMuPDF==1.22.5
 python-pptx==0.6.21
-groq==0.2.7
+gTTS==2.3.2
+streamlit-webrtc==0.46.2
+groq==0.0.20
 python-docx==0.8.12
-Pillow==10.1.0
-  
