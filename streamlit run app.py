@@ -11,7 +11,7 @@ import tempfile
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
-# --- Optional dependency for Word download ---
+# Optional Word download
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -19,28 +19,27 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Initialize Groq client ---
+# --- Groq client ---
 client = Groq(api_key="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")
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language selection ---
+# --- Language ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# --- GSK Logo ---
+# --- Logo ---
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-
-cols = st.columns([1,5])
-with cols[0]:
+col1, col2 = st.columns([1,5])
+with col1:
     try:
         logo_img = Image.open(logo_local_path)
         st.image(logo_img, width=120)
     except:
         st.image(logo_fallback_url, width=120)
-with cols[1]:
+with col2:
     st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
 # --- Brand & product data ---
@@ -83,11 +82,11 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Upload PDF / PPT ---
+# --- Upload PDF/PPT ---
 uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
 
-# --- Extract images from PDF ---
+# --- Extract images ---
 def extract_pdf_images(pdf_file):
     images = []
     try:
@@ -96,13 +95,11 @@ def extract_pdf_images(pdf_file):
             for img in page.get_images(full=True):
                 xref = img[0]
                 base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(Image.open(BytesIO(image_bytes)))
+                images.append(Image.open(BytesIO(base_image["image"])))
     except:
         st.warning("⚠️ Could not extract images from PDF")
     return images
 
-# --- Extract images from PPT ---
 def extract_ppt_images(ppt_file):
     images = []
     try:
@@ -110,18 +107,15 @@ def extract_ppt_images(ppt_file):
         for slide in prs.slides:
             for shape in slide.shapes:
                 if shape.shape_type == 13:  # Picture
-                    image = shape.image
-                    images.append(Image.open(BytesIO(image.blob)))
+                    images.append(Image.open(BytesIO(shape.image.blob)))
     except:
         st.warning("⚠️ Could not extract images from PPT")
     return images
 
-# --- Extracted visuals ---
 pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
 ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
 
-# --- Display uploaded visuals ---
 if all_images:
     st.subheader("Uploaded Brand Visuals")
     for img in all_images:
@@ -131,23 +125,23 @@ if all_images:
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# --- Chat history display ---
+# --- Chat display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
+
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>').strip()
-        if msg["role"] == "user":
+        content = msg["content"].replace("\n","<br>").strip()
+        if msg["role"]=="user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
                     <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
                 </div>
-            </div>
-            """
+            </div>"""
         else:
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
@@ -155,20 +149,15 @@ def display_chat():
                     <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
                 </div>
-            </div>
-            """
+            </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
 display_chat()
 
 # --- Voice input ---
 st.subheader("🎙️ Record Your Voice")
-webrtc_ctx = webrtc_streamer(
-    key="speech",
-    mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=1024,
-    media_stream_constraints={"audio": True, "video": False},
-)
-
+webrtc_ctx = webrtc_streamer(key="speech", mode=WebRtcMode.SENDRECV, audio_receiver_size=1024,
+                             media_stream_constraints={"audio": True, "video": False})
 rep_voice_text = None
 if webrtc_ctx and webrtc_ctx.audio_receiver:
     audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
@@ -176,24 +165,20 @@ if webrtc_ctx and webrtc_ctx.audio_receiver:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
             tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
             audio_path = tmp_wav.name
-        # --- Transcribe ---
-        transcript = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=open(audio_path, "rb")
-        )
+        transcript = client.audio.transcriptions.create(model="whisper-large-v3", file=open(audio_path,"rb"))
         rep_voice_text = transcript.text
         st.success(f"🗣️ You said: {rep_voice_text}")
 
-# --- Chat input form ---
+# --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message... (or use voice above)", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 if (submitted and user_input.strip()) or rep_voice_text:
     rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
 
-    # --- Construct the prompt ---
+    # --- Prompt construction ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
@@ -229,15 +214,15 @@ Response Tone: {response_tone}
     # --- Generate AI response ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-                  {"role": "user", "content": prompt}],
+        messages=[{"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
+                  {"role":"user","content":prompt}],
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    # --- AI voice reply ---
-    tts = gTTS(ai_output, lang="en" if language == "English" else "ar")
+    # --- Voice reply ---
+    tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
@@ -246,7 +231,7 @@ Response Tone: {response_tone}
 
 # --- Word download ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
