@@ -6,3 +6,8 @@ gTTS
 streamlit-webrtc
 groq
 python-docx
+streamlit
+groq
+gtts
+beautifulsoup4
+requests
