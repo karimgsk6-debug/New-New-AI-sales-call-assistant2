@@ -29,6 +29,7 @@ if "chat_history" not in st.session_state:
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+lang_code = "en" if language == "English" else "ar"
 
 # --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
@@ -214,7 +215,6 @@ Acknowledge → Probing → Answer → Confirm → Transition
 Use APACT only where relevant.
 References:
 {references}
-Embed PDF/PPT visuals.
 Provide step-by-step actionable suggestions.
 Response Length: {response_length}
 Response Tone: {response_tone}
@@ -231,8 +231,8 @@ Response Tone: {response_tone}
     ai_output = response.choices[0].message.content
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    # AI voice reply
-    tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
+    # --- AI voice reply ---
+    tts = gTTS(ai_output, lang=lang_code)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
