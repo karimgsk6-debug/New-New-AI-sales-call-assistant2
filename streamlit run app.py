@@ -1,10 +1,9 @@
-import streamlit as st 
+import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF for PDF extraction
 from pptx import Presentation  # For PPT extraction
 import base64
-import groq
 from groq import Groq
 from datetime import datetime
 import re
@@ -21,7 +20,11 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")
+api_key = st.secrets.get("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", None) or os.getenv("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")
+if not api_key:
+    st.error("❌ Missing GROQ_API_KEY. Set it in Streamlit secrets or environment.")
+else:
+    client = Groq(api_key=api_key)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
@@ -29,12 +32,12 @@ if "chat_history" not in st.session_state:
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-lang_code = "en" if language == "English" else "ar"
 
 # --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
+
+col1, col2 = st.columns([1, 5])
 with col1:
     try:
         logo_img = Image.open(logo_local_path)
@@ -69,6 +72,7 @@ objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
 gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
+
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
 apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
@@ -134,28 +138,28 @@ if st.button("🗑️ Clear Chat / مسح المحادثة"):
 # --- Chat display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
+
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n','<br>').strip()
-        if msg["role"]=="user":
+        if msg["role"] == "user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
-                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                    <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
-                </div>
+              <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%;'>
+                {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
+              </div>
             </div>"""
         else:
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                </div>
+              <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%;'>
+                🤖 {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
+              </div>
             </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
 display_chat()
 
 # --- Voice input ---
@@ -166,6 +170,7 @@ webrtc_ctx = webrtc_streamer(
     audio_receiver_size=1024,
     media_stream_constraints={"audio": True, "video": False},
 )
+
 rep_voice_text = None
 if webrtc_ctx and webrtc_ctx.audio_receiver:
     audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
@@ -189,36 +194,36 @@ if (submitted and user_input.strip()) or rep_voice_text:
     rep_message = rep_voice_text if rep_voice_text else user_input
     st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
 
+    # --- Prompt to AI ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
+
     references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
-2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
-"""
+    1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+    2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+    3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
+    4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+    """
+
     prompt = f"""
-Language: {language}
-User input: {rep_message}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
-{flow_str}
-APACT Steps (only for objections):
-Acknowledge → Probing → Answer → Confirm → Transition
-Use APACT only where relevant.
-References:
-{references}
-Provide step-by-step actionable suggestions.
-Response Length: {response_length}
-Response Tone: {response_tone}
-"""
+    Language: {language}
+    User input: {rep_message}
+    RACE Segment: {segment}
+    Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+    Objective: {objective}
+    Brand: {brand}
+    Doctor Specialty: {specialty}
+    HCP Persona: {persona}
+    Approved Sales Approaches: {approaches_str}
+    Sales Call Flow Steps: {flow_str}
+    APACT Steps (only for objections): Acknowledge → Probing → Answer → Confirm → Transition
+    Use APACT only where relevant.
+    References: {references}
+    Embed PDF/PPT visuals.
+    Provide step-by-step actionable suggestions.
+    Response Length: {response_length}
+    Response Tone: {response_tone}
+    """
 
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -232,7 +237,7 @@ Response Tone: {response_tone}
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
     # --- AI voice reply ---
-    tts = gTTS(ai_output, lang=lang_code)
+    tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
