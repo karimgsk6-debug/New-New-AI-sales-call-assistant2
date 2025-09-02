@@ -13,7 +13,7 @@ from audiorecorder import audiorecorder
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
 # Initialize Groq client
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+client = Groq(api_key=st.secrets["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"])
 
 # ========== FUNCTIONS ==========
 
@@ -23,7 +23,7 @@ def generate_ai_response(prompt):
 You are an AI assistant helping pharmaceutical sales representatives.
 
 - Always structure responses as a Sales Call Flow (Prepare → Engage → Create Opportunities → Drive Impact → Post Call Analysis).
-- Use APCT (Acknowledge, Probe, Confirm, Transition) ONLY when handling objections.
+- Use APCT (Acknowledge, Probe, Confirm, Transition) ONLY when handling objections or concerns.
 - Think step-by-step like a sales rep planning their visit.
 - Provide references when possible (e.g., CDC, EDA prescribing info).
 - Use professional tone suitable for HCP discussions.
@@ -64,6 +64,24 @@ def display_message(sender, message, timestamp, is_ai=True, audio_file=None):
     if audio_file:
         st.audio(audio_file, format="audio/mp3")
 
+# Function: Split AI reply into steps (Sales Call Flow or APCT if objections)
+def display_structured_response(ai_text):
+    # Sales Call Flow steps
+    call_flow_steps = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
+    # APCT steps for objections
+    objection_steps = ["Acknowledge", "Probe", "Confirm", "Transition"]
+
+    # First try splitting by Call Flow steps
+    steps = re.split(r'(?<=\b)(Prepare|Engage|Create Opportunities|Drive Impact|Post Call Analysis)\b', ai_text)
+    if len(steps) <= 1:  # If no call flow, try APCT
+        steps = re.split(r'(?<=\b)(Acknowledge|Probe|Confirm|Transition)\b', ai_text)
+
+    # Display each step separately
+    for i in range(1, len(steps), 2):
+        step_title = steps[i]
+        step_content = steps[i+1] if i+1 < len(steps) else ""
+        display_message("AI Assistant", f"**{step_title}:** {step_content.strip()}", datetime.now().strftime("%H:%M"), is_ai=True)
+
 # ========== APP HEADER ==========
 col1, col2 = st.columns([1,5])
 with col1:
@@ -88,7 +106,7 @@ if len(audio) > 0:
     # Play back the recorded message
     st.audio(audio.export().read(), format="audio/wav")
     
-    # Placeholder transcription (can integrate Groq Whisper STT here)
+    # Placeholder transcription (replace with STT later)
     rep_message = "Rep voice message transcribed (placeholder: integrate STT here)."
     display_message("Rep (Voice)", rep_message, datetime.now().strftime("%H:%M"), is_ai=False)
 
@@ -96,7 +114,8 @@ if len(audio) > 0:
     ai_reply = generate_ai_response(rep_message)
     reply_audio = text_to_speech(ai_reply)
 
-    display_message("AI Assistant", ai_reply, datetime.now().strftime("%H:%M"), is_ai=True, audio_file=reply_audio)
+    display_structured_response(ai_reply)
+    st.audio(reply_audio, format="audio/mp3")
 
 # ========== TEXT INPUT ==========
 st.markdown("### 💬 Or Type Your Sales Call Message")
@@ -109,4 +128,5 @@ if st.button("Send Text Message"):
         ai_reply = generate_ai_response(user_input)
         reply_audio = text_to_speech(ai_reply)
 
-        display_message("AI Assistant", ai_reply, datetime.now().strftime("%H:%M"), is_ai=True, audio_file=reply_audio)
+        display_structured_response(ai_reply)
+        st.audio(reply_audio, format="audio/mp3")
