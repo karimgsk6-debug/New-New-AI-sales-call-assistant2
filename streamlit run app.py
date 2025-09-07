@@ -1,24 +1,23 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PDF
+import fitz  # PyMuPDF for PDF extraction
 from pptx import Presentation
-import tempfile
-import os
+import base64
 from datetime import datetime
+import tempfile
 import re
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
+import os
 
-# TTS with natural male voice (edge-tts)
-import asyncio
-import edge_tts
+# --- TTS fallback ---
+try:
+    import edge_tts
+    EDGE_TTS_AVAILABLE = True
+except ImportError:
+    EDGE_TTS_AVAILABLE = False
+    from gtts import gTTS
 
-# Groq AI
-import groq
-from groq import Groq
-client = Groq(api_key="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")  # <-- insert API key
-
-# Optional Word download
+# --- Optional Word download ---
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -26,12 +25,21 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
+# --- Groq client ---
+try:
+    import groq
+    from groq import Groq
+    # Insert your API key directly here
+    client = Groq(api_key="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")
+except Exception as e:
+    st.error("❌ Groq API client not available or API key invalid.")
+
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language ---
-language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+# --- Language selection ---
+language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
 
 # --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
@@ -53,13 +61,15 @@ gsk_brands = {
     "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
 
-# --- Filters ---
+# --- RACE segments ---
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
     "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
     "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
+
+# --- Filters & options ---
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -76,123 +86,91 @@ apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
 # --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", doctor_barriers)
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", specialties)
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", personas)
 response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Storytelling"])
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 
-# --- Upload PDF / PPT ---
-uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
-uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+# --- Upload PDF/PPT ---
+uploaded_pdf = st.file_uploader("Upload PDF", type="pdf")
+uploaded_ppt = st.file_uploader("Upload PPT", type=["pptx", "ppt"])
 
-def extract_pdf_text_images(pdf_file):
-    text_content = ""
+# --- Extract images ---
+def extract_pdf_images(pdf_file):
     images = []
     try:
         doc = fitz.open(pdf_file)
         for page in doc:
-            text_content += page.get_text()
             for img in page.get_images(full=True):
                 xref = img[0]
                 base_image = doc.extract_image(xref)
-                images.append(Image.open(BytesIO(base_image["image"])))
+                image_bytes = base_image["image"]
+                images.append(Image.open(BytesIO(image_bytes)))
     except:
-        st.warning("⚠️ Could not extract PDF content")
-    return text_content, images
+        st.warning("⚠️ Could not extract images from PDF")
+    return images
 
 def extract_ppt_images(ppt_file):
     images = []
-    text_content = ""
     try:
         prs = Presentation(ppt_file)
         for slide in prs.slides:
             for shape in slide.shapes:
-                if shape.has_text_frame:
-                    text_content += shape.text + "\n"
-                if shape.shape_type == 13:  # Picture
+                if shape.shape_type == 13:
                     images.append(Image.open(BytesIO(shape.image.blob)))
     except:
-        st.warning("⚠️ Could not extract PPT content")
-    return text_content, images
+        st.warning("⚠️ Could not extract images from PPT")
+    return images
 
-pdf_text, pdf_images = extract_pdf_text_images(uploaded_pdf) if uploaded_pdf else ("", [])
-ppt_text, ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else ("", [])
-all_text = pdf_text + "\n" + ppt_text
+pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
+ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
-
-# --- Display visuals ---
 if all_images:
     st.subheader("Uploaded Visuals")
     for img in all_images:
         st.image(img, width=300)
 
-# --- Clear chat ---
-if st.button("🗑️ Clear Chat / مسح المحادثة"):
-    st.session_state.chat_history = []
-
-# --- Chat display ---
+# --- Chat interface ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
         content = msg["content"].replace('\n','<br>').strip()
+        time = msg.get("time", "")
         if msg["role"]=="user":
-            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;margin:5px;border-radius:15px;'>{content}<br><small>{time}</small></div>"
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; margin:5px; padding:10px; border-radius:15px;'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
         else:
-            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;margin:5px;border-radius:15px;'>{content}<br><small>{time}</small></div>"
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; margin:5px; padding:10px; border-radius:15px;'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
 display_chat()
 
-# --- Voice recording ---
-st.subheader("🎙️ Leave a voice message or type your question")
-rep_voice_text = st.text_input("Your transcribed question will appear here...")
-
-webrtc_ctx = webrtc_streamer(
-    key="rep_voice",
-    mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=1024,
-    media_stream_constraints={"audio": True, "video": False},
-    async_processing=True
-)
-
-if webrtc_ctx and webrtc_ctx.audio_receiver:
-    frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if frames:
-        audio_file_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-        frames[0].to_file(audio_file_path)
-        try:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=open(audio_file_path,"rb")
-            )
-            rep_voice_text = transcript.text
-            st.success(f"🗣️ You said: {rep_voice_text}")
-        except:
-            st.warning("⚠️ Could not transcribe voice")
+# --- Voice input ---
+st.subheader("🎙️ Record your question (Voice-to-Text)")
+rep_voice_text = st.text_area("Your voice will appear here...")
 
 # --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Or type your question...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+    user_input = st.text_input("Type your message (or use voice above)")
+    submitted = st.form_submit_button("Send")
 
 if (submitted and user_input.strip()) or rep_voice_text.strip():
     rep_message = rep_voice_text if rep_voice_text.strip() else user_input
     st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
 
-    # --- References ---
+    # Build prompt
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
     references = """1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"""
-
-    # --- Prompt ---
-    numbered_text = re.sub(r'[\*\-\•]', '', all_text)
+4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+"""
     prompt = f"""
 Language: {language}
 User input: {rep_message}
@@ -202,47 +180,56 @@ Objective: {objective}
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Approved Sales Approaches: {', '.join(gsk_approaches)}
-Sales Call Flow Steps: {' → '.join(sales_call_flow)}
-APACT Steps: {' → '.join(apact_steps)}
-References & extracted content: {numbered_text[:2000]} {references}
+Approved Sales Approaches:
+{approaches_str}
+Sales Call Flow Steps:
+{flow_str}
+APACT Steps:
+Acknowledge → Probing → Answer → Confirm → Transition
+Use APACT only where relevant.
+References:
+{references}
+Include PDF/PPT content and visuals if uploaded.
 Response Length: {response_length}
 Response Tone: {response_tone}
-Provide step-by-step suggestions in numbered format.
-Remove punctuation in AI voice output.
-Storytelling, engaging male voice.
 """
 
+    # --- Call Groq AI ---
     try:
         response = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-                {"role":"user","content":prompt}
-            ],
+            messages=[{"role":"system","content":f"You are a helpful sales assistant that responds in {language}."},
+                      {"role":"user","content":prompt}],
             temperature=0.7
         )
         ai_output = response.choices[0].message.content
-    except Exception as e:
-        ai_output = f"⚠️ Error generating AI response: {str(e)}"
+    except:
+        ai_output = "❌ AI response could not be generated. Please check API key and connection."
 
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
     display_chat()
 
-    # --- Generate male storytelling voice (edge-tts) ---
-    async def tts_play(text, file_path):
-        communicate = edge_tts.Communicate(text, "en-US-GuyNeural")  # male, natural
-        await communicate.save(file_path)
+    # --- AI voice reply ---
+    if EDGE_TTS_AVAILABLE:
+        import asyncio
+        import edge_tts
+        tts = edge_tts.Communicate(ai_output, voice="en-US-GuyNeural")
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        asyncio.run(tts.save(temp_audio.name))
+        st.audio(temp_audio.name, format="audio/mp3")
+    else:
+        tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(temp_audio.name)
+        st.audio(temp_audio.name, format="audio/mp3")
 
-    audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    asyncio.run(tts_play(ai_output, audio_file.name))
-    st.audio(audio_file.name, format="audio/mp3")
-
-    # --- Word download ---
-    if DOCX_AVAILABLE:
+# --- Word download ---
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(ai_output)
+        doc.add_paragraph(latest_ai[-1])
         word_buffer = io_bytes()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
