@@ -19,12 +19,14 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Groq client with API Key ---
-GROQ_API_KEY = "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"  # <- insert your key here
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "rep_voice_text" not in st.session_state:
+    st.session_state.rep_voice_text = ""
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
@@ -95,8 +97,7 @@ def extract_pdf_images(pdf_file):
             for img in page.get_images(full=True):
                 xref = img[0]
                 base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(Image.open(BytesIO(image_bytes)))
+                images.append(Image.open(BytesIO(base_image["image"])))
     except:
         st.warning("⚠️ Could not extract images from PDF")
     return images
@@ -108,8 +109,7 @@ def extract_ppt_images(ppt_file):
         for slide in prs.slides:
             for shape in slide.shapes:
                 if shape.shape_type == 13:
-                    image = shape.image
-                    images.append(Image.open(BytesIO(image.blob)))
+                    images.append(Image.open(BytesIO(shape.image.blob)))
     except:
         st.warning("⚠️ Could not extract images from PPT")
     return images
@@ -152,73 +152,63 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice input (leave a message for AI) ---
-st.subheader("🎤 Leave a Voice Message for AI")
-st.info("The AI assistant will consider the HCP persona, segment, barrier, and specialty when responding.")
+# --- Voice Record Button ---
+st.subheader("🎤 Record Voice Message")
+if st.button("🎙️ Record"):
+    webrtc_ctx = webrtc_streamer(
+        key="speech",
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=1024,
+        media_stream_constraints={"audio": True, "video": False}
+    )
 
-webrtc_ctx = webrtc_streamer(
-    key="speech",
-    mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=1024,
-    media_stream_constraints={"audio": True, "video": False}
-)
-
-rep_voice_text = None
-if webrtc_ctx and webrtc_ctx.audio_receiver:
-    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if audio_frames:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
-            audio_path = tmp_wav.name
-        transcript = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=open(audio_path, "rb")
-        )
-        rep_voice_text = transcript.text
-        st.success(f"🗣️ You said: {rep_voice_text}")
+    if webrtc_ctx and webrtc_ctx.audio_receiver:
+        audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=3)
+        if audio_frames:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+                tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
+                audio_path = tmp_wav.name
+            transcript = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=open(audio_path, "rb")
+            )
+            st.session_state.rep_voice_text = transcript.text
+            st.success(f"🗣️ Your message converted to text!")
 
 # --- Chat input ---
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message (or use voice above)", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+rep_input = st.text_input("Type your message or use voice above", value=st.session_state.rep_voice_text, key="chat_input_box")
+if st.button("➤ Send") and rep_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":rep_input,"time":datetime.now().strftime("%H:%M")})
 
-if (submitted and user_input.strip()) or rep_voice_text:
-    rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
-
+    # --- AI Prompt ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
-    references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.
+    references = """1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Patient experiences from ZOE-50, ZOE-70, ZOE-HSCT.
-4. Impact on quality of life, pain, and patient imagery.
+3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
+4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+5. Burden of Disease, Pain, QoL, Long-term efficacy data: eye.2
 """
     prompt = f"""
 Language: {language}
-User input: {rep_message}
+User input: {rep_input}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
-{flow_str}
-APACT Steps:
-Acknowledge → Probing → Answer → Confirm → Transition
-Use APACT only when relevant.
-References:
-{references}
-Embed PDF/PPT visuals.
-Provide actionable suggestions for the sales call.
+Approved Sales Approaches: {approaches_str}
+Sales Call Flow Steps: {flow_str}
+APACT Steps (for objections): {' → '.join(apact_steps)}
+References: {references}
+Embed PDF/PPT visuals if available.
+Provide step-by-step actionable suggestions.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
 
-    # AI Completion
+    # --- AI response ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[
@@ -230,8 +220,8 @@ Response Tone: {response_tone}
     ai_output = response.choices[0].message.content
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    # Enhanced AI voice response
-    tts = gTTS(ai_output, lang="en" if language=="English" else "ar", slow=False)
+    # --- AI Voice ---
+    tts = gTTS(text=ai_output, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
