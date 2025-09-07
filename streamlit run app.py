@@ -1,16 +1,16 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF
+import fitz
 from pptx import Presentation
-import base64
-import re
 import tempfile
 from gtts import gTTS
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from datetime import datetime
+import re
 import groq
 from groq import Groq
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+import av
 
 # --- Optional Word download ---
 try:
@@ -20,31 +20,32 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Initialize Groq client with API key directly ---
+# --- Groq client ---
 GROQ_API_KEY = "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"  # <--- INSERT YOUR API KEY
 client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "rep_voice_text" not in st.session_state:
+    st.session_state.rep_voice_text = ""
 
-# --- Language selection ---
+# --- Language ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# --- GSK Logo ---
+# --- Logo ---
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
 with col1:
     try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
+        st.image(Image.open(logo_local_path), width=120)
     except:
         st.image(logo_fallback_url, width=120)
 with col2:
     st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
-# --- Brand & product data ---
+# --- Brand data ---
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
@@ -84,49 +85,6 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Upload PDF / PPT ---
-uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
-uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
-
-# --- Extract visuals ---
-def extract_pdf_images(pdf_file):
-    images = []
-    try:
-        doc = fitz.open(pdf_file)
-        for page in doc:
-            for img in page.get_images(full=True):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(Image.open(BytesIO(image_bytes)))
-    except:
-        st.warning("⚠️ Could not extract images from PDF")
-    return images
-
-def extract_ppt_images(ppt_file):
-    images = []
-    try:
-        prs = Presentation(ppt_file)
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if shape.shape_type == 13:
-                    images.append(Image.open(BytesIO(shape.image.blob)))
-    except:
-        st.warning("⚠️ Could not extract images from PPT")
-    return images
-
-pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
-ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
-all_images = pdf_images + ppt_images
-if all_images:
-    st.subheader("Uploaded Brand Visuals")
-    for img in all_images:
-        st.image(img, width=300)
-
-# --- Clear chat ---
-if st.button("🗑️ Clear Chat / مسح المحادثة"):
-    st.session_state.chat_history = []
-
 # --- Chat display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
@@ -154,58 +112,46 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice input with record button ---
-st.subheader("🎙️ Record Your Voice")
-rep_voice_text = st.text_area("Your speech will appear here...", value="", height=50, key="rep_text_area")
+# --- Voice Recorder ---
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.audio_frames = []
 
-def record_audio():
-    webrtc_ctx = webrtc_streamer(
-        key="speech",
-        mode=WebRtcMode.SENDRECV,
-        audio_receiver_size=1024,
-        media_stream_constraints={"audio": True, "video": False},
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        self.audio_frames.append(frame)
+        return frame
+
+def record_and_send(audio_frames):
+    # Save audio
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+        for frame in audio_frames:
+            tmp_wav.write(frame.to_ndarray().tobytes())
+        audio_path = tmp_wav.name
+
+    # Transcribe
+    transcript = client.audio.transcriptions.create(
+        model="whisper-large-v3",
+        file=open(audio_path, "rb")
     )
-    if webrtc_ctx and webrtc_ctx.audio_receiver:
-        audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-        if audio_frames:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-                tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
-                audio_path = tmp_wav.name
-            transcript = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=open(audio_path, "rb")
-            )
-            st.session_state["rep_voice_text"] = transcript.text
-            st.success(f"🗣️ You said: {transcript.text}")
-
-if st.button("🎤 Record / سجل صوتك"):
-    record_audio()
-    rep_voice_text = st.session_state.get("rep_voice_text", "")
-
-# --- Chat input ---
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message... (or use voice above)", value=rep_voice_text, key="user_input_box")
-    submitted = st.form_submit_button("➤")
-
-if (submitted and user_input.strip()) or rep_voice_text:
-    rep_message = rep_voice_text if rep_voice_text else user_input
+    rep_message = transcript.text
+    st.session_state.rep_voice_text = rep_message
     st.session_state.chat_history.append({
-        "role": "user",
-        "content": rep_message,
-        "time": datetime.now().strftime("%H:%M")
+        "role":"user",
+        "content":rep_message,
+        "time":datetime.now().strftime("%H:%M")
     })
 
+    # --- Prepare AI prompt ---
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
-2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
-5. Burden of Disease, Efficacy, Long-term Efficacy, Safety in Your Practice Patients to Protect
-6. Pain Descriptions and Quality of Life (Patient experiences may vary)
+1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information
+2. CDC Shingrix Recommendations
+3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster
+4. CDC Clinical Overview of Shingles
+5. Burden of Disease, Efficacy, Long-term Efficacy, Safety
+6. Pain Descriptions and Quality of Life
 """
-
     prompt = f"""
 Language: {language}
 User input: {rep_message}
@@ -219,17 +165,17 @@ Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
 {flow_str}
-APACT Steps (only for objections):
+APACT Steps:
 Acknowledge → Probing → Answer → Confirm → Transition
-Use APACT only where relevant.
+Use APACT where relevant.
 References:
 {references}
 Embed PDF/PPT visuals.
-Provide step-by-step actionable suggestions in numbered format.
+Provide numbered step-by-step actionable suggestions.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
-
+    # --- Get AI response ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[
@@ -245,14 +191,30 @@ Response Tone: {response_tone}
         "time":datetime.now().strftime("%H:%M")
     })
 
-    # Generate smart audio for AI response
+    # --- AI voice ---
     clean_text = re.sub(r"[-,+*…]", " ", ai_output)
     tts = gTTS(text=clean_text, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
-
     display_chat()
+
+# --- Record & Send button ---
+st.subheader("🎤 Record & Send Voice")
+if st.button("Record & Send"):
+    audio_processor = AudioProcessor()
+    webrtc_ctx = webrtc_streamer(
+        key="speech",
+        mode=WebRtcMode.SENDRECV,
+        audio_processor_factory=lambda: audio_processor,
+        media_stream_constraints={"audio": True, "video": False},
+        async_processing=True
+    )
+    st.info("Recording... Speak now and wait a few seconds for processing.")
+    if webrtc_ctx.audio_receiver:
+        import time
+        time.sleep(5)  # Record for 5 seconds
+        record_and_send(audio_processor.audio_frames)
 
 # --- Word download ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
