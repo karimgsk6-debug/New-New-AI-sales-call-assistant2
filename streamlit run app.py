@@ -7,11 +7,11 @@ import tempfile
 from datetime import datetime
 import os
 
-# --- Voice synthesis libraries ---
+# --- Voice synthesis ---
 import pyttsx3
 from gtts import gTTS
 
-# --- Streamlit WebRTC for voice recording ---
+# --- WebRTC voice input ---
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
 # --- Optional Word export ---
@@ -22,27 +22,25 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Groq API client ---
+# --- Groq API ---
 import groq
 from groq import Groq
-client = Groq(api_key="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")  # <<< insert real key here
+client = Groq(api_key="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")  # <<< insert real key
 
-# --- Session State ---
+# --- Session ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language choice ---
+# --- Language ---
 language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
 
 # --- Branding ---
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
-with col1:
-    st.image(logo_url, width=120)
-with col2:
-    st.title("🧠 AI Sales Call Assistant (Voice + Text)")
+with col1: st.image(logo_url, width=120)
+with col2: st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
-# --- Brand data ---
+# --- Brand links ---
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
@@ -64,7 +62,7 @@ gsk_approaches = ["Use data-driven evidence","Focus on outcomes","Leverage story
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Drive Impact","Post Call Analysis"]
 apact_steps = ["Acknowledge","Probing","Answer","Confirm","Transition"]
 
-# Sidebar
+# --- Sidebar ---
 st.sidebar.header("Filters")
 brand = st.sidebar.selectbox("Brand", list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("RACE", race_segments)
@@ -73,7 +71,7 @@ objective = st.sidebar.selectbox("Objective", objectives)
 specialty = st.sidebar.selectbox("Specialty", specialties)
 persona = st.sidebar.selectbox("Persona", personas)
 
-# --- Uploads ---
+# --- Upload PDFs/PPTs ---
 uploaded_pdf = st.sidebar.file_uploader("Upload PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload PPT", type=["pptx","ppt"])
 
@@ -122,7 +120,7 @@ def display_chat():
     chat_placeholder.markdown(html,unsafe_allow_html=True)
 display_chat()
 
-# --- Voice recording ---
+# --- Voice input ---
 st.subheader("🎙️ Rep Voice Input")
 webrtc_ctx=webrtc_streamer(
     key="speech", mode=WebRtcMode.SENDRECV,
@@ -152,6 +150,14 @@ if (submit and text_input.strip()) or rep_voice_text:
     msg=rep_voice_text if rep_voice_text else text_input
     st.session_state.chat_history.append({"role":"user","content":msg,"time":datetime.now().strftime("%H:%M")})
 
+    references = """
+Medical References for AI Response:
+- ZOE-50, ZOE-70, ZOE-HSCT phase III trials (Shingrix)
+- Clinically significant shingles pain reported 86-88% (ZBPI ≥3)
+- Duration: mean 17-22 days; 12-17% beyond 3 months
+- Patient-reported QoL impact: age ≥50, Canada qualitative study
+- Data on burden of disease, efficacy, safety, long-term protection, pain, quality of life
+"""
     prompt=f"""
 Language: {language}
 Rep input: {msg}
@@ -164,32 +170,33 @@ Persona: {persona}
 Sales Flow: {" → ".join(sales_call_flow)}
 APACT: {" → ".join(apact_steps)}
 Approaches: {"; ".join(gsk_approaches)}
-Provide a structured response following call flow. Use APACT only for objections.
+References: {references}
+Provide structured response including medical evidence, step-by-step actionable suggestions. Make response engaging and natural.
 """
 
     try:
         response=client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
-                {"role":"system","content":f"You are a GSK sales assistant that always follows sales call flow and APACT only for objections. Respond in {language}."},
+                {"role":"system","content":f"You are a GSK sales assistant following sales flow and APACT only for objections. Respond in {language}."},
                 {"role":"user","content":prompt}
             ],temperature=0.7
         )
         ai_output=response.choices[0].message.content
         st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-        # --- Smart voice output ---
+        # --- Voice output ---
         if language=="English":
             engine=pyttsx3.init()
-            engine.setProperty("rate",170)   # speed
-            engine.setProperty("volume",0.9) # louder
+            engine.setProperty("rate",160)
+            engine.setProperty("volume",0.9)
             voices=engine.getProperty("voices")
             engine.setProperty("voice", voices[1].id if len(voices)>1 else voices[0].id)
             audio_file=tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
             engine.save_to_file(ai_output,audio_file.name)
             engine.runAndWait()
             st.audio(audio_file.name,format="audio/mp3")
-        else:  # Arabic with gTTS
+        else:
             tts=gTTS(ai_output,lang="ar",slow=False)
             audio_file=tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
             tts.save(audio_file.name)
