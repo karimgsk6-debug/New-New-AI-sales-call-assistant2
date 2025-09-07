@@ -16,3 +16,11 @@ gtts
 streamlit-webrtc
 streamlit-mic-recorder
 python-docx
+streamlit
+pillow
+requests
+PyMuPDF
+python-pptx
+groq
+gTTS
+st-audiorec
