@@ -1,101 +1,46 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from PIL import Image
-from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF
+from io import BytesIO
+import fitz
 from pptx import Presentation
-import base64
-from datetime import datetime
 import tempfile
-import re
-import os
+import asyncio
+import edge_tts
+from datetime import datetime
+from docx import Document
+import groq
+from groq import Groq
+import streamlit.components.v1 as components
 
-# --- TTS fallback ---
-try:
-    import edge_tts
-    EDGE_TTS_AVAILABLE = True
-except ImportError:
-    EDGE_TTS_AVAILABLE = False
-    from gtts import gTTS
-
-# --- Optional Word download ---
-try:
-    from docx import Document
-    DOCX_AVAILABLE = True
-except ImportError:
-    DOCX_AVAILABLE = False
-    st.warning("⚠️ python-docx not installed. Word download unavailable.")
-
-# --- Groq client ---
-try:
-    import groq
-    from groq import Groq
-    client = Groq(api_key="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")  # <-- insert your API key
-except Exception as e:
-    st.error("❌ Groq API client not available or API key invalid.")
+# --- Groq API key ---
+client = Groq(api_key="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")
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language selection ---
-language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
-
-# --- GSK Logo ---
-logo_local_path = "images/gsk_logo.png"
-logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
-with col1:
-    try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
-    except:
-        st.image(logo_fallback_url, width=120)
-with col2:
-    st.title("🧠 AI Sales Call Assistant (Voice + Text)")
-
-# --- Brands ---
-gsk_brands = {
-    "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
-    "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
-    "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
-}
-
-# --- RACE segments ---
+# --- Sidebar filters ---
+st.sidebar.header("Filters & Options")
+brand = st.sidebar.selectbox("Select Brand", ["Shingrix", "Trelegy", "Zejula"])
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
     "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
     "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
-
-# --- Filters & options ---
-doctor_barriers = [
+segment = st.sidebar.selectbox("RACE Segment", race_segments)
+barrier = st.sidebar.multiselect("Doctor Barriers", [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
     "Cost considerations",
     "Not convinced HZ Vx effective",
     "Accessibility issues"
-]
-objectives = ["Awareness", "Adoption", "Retention"]
-specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
-personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
-gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
-sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
-apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
+])
+specialty = st.sidebar.selectbox("Doctor Specialty", ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"])
+persona = st.sidebar.selectbox("HCP Persona", ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"])
 
-# --- Sidebar filters ---
-st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", list(gsk_brands.keys()))
-segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", doctor_barriers)
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", specialties)
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", personas)
-response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
-
-# --- Upload PDF/PPT at bottom left ---
-st.sidebar.markdown("---")
+# --- PDF/PPT upload ---
 uploaded_pdf = st.sidebar.file_uploader("Upload PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload PPT", type=["pptx", "ppt"])
 
@@ -108,10 +53,8 @@ def extract_pdf_images(pdf_file):
             for img in page.get_images(full=True):
                 xref = img[0]
                 base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(Image.open(BytesIO(image_bytes)))
-    except:
-        st.warning("⚠️ Could not extract images from PDF")
+                images.append(Image.open(BytesIO(base_image["image"])))
+    except: pass
     return images
 
 def extract_ppt_images(ppt_file):
@@ -122,8 +65,7 @@ def extract_ppt_images(ppt_file):
             for shape in slide.shapes:
                 if shape.shape_type == 13:
                     images.append(Image.open(BytesIO(shape.image.blob)))
-    except:
-        st.warning("⚠️ Could not extract images from PPT")
+    except: pass
     return images
 
 pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
@@ -131,18 +73,17 @@ ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
 if all_images:
     st.subheader("Uploaded Visuals")
-    for img in all_images:
-        st.image(img, width=300)
+    for img in all_images: st.image(img, width=300)
 
-# --- Chat interface ---
-st.subheader("💬 Chatbot Interface")
+# --- Chat display ---
+st.subheader("💬 AI Sales Assistant")
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace('\n','<br>').strip()
+        content = msg["content"].replace("\n", "<br>")
         time = msg.get("time", "")
-        if msg["role"]=="user":
+        if msg["role"] == "user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; margin:5px; padding:10px; border-radius:15px;'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
         else:
             chat_html += f"<div style='text-align:left; background:#f0f2f6; margin:5px; padding:10px; border-radius:15px;'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
@@ -150,117 +91,107 @@ def display_chat():
 
 display_chat()
 
-# --- Voice Recording (smart WhatsApp style) ---
-st.subheader("🎙️ Record your question")
-import streamlit_webrtc
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
+# --- WhatsApp-style hold-to-record button using JS ---
+st.subheader("🎤 Press and Hold to Record")
+components.html("""
+<style>
+#recordBtn {
+  width: 150px;
+  height: 50px;
+  background-color: #4CAF50;
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 25px;
+}
+#recordBtn:active {
+  background-color: #45a049;
+}
+</style>
+<button id="recordBtn">Hold to Record</button>
+<script>
+const btn = document.getElementById("recordBtn");
+let mediaRecorder;
+let audioChunks = [];
 
-webrtc_ctx = webrtc_streamer(
-    key="rep_voice",
-    mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=1024,
-    media_stream_constraints={"audio": True, "video": False},
-    async_processing=True,
-)
+btn.onmousedown = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.start();
+    mediaRecorder.ondataavailable = e => { audioChunks.push(e.data); };
+};
+btn.onmouseup = async () => {
+    mediaRecorder.stop();
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(audioChunks, {type:"audio/wav"});
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+            const base64data = reader.result;
+            fetch("/_send_audio", {
+                method:"POST",
+                body: JSON.stringify({audio: base64data})
+            });
+        };
+        audioChunks = [];
+    };
+};
+</script>
+""", height=100)
 
-rep_voice_text = st.text_area("Your voice will appear here...")
-
-if webrtc_ctx.audio_receiver:
-    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if audio_frames:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
-            audio_path = tmp_wav.name
-        # --- Transcribe using Groq Whisper ---
-        try:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=open(audio_path, "rb")
-            )
-            rep_voice_text = transcript.text
-        except:
-            rep_voice_text = "❌ Voice could not be transcribed."
-
-st.text_area("Voice-to-text", value=rep_voice_text, height=100)
-
-# --- Chat input ---
+# --- Chat input & submission ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message (or use voice above)")
+    user_input = st.text_area("Type your message (or leave voice message above)", height=100)
     submitted = st.form_submit_button("Send")
 
-if (submitted and user_input.strip()) or rep_voice_text.strip():
-    rep_message = rep_voice_text if rep_voice_text.strip() else user_input
+if submitted and user_input.strip():
+    rep_message = user_input
     st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
+    display_chat()
 
-    # Build prompt
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
-    references = """1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+    references = """
+1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
 """
     prompt = f"""
-Language: {language}
 User input: {rep_message}
 RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-Brand: {brand}
+Doctor Barriers: {', '.join(barrier)}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
-{flow_str}
-APACT Steps:
-Acknowledge → Probing → Answer → Confirm → Transition
-Use APACT only where relevant.
-References:
-{references}
-Include PDF/PPT content and visuals if uploaded.
-Response Length: {response_length}
-Response Tone: {response_tone}
+References: {references}
+Include PDF/PPT content if uploaded.
 """
 
-    # --- Call Groq AI ---
     try:
         response = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[{"role":"system","content":f"You are a helpful sales assistant that responds in {language}."},
-                      {"role":"user","content":prompt}],
+            messages=[{"role":"system","content":"You are a helpful male storytelling sales assistant."},{"role":"user","content":prompt}],
             temperature=0.7
         )
         ai_output = response.choices[0].message.content
     except:
-        ai_output = "❌ AI response could not be generated. Please check API key and connection."
+        ai_output = "❌ AI response failed."
 
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
     display_chat()
 
-    # --- AI voice reply ---
-    if EDGE_TTS_AVAILABLE:
-        import asyncio
-        tts = edge_tts.Communicate(ai_output, voice="en-US-GuyNeural")  # male storytelling
-        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        asyncio.run(tts.save(temp_audio.name))
-        st.audio(temp_audio.name, format="audio/mp3")
-    else:
-        tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
-        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(temp_audio.name)
-        st.audio(temp_audio.name, format="audio/mp3")
+    async def play_voice():
+        tts = edge_tts.Communicate(ai_output, voice="en-US-GuyNeural")
+        tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        await tts.save(tmp_mp3.name)
+        st.audio(tmp_mp3.name, format="audio/mp3")
+    asyncio.run(play_voice())
 
 # --- Word download ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
+if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
+        word_buffer = BytesIO()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-# --- Brand leaflet ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
