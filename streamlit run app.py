@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF for PDF extraction
+import fitz  # PyMuPDF
 from pptx import Presentation
 import base64
 from datetime import datetime
@@ -29,8 +29,7 @@ except ImportError:
 try:
     import groq
     from groq import Groq
-    # Insert your API key directly here
-    client = Groq(api_key="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")
+    client = Groq(api_key="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")  # <-- insert your API key
 except Exception as e:
     st.error("❌ Groq API client not available or API key invalid.")
 
@@ -95,9 +94,10 @@ persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الط�
 response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 
-# --- Upload PDF/PPT ---
-uploaded_pdf = st.file_uploader("Upload PDF", type="pdf")
-uploaded_ppt = st.file_uploader("Upload PPT", type=["pptx", "ppt"])
+# --- Upload PDF/PPT at bottom left ---
+st.sidebar.markdown("---")
+uploaded_pdf = st.sidebar.file_uploader("Upload PDF", type="pdf")
+uploaded_ppt = st.sidebar.file_uploader("Upload PPT", type=["pptx", "ppt"])
 
 # --- Extract images ---
 def extract_pdf_images(pdf_file):
@@ -150,9 +150,38 @@ def display_chat():
 
 display_chat()
 
-# --- Voice input ---
-st.subheader("🎙️ Record your question (Voice-to-Text)")
+# --- Voice Recording (smart WhatsApp style) ---
+st.subheader("🎙️ Record your question")
+import streamlit_webrtc
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
+
+webrtc_ctx = webrtc_streamer(
+    key="rep_voice",
+    mode=WebRtcMode.SENDRECV,
+    audio_receiver_size=1024,
+    media_stream_constraints={"audio": True, "video": False},
+    async_processing=True,
+)
+
 rep_voice_text = st.text_area("Your voice will appear here...")
+
+if webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if audio_frames:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
+            audio_path = tmp_wav.name
+        # --- Transcribe using Groq Whisper ---
+        try:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=open(audio_path, "rb")
+            )
+            rep_voice_text = transcript.text
+        except:
+            rep_voice_text = "❌ Voice could not be transcribed."
+
+st.text_area("Voice-to-text", value=rep_voice_text, height=100)
 
 # --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
@@ -212,8 +241,7 @@ Response Tone: {response_tone}
     # --- AI voice reply ---
     if EDGE_TTS_AVAILABLE:
         import asyncio
-        import edge_tts
-        tts = edge_tts.Communicate(ai_output, voice="en-US-GuyNeural")
+        tts = edge_tts.Communicate(ai_output, voice="en-US-GuyNeural")  # male storytelling
         temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         asyncio.run(tts.save(temp_audio.name))
         st.audio(temp_audio.name, format="audio/mp3")
