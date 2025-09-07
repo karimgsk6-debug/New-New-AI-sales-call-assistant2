@@ -279,12 +279,21 @@ Response Tone: {response_tone}
 # -------------------------------
 try:
     from docx import Document
-    if st.session_state.chat_history:
-        latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-        if latest_ai:
-            doc = Document()
-            doc.add_heading("AI Sales Call Response", 0)
-            doc.add_paragraph(latest_ai[-1])
-            word_buffer = io_bytes()
-            doc.save(word_buffer)
-            st.download_button("📥 Download as
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    st.warning("⚠️ python-docx not installed. Word download unavailable.")
+
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io_bytes()
+        doc.save(word_buffer)
+        st.download_button(
+            label="📥 Download as Word (.docx)",
+            data=word_buffer.getvalue(),
+            file_name="AI_Response.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
