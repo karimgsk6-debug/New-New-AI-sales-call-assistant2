@@ -3,14 +3,14 @@ from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF
 from pptx import Presentation
-import base64
-import re
 import tempfile
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from datetime import datetime
+import re
 import groq
 from groq import Groq
+import base64
 
 # --- Optional Word download ---
 try:
@@ -27,6 +27,8 @@ client = Groq(api_key=GROQ_API_KEY)
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "uploaded_images" not in st.session_state:
+    st.session_state.uploaded_images = []
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
@@ -42,7 +44,7 @@ with col1:
     except:
         st.image(logo_fallback_url, width=120)
 with col2:
-    st.title("🧠 AI Sales Call Assistant (Voice + Text)")
+    st.title("🧠 AI Sales Call Assistant (Voice + Text + Visuals)")
 
 # --- Brand & product data ---
 gsk_brands = {
@@ -115,12 +117,18 @@ def extract_ppt_images(ppt_file):
         st.warning("⚠️ Could not extract images from PPT")
     return images
 
-pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
-ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
-all_images = pdf_images + ppt_images
-if all_images:
+# --- Store extracted images in session ---
+if uploaded_pdf:
+    pdf_images = extract_pdf_images(uploaded_pdf)
+    st.session_state.uploaded_images.extend(pdf_images)
+if uploaded_ppt:
+    ppt_images = extract_ppt_images(uploaded_ppt)
+    st.session_state.uploaded_images.extend(ppt_images)
+
+# --- Display uploaded visuals ---
+if st.session_state.uploaded_images:
     st.subheader("Uploaded Brand Visuals")
-    for img in all_images:
+    for img in st.session_state.uploaded_images:
         st.image(img, width=300)
 
 # --- Clear chat ---
@@ -135,6 +143,12 @@ def display_chat():
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n','<br>').strip()
+        # Render inline visuals
+        for i, img in enumerate(st.session_state.uploaded_images):
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_b64 = base64.b64encode(buffered.getvalue()).decode()
+            content = content.replace(f"<visual:{i+1}>", f'<img src="data:image/png;base64,{img_b64}" width="200">')
         if msg["role"]=="user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
@@ -155,7 +169,7 @@ def display_chat():
 display_chat()
 
 # --- Voice input with record button ---
-st.subheader("🎙️ Record Your Voice")
+st.subheader("🎤 Record Your Voice")
 rep_voice_text = st.text_area("Your speech will appear here...", value="", height=50, key="rep_text_area")
 
 def record_audio():
@@ -178,7 +192,7 @@ def record_audio():
             st.session_state["rep_voice_text"] = transcript.text
             st.success(f"🗣️ You said: {transcript.text}")
 
-if st.button("🎤 Record / سجل صوتك"):
+if st.button("Record Voice / سجل صوتك"):
     record_audio()
     rep_voice_text = st.session_state.get("rep_voice_text", "")
 
@@ -198,13 +212,18 @@ if (submitted and user_input.strip()) or rep_voice_text:
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
 5. Burden of Disease, Efficacy, Long-term Efficacy, Safety in Your Practice Patients to Protect
 6. Pain Descriptions and Quality of Life (Patient experiences may vary)
 """
+
+    # AI prompt includes all uploaded visuals automatically
+    visuals_text = ""
+    for idx in range(len(st.session_state.uploaded_images)):
+        visuals_text += f"Refer to the visual {idx+1} as <visual:{idx+1}> in the response.\n"
 
     prompt = f"""
 Language: {language}
@@ -215,6 +234,8 @@ Objective: {objective}
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
+Number of Uploaded Visuals: {len(st.session_state.uploaded_images)}
+{visuals_text}
 Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
@@ -224,7 +245,6 @@ Acknowledge → Probing → Answer → Confirm → Transition
 Use APACT only where relevant.
 References:
 {references}
-Embed PDF/PPT visuals.
 Provide step-by-step actionable suggestions in numbered format.
 Response Length: {response_length}
 Response Tone: {response_tone}
@@ -245,7 +265,7 @@ Response Tone: {response_tone}
         "time":datetime.now().strftime("%H:%M")
     })
 
-    # Generate smart audio for AI response
+    # Generate smart audio for AI response (punctuation removed)
     clean_text = re.sub(r"[-,+*…]", " ", ai_output)
     tts = gTTS(text=clean_text, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
