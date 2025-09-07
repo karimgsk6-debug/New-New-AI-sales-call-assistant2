@@ -7,3 +7,12 @@ gTTS>=2.3.2
 docx>=0.2.4
 groq>=0.11.0
 numpy>=1.26.0
+streamlit
+pillow
+pymupdf
+python-pptx
+groq
+gtts
+streamlit-webrtc
+streamlit-mic-recorder
+python-docx
