@@ -20,3 +20,10 @@ python-docx
 
 # Optional: Utilities
 requests
+streamlit
+Pillow
+PyMuPDF
+python-pptx
+gTTS
+streamlit-audiorec
+groq
