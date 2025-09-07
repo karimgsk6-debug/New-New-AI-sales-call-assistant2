@@ -1,15 +1,19 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF
+import fitz  # PDF
 from pptx import Presentation
 import tempfile
-from gtts import gTTS
+import os
 from datetime import datetime
 import re
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
-# Groq client
+# TTS with natural male voice (edge-tts)
+import asyncio
+import edge_tts
+
+# Groq AI
 import groq
 from groq import Groq
 client = Groq(api_key="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")  # <-- insert API key
@@ -79,10 +83,12 @@ objective = st.sidebar.selectbox("Select Objective / اختر الهدف", optio
 specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
 persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
 response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Storytelling"])
 
-# --- Upload PDF ---
+# --- Upload PDF / PPT ---
 uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
+uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+
 def extract_pdf_text_images(pdf_file):
     text_content = ""
     images = []
@@ -98,12 +104,30 @@ def extract_pdf_text_images(pdf_file):
         st.warning("⚠️ Could not extract PDF content")
     return text_content, images
 
-pdf_text, pdf_images = extract_pdf_text_images(uploaded_pdf) if uploaded_pdf else ("", [])
+def extract_ppt_images(ppt_file):
+    images = []
+    text_content = ""
+    try:
+        prs = Presentation(ppt_file)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    text_content += shape.text + "\n"
+                if shape.shape_type == 13:  # Picture
+                    images.append(Image.open(BytesIO(shape.image.blob)))
+    except:
+        st.warning("⚠️ Could not extract PPT content")
+    return text_content, images
 
-# --- Display PDF visuals ---
-if pdf_images:
-    st.subheader("Uploaded PDF Visuals")
-    for img in pdf_images:
+pdf_text, pdf_images = extract_pdf_text_images(uploaded_pdf) if uploaded_pdf else ("", [])
+ppt_text, ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else ("", [])
+all_text = pdf_text + "\n" + ppt_text
+all_images = pdf_images + ppt_images
+
+# --- Display visuals ---
+if all_images:
+    st.subheader("Uploaded Visuals")
+    for img in all_images:
         st.image(img, width=300)
 
 # --- Clear chat ---
@@ -125,9 +149,9 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice recording + text ---
-st.subheader("🎙️ Record your voice (or type)")
-rep_voice_text = st.text_input("Your question will appear here after recording...")
+# --- Voice recording ---
+st.subheader("🎙️ Leave a voice message or type your question")
+rep_voice_text = st.text_input("Your transcribed question will appear here...")
 
 webrtc_ctx = webrtc_streamer(
     key="rep_voice",
@@ -168,7 +192,7 @@ if (submitted and user_input.strip()) or rep_voice_text.strip():
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"""
 
     # --- Prompt ---
-    numbered_pdf_text = re.sub(r'[\*\-\•]', '', pdf_text)
+    numbered_text = re.sub(r'[\*\-\•]', '', all_text)
     prompt = f"""
 Language: {language}
 User input: {rep_message}
@@ -181,11 +205,12 @@ HCP Persona: {persona}
 Approved Sales Approaches: {', '.join(gsk_approaches)}
 Sales Call Flow Steps: {' → '.join(sales_call_flow)}
 APACT Steps: {' → '.join(apact_steps)}
-References from PDF & external: {numbered_pdf_text[:2000]} {references}
+References & extracted content: {numbered_text[:2000]} {references}
 Response Length: {response_length}
 Response Tone: {response_tone}
-Provide step-by-step suggestions with numbered steps.
-Remove punctuation in audio output.
+Provide step-by-step suggestions in numbered format.
+Remove punctuation in AI voice output.
+Storytelling, engaging male voice.
 """
 
     try:
@@ -204,10 +229,13 @@ Remove punctuation in audio output.
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
     display_chat()
 
-    # --- Generate AI voice ---
-    tts = gTTS(ai_output, lang="en" if language=="English" else "ar", slow=False)
+    # --- Generate male storytelling voice (edge-tts) ---
+    async def tts_play(text, file_path):
+        communicate = edge_tts.Communicate(text, "en-US-GuyNeural")  # male, natural
+        await communicate.save(file_path)
+
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(audio_file.name)
+    asyncio.run(tts_play(ai_output, audio_file.name))
     st.audio(audio_file.name, format="audio/mp3")
 
     # --- Word download ---
