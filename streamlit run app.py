@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz
+import fitz  # PyMuPDF
 from pptx import Presentation
 import tempfile
 from gtts import gTTS
@@ -11,6 +11,7 @@ import groq
 from groq import Groq
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
 import av
+import time
 
 # --- Optional Word download ---
 try:
@@ -21,7 +22,7 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Groq client ---
-GROQ_API_KEY = "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"  # <--- INSERT YOUR API KEY
+GROQ_API_KEY = "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"  # <--- Insert your API key here
 client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
@@ -29,8 +30,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "rep_voice_text" not in st.session_state:
     st.session_state.rep_voice_text = ""
+if "recording" not in st.session_state:
+    st.session_state.recording = False
 
-# --- Language ---
+# --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
 # --- Logo ---
@@ -45,7 +48,7 @@ with col1:
 with col2:
     st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
-# --- Brand data ---
+# --- Brand & product data ---
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
@@ -91,13 +94,13 @@ chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
+        time_msg = msg.get("time", "")
         content = msg["content"].replace('\n','<br>').strip()
         if msg["role"]=="user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time_msg}</span></div>
                     <img src="https://img.icons8.com/emoji/48/000000/man-technologist-light-skin-tone.png" width="30" style='margin-left:10px;'>
                 </div>
             </div>"""
@@ -106,7 +109,7 @@ def display_chat():
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
                 <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
                     <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time_msg}</span></div>
                 </div>
             </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
@@ -116,12 +119,15 @@ display_chat()
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
         self.audio_frames = []
-
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         self.audio_frames.append(frame)
         return frame
 
-def record_and_send(audio_frames):
+def process_audio(audio_frames):
+    if not audio_frames:
+        st.warning("No audio captured")
+        return
+
     # Save audio
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
         for frame in audio_frames:
@@ -140,8 +146,10 @@ def record_and_send(audio_frames):
         "content":rep_message,
         "time":datetime.now().strftime("%H:%M")
     })
+    display_chat()
+    process_ai(rep_message)
 
-    # --- Prepare AI prompt ---
+def process_ai(rep_message):
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
@@ -175,7 +183,6 @@ Provide numbered step-by-step actionable suggestions.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
-    # --- Get AI response ---
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[
@@ -190,31 +197,51 @@ Response Tone: {response_tone}
         "content":ai_output,
         "time":datetime.now().strftime("%H:%M")
     })
+    display_chat()
 
-    # --- AI voice ---
+    # AI voice
     clean_text = re.sub(r"[-,+*…]", " ", ai_output)
     tts = gTTS(text=clean_text, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
-    display_chat()
 
-# --- Record & Send button ---
-st.subheader("🎤 Record & Send Voice")
-if st.button("Record & Send"):
-    audio_processor = AudioProcessor()
-    webrtc_ctx = webrtc_streamer(
-        key="speech",
-        mode=WebRtcMode.SENDRECV,
-        audio_processor_factory=lambda: audio_processor,
-        media_stream_constraints={"audio": True, "video": False},
-        async_processing=True
-    )
-    st.info("Recording... Speak now and wait a few seconds for processing.")
-    if webrtc_ctx.audio_receiver:
-        import time
-        time.sleep(5)  # Record for 5 seconds
-        record_and_send(audio_processor.audio_frames)
+# --- Text input form ---
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your question here (or use voice below)")
+    submitted = st.form_submit_button("➤ Send")
+    if submitted and user_input.strip():
+        st.session_state.chat_history.append({
+            "role":"user",
+            "content":user_input.strip(),
+            "time":datetime.now().strftime("%H:%M")
+        })
+        display_chat()
+        process_ai(user_input.strip())
+
+# --- Dynamic voice record buttons ---
+st.subheader("🎤 Voice Recording")
+col_start, col_stop = st.columns(2)
+with col_start:
+    if st.button("Start Recording"):
+        st.session_state.recording = True
+        st.session_state.audio_processor = AudioProcessor()
+        webrtc_streamer(
+            key="speech",
+            mode=WebRtcMode.SENDRECV,
+            audio_processor_factory=lambda: st.session_state.audio_processor,
+            media_stream_constraints={"audio": True, "video": False},
+            async_processing=True
+        )
+        st.info("Recording... Speak now.")
+with col_stop:
+    if st.button("Stop Recording & Send"):
+        st.session_state.recording = False
+        audio_frames = getattr(st.session_state, "audio_processor", None)
+        if audio_frames:
+            process_audio(audio_frames.audio_frames)
+        else:
+            st.warning("No audio recorded.")
 
 # --- Word download ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
