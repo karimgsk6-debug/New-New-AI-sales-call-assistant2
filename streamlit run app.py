@@ -1,31 +1,34 @@
 import streamlit as st
 from PIL import Image
-from io import BytesIO
-import fitz  # PyMuPDF for fallback (if needed)
+from io import BytesIO, BytesIO as io_bytes
+import fitz  # PyMuPDF
 from pptx import Presentation
 import tempfile
-import pyttsx3
+from datetime import datetime
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
-from pdf2image import convert_from_bytes
-from datetime import datetime
-import re
-import os
 import base64
-
-# --- Initialize Groq client with API key directly ---
 import groq
-from groq import Groq
-client = Groq(api_key="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")
 
-# --- Session state ---
+# -------------------------------
+# CONFIG: Insert your GROQ API key
+# -------------------------------
+client = groq.Groq(api_key="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")  # <-- Replace with your key
+
+# -------------------------------
+# SESSION STATE
+# -------------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language selection ---
+# -------------------------------
+# LANGUAGE
+# -------------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# --- GSK Logo ---
+# -------------------------------
+# GSK LOGO
+# -------------------------------
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1, 5])
@@ -38,20 +41,34 @@ with col1:
 with col2:
     st.title("🧠 AI Sales Call Assistant (Voice + Text)")
 
-# --- Brand & product data ---
+# -------------------------------
+# DISCLAIMER
+# -------------------------------
+st.markdown("""
+<small>
+⚠️ **Disclaimer:** This AI Sales Assistant is designed to help and equip sales reps to handle HCP objections and generate better sales outcomes (GSO). All responses are AI-generated and should be critically reviewed and challenged for accuracy.
+</small>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# BRAND & PRODUCT DATA
+# -------------------------------
 gsk_brands = {
     "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
     "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
     "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
 }
 
-# --- Filters & options ---
+# -------------------------------
+# RACE / BARRIERS / OBJECTIVES / PERSONA / STEPS
+# -------------------------------
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
     "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
     "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
+
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -59,6 +76,7 @@ doctor_barriers = [
     "Not convinced HZ Vx effective",
     "Accessibility issues"
 ]
+
 objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
@@ -66,7 +84,9 @@ gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leve
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
 apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
-# --- Sidebar filters ---
+# -------------------------------
+# SIDEBAR FILTERS
+# -------------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
@@ -78,41 +98,52 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Upload PDF / PPT ---
-uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
-uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+# -------------------------------
+# UPLOAD PDF / PPT
+# -------------------------------
+uploaded_pdf = st.file_uploader("Upload brand PDF", type="pdf")
+uploaded_ppt = st.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
 
-# --- Extract images from PDF ---
-def extract_pdf_images(uploaded_pdf):
+# -------------------------------
+# EXTRACT VISUALS
+# -------------------------------
+def extract_pdf_images(pdf_file):
     images = []
-    if uploaded_pdf:
-        try:
-            pdf_bytes = uploaded_pdf.read()
-            pil_images = convert_from_bytes(pdf_bytes)
-            for img in pil_images:
-                images.append(img)
-        except Exception as e:
-            st.warning(f"⚠️ Could not extract images from PDF: {e}")
+    try:
+        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                images.append(Image.open(BytesIO(image_bytes)))
+    except Exception as e:
+        st.warning(f"⚠️ Could not extract images from PDF: {e}")
     return images
 
-# --- Extract images from PPT ---
 def extract_ppt_images(ppt_file):
     images = []
-    if ppt_file:
-        try:
-            prs = Presentation(ppt_file)
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if shape.shape_type == 13:  # Picture
-                        img = shape.image
-                        images.append(Image.open(BytesIO(img.blob)))
-        except Exception as e:
-            st.warning(f"⚠️ Could not extract images from PPT: {e}")
+    try:
+        prs = Presentation(ppt_file)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if shape.shape_type == 13:  # Picture
+                    image = shape.image
+                    images.append(Image.open(BytesIO(image.blob)))
+    except Exception as e:
+        st.warning(f"⚠️ Could not extract images from PPT: {e}")
     return images
 
-# --- Chat display ---
+pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
+ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
+all_images = pdf_images + ppt_images
+
+# -------------------------------
+# CHAT INTERFACE
+# -------------------------------
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
+
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
@@ -127,67 +158,70 @@ def display_chat():
                 </div>
             </div>"""
         else:
+            # Embed visuals in AI response
+            images_html = ""
+            for img in all_images:
+                buffered = BytesIO()
+                img.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                images_html += f"<img src='data:image/png;base64,{img_str}' width='250' style='margin:5px;'/>"
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <img src="https://img.icons8.com/emoji/48/000000/robot-emoji.png" width="30" style='margin-right:10px;'>
+                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start; flex-direction:column;'>
                     <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    {images_html}
                 </div>
             </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-display_chat()
 
-# --- Voice input (record button) ---
+# -------------------------------
+# CLEAR CHAT
+# -------------------------------
+if st.button("🗑️ Clear Chat / مسح المحادثة"):
+    st.session_state.chat_history = []
+
+# -------------------------------
+# VOICE INPUT
+# -------------------------------
 st.subheader("🎙️ Record Your Voice")
-rep_voice_text = st.text_area("Your recorded message will appear here:", height=80)
-if st.button("Record / تسجيل"):
-    webrtc_ctx = webrtc_streamer(
-        key="speech",
-        mode=WebRtcMode.SENDRECV,
-        audio_receiver_size=1024,
-        media_stream_constraints={"audio": True, "video": False},
-    )
-    if webrtc_ctx and webrtc_ctx.audio_receiver:
-        audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=5)
-        if audio_frames:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-                tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
-                audio_path = tmp_wav.name
+webrtc_ctx = webrtc_streamer(
+    key="speech",
+    mode=WebRtcMode.SENDRECV,
+    audio_receiver_size=1024,
+    media_stream_constraints={"audio": True, "video": False},
+)
+rep_voice_text = None
+if webrtc_ctx and webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if audio_frames:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
+            audio_path = tmp_wav.name
+        try:
             transcript = client.audio.transcriptions.create(
                 model="whisper-large-v3",
                 file=open(audio_path, "rb")
             )
             rep_voice_text = transcript.text
             st.success(f"🗣️ You said: {rep_voice_text}")
+        except Exception as e:
+            st.warning(f"⚠️ Could not transcribe voice: {e}")
 
-# --- Chat input form ---
+# -------------------------------
+# TEXT INPUT & FORM
+# -------------------------------
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message... (or use voice above)", value=rep_voice_text or "", key="user_input_box")
+    user_input = st.text_input("Type your message... (or use voice above)", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
-if (submitted and user_input.strip()):
-    rep_message = user_input
+if (submitted and user_input.strip()) or rep_voice_text:
+    rep_message = rep_voice_text if rep_voice_text else user_input
     st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
 
-    # Embed PDF/PPT visuals in AI response
-    pdf_images = extract_pdf_images(uploaded_pdf)
-    ppt_images = extract_ppt_images(uploaded_ppt)
-    all_images = pdf_images + ppt_images
-    visuals_html = ""
-    for idx, img in enumerate(all_images):
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        visuals_html += f'<p>Visual {idx+1}:</p><img src="data:image/png;base64,{img_str}" width="300"><br>'
-
-    approaches_str = "\n".join([f"{i+1}. {a}" for i,a in enumerate(gsk_approaches)])
+    approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
-    references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information
-2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
-"""
+    references = """1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html"""
+
     prompt = f"""
 Language: {language}
 User input: {rep_message}
@@ -206,36 +240,43 @@ Acknowledge → Probing → Answer → Confirm → Transition
 Use APACT only where relevant.
 References:
 {references}
-Embed PDF/PPT visuals as images in response:
-{visuals_html}
+Embed PDF/PPT visuals in response.
 Provide step-by-step actionable suggestions.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
 
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-            {"role":"user","content":prompt}
-        ],
-        temperature=0.7
-    )
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
+                {"role":"user","content":prompt}
+            ],
+            temperature=0.7
+        )
+        ai_output = response.choices[0].message.content
+    except Exception as e:
+        ai_output = f"⚠️ Could not generate AI response: {e}"
 
-    ai_output = response.choices[0].message.content
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    # AI voice reply
-    # Remove punctuations to make it sound more natural
-    clean_output = re.sub(r"[-,.;:!?]+", "", ai_output)
-    tts = gTTS(clean_output, lang="en" if language=="English" else "ar")
-    audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(audio_file.name)
-    st.audio(audio_file.name, format="audio/mp3")
+    # -------------------------------
+    # AI VOICE RESPONSE
+    # -------------------------------
+    try:
+        tts = gTTS(ai_output.replace("-", "").replace(",", "").replace(".", ""), lang="en" if language=="English" else "ar")
+        audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(audio_file.name)
+        st.audio(audio_file.name, format="audio/mp3")
+    except Exception as e:
+        st.warning(f"⚠️ Could not generate AI audio: {e}")
 
     display_chat()
 
-# --- Word download ---
+# -------------------------------
+# DOWNLOAD WORD
+# -------------------------------
 try:
     from docx import Document
     if st.session_state.chat_history:
@@ -244,11 +285,6 @@ try:
             doc = Document()
             doc.add_heading("AI Sales Call Response", 0)
             doc.add_paragraph(latest_ai[-1])
-            word_buffer = BytesIO()
+            word_buffer = io_bytes()
             doc.save(word_buffer)
-            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-except:
-    st.warning("⚠️ python-docx not installed. Word download unavailable.")
-
-# --- Brand leaflet ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+            st.download_button("📥 Download as
