@@ -2,15 +2,14 @@ import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF for PDF extraction
-from pptx import Presentation
-import base64
-import os
+from pptx import Presentation  # For PPT extraction
 import groq
 from groq import Groq
 from datetime import datetime
 import tempfile
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
+import os
 
 # --- Optional dependency for Word download ---
 try:
@@ -20,13 +19,12 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- GROQ API Key handling ---
+# --- Load API key securely ---
 api_key = st.secrets.get("GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
 if not api_key:
     st.error("❌ API key not found. Please set GROQ_API_KEY in Streamlit secrets or environment variables.")
-    st.stop()
-
-client = Groq(api_key=api_key)
+else:
+    client = Groq(api_key=api_key)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
@@ -92,7 +90,7 @@ interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chat
 uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
 
-# --- Functions to extract images ---
+# --- Extract images from PDF ---
 def extract_pdf_images(pdf_file):
     images = []
     try:
@@ -101,11 +99,13 @@ def extract_pdf_images(pdf_file):
             for img in page.get_images(full=True):
                 xref = img[0]
                 base_image = doc.extract_image(xref)
-                images.append(Image.open(BytesIO(base_image["image"])))
+                image_bytes = base_image["image"]
+                images.append(Image.open(BytesIO(image_bytes)))
     except:
         st.warning("⚠️ Could not extract images from PDF")
     return images
 
+# --- Extract images from PPT ---
 def extract_ppt_images(ppt_file):
     images = []
     try:
@@ -113,11 +113,13 @@ def extract_ppt_images(ppt_file):
         for slide in prs.slides:
             for shape in slide.shapes:
                 if shape.shape_type == 13:  # Picture
-                    images.append(Image.open(BytesIO(shape.image.blob)))
+                    image = shape.image
+                    images.append(Image.open(BytesIO(image.blob)))
     except:
         st.warning("⚠️ Could not extract images from PPT")
     return images
 
+# --- Extracted visuals ---
 pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
 ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
@@ -155,11 +157,10 @@ def display_chat():
                 </div>
             </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
 display_chat()
 
-# --- Voice input only for AI response ---
-st.subheader("🎙️ Record Your Voice (Response Only)")
+# --- Voice input ---
+st.subheader("🎙️ Record Your Voice")
 webrtc_ctx = webrtc_streamer(
     key="speech",
     mode=WebRtcMode.SENDRECV,
@@ -187,7 +188,7 @@ with st.form("chat_form", clear_on_submit=True):
 
 if (submitted and user_input.strip()) or rep_voice_text:
     rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
 
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
