@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF
+import fitz
 from pptx import Presentation
 import tempfile
 from datetime import datetime
@@ -152,14 +152,17 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice input ---
-st.subheader("🎙️ Record Your Voice")
+# --- Voice input (leave a message for AI) ---
+st.subheader("🎤 Leave a Voice Message for AI")
+st.info("The AI assistant will consider the HCP persona, segment, barrier, and specialty when responding.")
+
 webrtc_ctx = webrtc_streamer(
     key="speech",
     mode=WebRtcMode.SENDRECV,
     audio_receiver_size=1024,
     media_stream_constraints={"audio": True, "video": False}
 )
+
 rep_voice_text = None
 if webrtc_ctx and webrtc_ctx.audio_receiver:
     audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
@@ -176,21 +179,20 @@ if webrtc_ctx and webrtc_ctx.audio_receiver:
 
 # --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message... (or use voice above)", key="user_input_box")
+    user_input = st.text_input("Type your message (or use voice above)", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 if (submitted and user_input.strip()) or rep_voice_text:
     rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role":"user", "content":rep_message, "time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
 
-    # AI Prompt
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = """
 1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Patient experiences: Clinically significant shingles pain reported in ZOE-50, ZOE-70, ZOE-HSCT studies.
-4. Impact on quality of life, pain descriptions, and patient imagery data.
+3. Patient experiences from ZOE-50, ZOE-70, ZOE-HSCT.
+4. Impact on quality of life, pain, and patient imagery.
 """
     prompt = f"""
 Language: {language}
@@ -228,7 +230,7 @@ Response Tone: {response_tone}
     ai_output = response.choices[0].message.content
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
-    # AI voice response using gTTS
+    # Enhanced AI voice response
     tts = gTTS(ai_output, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
