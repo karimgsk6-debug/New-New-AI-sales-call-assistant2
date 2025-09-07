@@ -1,18 +1,18 @@
-import streamlit as st 
+import streamlit as st
 from PIL import Image
 from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF for PDF extraction
-from pptx import Presentation  # For PPT extraction
+import fitz  # PyMuPDF
+from pptx import Presentation
 import base64
-import groq
-from groq import Groq
-from datetime import datetime
 import re
 import tempfile
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
+from datetime import datetime
+import groq
+from groq import Groq
 
-# --- Optional dependency for Word download ---
+# --- Optional Word download ---
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -20,8 +20,9 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Initialize Groq client ---
-client = Groq(api_key="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")
+# --- Initialize Groq client with API key directly ---
+GROQ_API_KEY = "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"  # <--- INSERT YOUR API KEY
+client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
@@ -29,7 +30,6 @@ if "chat_history" not in st.session_state:
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-lang_code = "en" if language == "English" else "ar"
 
 # --- GSK Logo ---
 logo_local_path = "images/gsk_logo.png"
@@ -88,7 +88,7 @@ interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chat
 uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
 uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
 
-# --- Extract images from PDF ---
+# --- Extract visuals ---
 def extract_pdf_images(pdf_file):
     images = []
     try:
@@ -103,25 +103,21 @@ def extract_pdf_images(pdf_file):
         st.warning("⚠️ Could not extract images from PDF")
     return images
 
-# --- Extract images from PPT ---
 def extract_ppt_images(ppt_file):
     images = []
     try:
         prs = Presentation(ppt_file)
         for slide in prs.slides:
             for shape in slide.shapes:
-                if shape.shape_type == 13:  # Picture
-                    image = shape.image
-                    images.append(Image.open(BytesIO(image.blob)))
+                if shape.shape_type == 13:
+                    images.append(Image.open(BytesIO(shape.image.blob)))
     except:
         st.warning("⚠️ Could not extract images from PPT")
     return images
 
-# --- Extracted visuals ---
 pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
 ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
 all_images = pdf_images + ppt_images
-
 if all_images:
     st.subheader("Uploaded Brand Visuals")
     for img in all_images:
@@ -158,36 +154,46 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice input ---
+# --- Voice input with record button ---
 st.subheader("🎙️ Record Your Voice")
-webrtc_ctx = webrtc_streamer(
-    key="speech",
-    mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=1024,
-    media_stream_constraints={"audio": True, "video": False},
-)
-rep_voice_text = None
-if webrtc_ctx and webrtc_ctx.audio_receiver:
-    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if audio_frames:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-            tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
-            audio_path = tmp_wav.name
-        transcript = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=open(audio_path, "rb")
-        )
-        rep_voice_text = transcript.text
-        st.success(f"🗣️ You said: {rep_voice_text}")
+rep_voice_text = st.text_area("Your speech will appear here...", value="", height=50, key="rep_text_area")
+
+def record_audio():
+    webrtc_ctx = webrtc_streamer(
+        key="speech",
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=1024,
+        media_stream_constraints={"audio": True, "video": False},
+    )
+    if webrtc_ctx and webrtc_ctx.audio_receiver:
+        audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+        if audio_frames:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+                tmp_wav.write(audio_frames[0].to_ndarray().tobytes())
+                audio_path = tmp_wav.name
+            transcript = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=open(audio_path, "rb")
+            )
+            st.session_state["rep_voice_text"] = transcript.text
+            st.success(f"🗣️ You said: {transcript.text}")
+
+if st.button("🎤 Record / سجل صوتك"):
+    record_audio()
+    rep_voice_text = st.session_state.get("rep_voice_text", "")
 
 # --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message... (or use voice above)", key="user_input_box")
+    user_input = st.text_input("Type your message... (or use voice above)", value=rep_voice_text, key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 if (submitted and user_input.strip()) or rep_voice_text:
     rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": rep_message,
+        "time": datetime.now().strftime("%H:%M")
+    })
 
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
@@ -196,7 +202,10 @@ if (submitted and user_input.strip()) or rep_voice_text:
 2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
 4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
+5. Burden of Disease, Efficacy, Long-term Efficacy, Safety in Your Practice Patients to Protect
+6. Pain Descriptions and Quality of Life (Patient experiences may vary)
 """
+
     prompt = f"""
 Language: {language}
 User input: {rep_message}
@@ -215,7 +224,8 @@ Acknowledge → Probing → Answer → Confirm → Transition
 Use APACT only where relevant.
 References:
 {references}
-Provide step-by-step actionable suggestions.
+Embed PDF/PPT visuals.
+Provide step-by-step actionable suggestions in numbered format.
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
@@ -229,10 +239,15 @@ Response Tone: {response_tone}
         temperature=0.7
     )
     ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({
+        "role":"ai",
+        "content":ai_output,
+        "time":datetime.now().strftime("%H:%M")
+    })
 
-    # --- AI voice reply ---
-    tts = gTTS(ai_output, lang=lang_code)
+    # Generate smart audio for AI response
+    clean_text = re.sub(r"[-,+*…]", " ", ai_output)
+    tts = gTTS(text=clean_text, lang="en" if language=="English" else "ar", slow=False)
     audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(audio_file.name)
     st.audio(audio_file.name, format="audio/mp3")
