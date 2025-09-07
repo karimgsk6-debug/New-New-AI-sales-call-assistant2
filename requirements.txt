@@ -1,8 +1,9 @@
 streamlit
 Pillow
-pymupdf
+PyMuPDF
 python-pptx
-groq
-gtts
+gTTS
 streamlit-webrtc
-python-docx
+docx
+requests
+beautifulsoup4
