@@ -4,7 +4,7 @@ from io import BytesIO, BytesIO as io_bytes
 import fitz  # PyMuPDF
 from pptx import Presentation
 import tempfile
-from gtts import gTTS
+import pyttsx3
 from datetime import datetime
 import re
 import groq
@@ -22,7 +22,7 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Groq client ---
-GROQ_API_KEY = "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"  # <--- Insert your API key here
+GROQ_API_KEY = "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"  # <--- Insert your API key
 client = Groq(api_key=GROQ_API_KEY)
 
 # --- Session state ---
@@ -88,6 +88,32 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
+# --- Upload PDF ---
+uploaded_pdf = st.sidebar.file_uploader("Upload Brand PDF", type="pdf")
+
+def extract_pdf_images_text(pdf_file):
+    images = []
+    text = ""
+    try:
+        doc = fitz.open(pdf_file)
+        for page in doc:
+            text += page.get_text()
+            for img in page.get_images(full=True):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                images.append(Image.open(BytesIO(image_bytes)))
+    except:
+        st.warning("⚠️ Could not extract images or text from PDF")
+    return images, text
+
+pdf_images, pdf_text = extract_pdf_images_text(uploaded_pdf) if uploaded_pdf else ([], "")
+
+if pdf_images:
+    st.subheader("Uploaded PDF Visuals")
+    for img in pdf_images:
+        st.image(img, width=300)
+
 # --- Chat display ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
@@ -127,7 +153,6 @@ def process_audio(audio_frames):
     if not audio_frames:
         st.warning("No audio captured")
         return
-
     # Save audio
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
         for frame in audio_frames:
@@ -152,7 +177,7 @@ def process_audio(audio_frames):
 def process_ai(rep_message):
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
-    references = """
+    references = pdf_text if pdf_text else """
 1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information
 2. CDC Shingrix Recommendations
 3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster
@@ -199,12 +224,17 @@ Response Tone: {response_tone}
     })
     display_chat()
 
-    # AI voice
+    # --- AI voice (male) ---
     clean_text = re.sub(r"[-,+*…]", " ", ai_output)
-    tts = gTTS(text=clean_text, lang="en" if language=="English" else "ar", slow=False)
-    audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(audio_file.name)
-    st.audio(audio_file.name, format="audio/mp3")
+    engine = pyttsx3.init()
+    voices = engine.getProperty('voices')
+    male_voice = next((v for v in voices if 'male' in v.name.lower()), voices[0])
+    engine.setProperty('voice', male_voice.id)
+    engine.setProperty('rate', 160)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+        engine.save_to_file(clean_text, f.name)
+        engine.runAndWait()
+        st.audio(f.name)
 
 # --- Text input form ---
 with st.form("chat_form", clear_on_submit=True):
@@ -219,7 +249,7 @@ with st.form("chat_form", clear_on_submit=True):
         display_chat()
         process_ai(user_input.strip())
 
-# --- Dynamic voice record buttons ---
+# --- Voice recording buttons ---
 st.subheader("🎤 Voice Recording")
 col_start, col_stop = st.columns(2)
 with col_start:
