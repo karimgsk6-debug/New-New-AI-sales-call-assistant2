@@ -51,10 +51,10 @@ gsk_brands = {
 
 # --- Filters ---
 race_segments = [
-    "R – Reach",
-    "A – Acquisition",
-    "C – Conversion",
-    "E – Engagement"
+    "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
+    "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
+    "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
+    "E – Engagement: Proactively prescribe to different patient profiles"
 ]
 doctor_barriers = [
     "HCP does not consider HZ as risk",
@@ -161,6 +161,12 @@ if (submitted and user_input.strip()) or rep_voice_text.strip():
     rep_message = rep_voice_text if rep_voice_text.strip() else user_input
     st.session_state.chat_history.append({"role":"user","content":rep_message,"time":datetime.now().strftime("%H:%M")})
 
+    # --- References ---
+    references = """1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
+2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
+4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"""
+
     # --- Prompt ---
     numbered_pdf_text = re.sub(r'[\*\-\•]', '', pdf_text)
     prompt = f"""
@@ -175,7 +181,7 @@ HCP Persona: {persona}
 Approved Sales Approaches: {', '.join(gsk_approaches)}
 Sales Call Flow Steps: {' → '.join(sales_call_flow)}
 APACT Steps: {' → '.join(apact_steps)}
-References from PDF & external: {numbered_pdf_text[:2000]}
+References from PDF & external: {numbered_pdf_text[:2000]} {references}
 Response Length: {response_length}
 Response Tone: {response_tone}
 Provide step-by-step suggestions with numbered steps.
@@ -195,7 +201,6 @@ Remove punctuation in audio output.
     except Exception as e:
         ai_output = f"⚠️ Error generating AI response: {str(e)}"
 
-    # --- Append AI response ---
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
     display_chat()
 
