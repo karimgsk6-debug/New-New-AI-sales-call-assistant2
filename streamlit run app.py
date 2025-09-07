@@ -1,196 +1,143 @@
+import os
 import streamlit as st
 from PIL import Image
-from io import BytesIO, BytesIO as io_bytes
-import fitz  # PyMuPDF for PDF extraction
+import requests
+from io import BytesIO
+import fitz  # PyMuPDF for PDF handling
 from pptx import Presentation
 from groq import Groq
-from datetime import datetime
 import tempfile
-from gtts import gTTS
-import os
 import base64
-from streamlit_mic_recorder import mic_recorder
+from gtts import gTTS
+import st_audiorec
 
-# --- Optional dependency for Word download ---
-try:
-    from docx import Document
-    DOCX_AVAILABLE = True
-except ImportError:
-    DOCX_AVAILABLE = False
-    st.warning("⚠️ python-docx not installed. Word download unavailable.")
-
-# --- 🔑 API Key (hardcoded) ---
-API_KEY = "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"  # <<<<<<<<<< INSERT YOUR GROQ KEY HERE
+# =========================
+# CONFIG
+# =========================
+API_KEY = "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"  # 🔑 Direct API key here
 client = Groq(api_key=API_KEY)
 
-# --- Session state ---
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "voice_input" not in st.session_state:
-    st.session_state.voice_input = None
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
-# --- Language selection ---
-language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-
-# --- GSK Logo ---
-logo_local_path = "images/gsk_logo.png"
-logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1, 5])
+# =========================
+# HEADER & DISCLAIMER
+# =========================
+col1, col2 = st.columns([1, 4])
 with col1:
     try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
+        gsk_logo = Image.open("gsk_logo.png")
+        st.image(gsk_logo, width=120)
     except:
-        st.image(logo_fallback_url, width=120)
+        st.write("🟠 **GSK**")
+
 with col2:
-    st.title("🧠 AI Sales Call Assistant (Voice + Text)")
+    st.markdown(
+        "<h2 style='color:orange;'>AI Sales Call Assistant</h2>"
+        "<b>Disclaimer:</b> This tool supports sales reps in preparing smarter calls. "
+        "Always refer to approved GSK references.",
+        unsafe_allow_html=True,
+    )
 
-# --- Brand data ---
-gsk_brands = {
-    "Shingrix": "https://www.cdc.gov/shingles/hcp/clinical-overview",
-    "Trelegy": "https://www.gsk.com/en-gb/products/trelegy/",
-    "Zejula": "https://www.gsk.com/en-gb/products/zejula/"
-}
+st.markdown("---")
 
-# --- Filters & options ---
-st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand", options=list(gsk_brands.keys()))
-objective = st.sidebar.selectbox("Select Objective", ["Awareness", "Adoption", "Retention"])
-response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
+# =========================
+# HCP SEGMENTS / PERSONAS / BARRIERS
+# =========================
+st.sidebar.header("📌 HCP Profile")
+hcp_segment = st.sidebar.selectbox("HCP Segment", ["High Potential", "Medium Potential", "Low Potential"])
+persona = st.sidebar.selectbox("Persona", ["Innovator", "Conservative", "Skeptic"])
+barrier = st.sidebar.multiselect("Barriers", ["Cost", "Efficacy Doubts", "Side Effects", "Lack of Awareness"])
 
-# --- Upload PDF / PPT ---
-uploaded_pdf = st.sidebar.file_uploader("Upload brand PDF", type="pdf")
-uploaded_ppt = st.sidebar.file_uploader("Upload brand PPT", type=["pptx", "ppt"])
+# =========================
+# SALES CALL MODULES
+# =========================
+st.sidebar.header("📌 Sales Call Flow")
+call_step = st.sidebar.radio(
+    "Select Call Flow Step",
+    ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post-Call Analysis"]
+)
 
-# --- Extract images ---
-def extract_pdf_images(pdf_file):
-    images = []
-    try:
-        doc = fitz.open(pdf_file)
-        for page in doc:
-            for img in page.get_images(full=True):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(Image.open(BytesIO(image_bytes)))
-    except:
-        st.warning("⚠️ Could not extract images from PDF")
-    return images
+st.sidebar.header("📌 APACT Technique")
+use_apact = st.sidebar.checkbox("Enable APACT for Objection Handling")
 
-def extract_ppt_images(ppt_file):
-    images = []
-    try:
-        prs = Presentation(ppt_file)
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if shape.shape_type == 13:
-                    image = shape.image
-                    images.append(Image.open(BytesIO(image.blob)))
-    except:
-        st.warning("⚠️ Could not extract images from PPT")
-    return images
+# =========================
+# REP INPUT
+# =========================
+st.subheader("🗣️ Record or Write Your Input")
 
-pdf_images = extract_pdf_images(uploaded_pdf) if uploaded_pdf else []
-ppt_images = extract_ppt_images(uploaded_ppt) if uploaded_ppt else []
-all_images = pdf_images + ppt_images
-if all_images:
-    st.subheader("Uploaded Brand Visuals")
-    for img in all_images:
-        st.image(img, width=300)
+# Voice recording
+wav_audio_data = st_audiorec.st_audiorec()
+rep_input_text = ""
 
-# --- Clear chat ---
-if st.button("🗑️ Clear Chat"):
-    st.session_state.chat_history = []
-
-# --- Chat display ---
-st.subheader("💬 Chatbot Interface")
-chat_placeholder = st.empty()
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace('\n','<br>').strip()
-        if msg["role"]=="user":
-            chat_html += f"""
-            <div style='display:flex; justify-content:flex-end; margin:5px;'>
-                <div style='background:#dcf8c6; padding:10px; border-radius:15px; border:2px solid #888; max-width:70%;'>
-                    {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
-                </div>
-            </div>"""
-        else:
-            chat_html += f"""
-            <div style='display:flex; justify-content:flex-start; margin:5px;'>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px; border:2px solid #888; max-width:70%;'>
-                    🤖 {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
-                </div>
-            </div>"""
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-display_chat()
-
-# --- 🎙️ Voice recording (click-to-record mic button) ---
-st.subheader("🎙️ Speak Your Message")
-audio_data = mic_recorder(start_prompt="🎤 Record", stop_prompt="⏹️ Stop", just_once=True, use_container_width=True)
-
-rep_voice_text = None
-if audio_data and "bytes" in audio_data:
+if wav_audio_data is not None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-        tmp_wav.write(audio_data["bytes"])
+        tmp_wav.write(wav_audio_data)
         audio_path = tmp_wav.name
-    transcript = client.audio.transcriptions.create(
-        model="whisper-large-v3",
-        file=open(audio_path, "rb")
-    )
-    rep_voice_text = transcript.text
-    st.success(f"🗣️ You said: {rep_voice_text}")
+    with open(audio_path, "rb") as audio_file:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=audio_file
+        )
+        rep_input_text = transcript.text
+        st.success(f"✅ Voice-to-Text: {rep_input_text}")
 
-# --- Text input ---
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+# Text input
+rep_manual_text = st.text_area("Or type your input here:", "")
+if rep_manual_text.strip():
+    rep_input_text += " " + rep_manual_text.strip()
 
-if (submitted and user_input.strip()) or rep_voice_text:
-    rep_message = rep_voice_text if rep_voice_text else user_input
-    st.session_state.chat_history.append({"role": "user", "content": rep_message, "time": datetime.now().strftime("%H:%M")})
+# =========================
+# VOICE STYLE
+# =========================
+voice_style = st.selectbox("🎙️ Select Voice Style", ["Professional", "Friendly", "Empathetic"])
 
-    prompt = f"""
-    Language: {language}
-    User input: {rep_message}
-    Objective: {objective}
-    Brand: {brand}
-    Response Length: {response_length}
-    Response Tone: {response_tone}
-    """
+# =========================
+# AI RESPONSE
+# =========================
+if st.button("Generate AI Response"):
+    if not rep_input_text.strip():
+        st.warning("Please provide input (voice or text).")
+    else:
+        with st.spinner("🤖 Generating AI Response..."):
+            # Build the prompt
+            prompt = f"""
+            You are an AI Sales Call Assistant.
 
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {"role":"system","content":f"You are a helpful sales assistant chatbot that responds in {language}."},
-            {"role":"user","content":prompt}
-        ],
-        temperature=0.7
-    )
-    ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+            HCP Segment: {hcp_segment}
+            Persona: {persona}
+            Barriers: {', '.join(barrier) if barrier else 'None'}
+            Sales Call Step: {call_step}
+            APACT: {"Enabled" if use_apact else "Disabled"}
+            Rep Input: {rep_input_text}
 
-    # --- 🔊 AI voice reply ---
-    tts = gTTS(ai_output, lang="en" if language=="English" else "ar")
-    audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(audio_file.name)
-    st.audio(audio_file.name, format="audio/mp3")
+            Response rules:
+            - Always structure thinking according to the Sales Call Flow:
+              Prepare → Engage → Create Opportunities → Drive Impact → Post-Call Analysis
+            - Use APACT (Acknowledge, Probe, Address, Confirm, Transition) ONLY when objections/barriers appear.
+            - Be persuasive, empathetic, and aligned with GSK tone.
+            - Style: {voice_style} tone.
+            """
 
-    display_chat()
+            response = client.chat.completions.create(
+                model="meta-llama/llama-3.1-70b-instruct",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
 
-# --- Word download ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+            ai_response = response.choices[0].message.content
+            st.markdown("### 💡 AI Response")
+            st.write(ai_response)
 
-# --- Brand leaflet ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+            # =========================
+            # SMART AUDIO OUTPUT
+            # =========================
+            lang = "ar" if any("\u0600" <= c <= "\u06FF" for c in ai_response) else "en"
+            slow_mode = True if voice_style == "Empathetic" else False
+
+            tts = gTTS(text=ai_response, lang=lang, slow=slow_mode)
+            audio_file_path = "ai_response.mp3"
+            tts.save(audio_file_path)
+
+            with open(audio_file_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+            st.audio(audio_bytes, format="audio/mp3")
