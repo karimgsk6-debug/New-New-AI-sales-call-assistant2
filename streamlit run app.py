@@ -6,7 +6,7 @@ from pptx import Presentation
 import tempfile
 from datetime import datetime
 from gtts import gTTS
-from audiorecorder import audiorecorder
+from st_audiorecorder import st_audiorecorder
 import os
 
 # Optional Word download
@@ -63,7 +63,7 @@ gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leve
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
 apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
-# --- Sidebar Filters & Uploads (lower left) ---
+# --- Sidebar Filters & Uploads ---
 with st.sidebar:
     st.header("Filters & Options")
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=["Shingrix","Trelegy","Zejula"])
@@ -142,17 +142,15 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice Recording (WhatsApp style) ---
+# --- Voice Recording (WhatsApp style using st-audio-recorder) ---
 st.subheader("🎙️ Record Your Voice Message")
-audio = audiorecorder("Hold to record 🎤", "Recording... release to stop")
+audio = st_audiorecorder()
 
 rep_voice_text = None
-if len(audio) > 0:
-    # Save recording to temp file
+if audio is not None:
     audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name
     with open(audio_path, "wb") as f:
-        f.write(audio.tobytes())
-
+        f.write(audio)
     st.audio(audio_path)
 
     # Transcription via Groq Whisper
