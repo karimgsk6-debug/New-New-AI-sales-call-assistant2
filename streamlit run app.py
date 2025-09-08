@@ -7,22 +7,6 @@ from docx import Document
 from pptx import Presentation
 from groq import Groq
 
-# --- Safe Audio Recorder Imports ---
-use_audiorecorder = False
-use_webrtc = False
-
-try:
-    from st_audiorecorder import st_audiorecorder
-    use_audiorecorder = True
-except ImportError:
-    st.warning("⚠️ st-audiorecorder not installed. Will try streamlit-webrtc fallback.")
-
-try:
-    from streamlit_webrtc import webrtc_streamer, WebRtcMode
-    use_webrtc = True
-except ImportError:
-    st.warning("⚠️ streamlit-webrtc not installed. Voice recording may not work.")
-
 # --- Page Setup ---
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
@@ -35,7 +19,7 @@ This tool helps **pharma reps** prepare for customer interactions.
 """)
 
 # --- Groq API Setup ---
-api_key = os.getenv("GROQ_API_KEY") or st.sidebar.text_input("🔑 Enter your GROQ API Key", type="password")
+api_key = os.getenv("GROQ_API_KEY") or st.sidebar.text_input("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", type="password")
 if not api_key:
     st.warning("⚠️ Please enter your API Key to proceed.")
 client = Groq(api_key=api_key) if api_key else None
@@ -126,61 +110,18 @@ if uploaded_file:
     with st.expander("📖 Extracted Reference Text"):
         st.write(reference_text if reference_text else "⚠️ No text extracted.")
 
-# --- Voice Recording ---
-st.subheader("🎙️ Record Your Voice Message")
-audio_path, rep_voice_text = None, None
-
-if use_audiorecorder:
-    st.info("Press 🎤 button below to record. Release when done.")
-    audio = st_audiorecorder()
-    if audio is not None:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
-            f.write(audio)
-            audio_path = f.name
-        st.audio(audio_path)
-        with open(audio_path, "rb") as f:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=f
-            )
-            rep_voice_text = transcript.text
-        st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
-elif use_webrtc:
-    st.info("🎤 Using fallback (webrtc) for recording on Streamlit Cloud")
-    webrtc_ctx = webrtc_streamer(
-        key="voice",
-        mode=WebRtcMode.SENDRECV,
-        audio_receiver_size=1024,
-        media_stream_constraints={"audio": True, "video": False},
-    )
-    if webrtc_ctx and webrtc_ctx.audio_receiver:
-        frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-        if frames:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-                tmp_wav.write(frames[0].to_ndarray().tobytes())
-                audio_path = tmp_wav.name
-            with open(audio_path, "rb") as f:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-large-v3",
-                    file=f
-                )
-                rep_voice_text = transcript.text
-            st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
-else:
-    st.info("⚠️ Voice recording not available. Please type your input below.")
+# --- Text Input Only ---
+st.subheader("📝 Type Your Message")
+rep_input = st.text_area("Enter your message to generate AI sales call suggestions")
 
 # --- AI Response Generation ---
-user_input = st.text_input("Type your message (if no voice input)")
-if user_input.strip():
-    rep_voice_text = user_input.strip()
-
 if st.button("🚀 Generate AI Sales Call Suggestions"):
-    if not rep_voice_text and not reference_text:
-        st.warning("⚠️ Please provide either a voice input or reference file.")
+    if not rep_input.strip() and not reference_text:
+        st.warning("⚠️ Please provide a message or upload reference material.")
     else:
         final_prompt = f"""
 Language: English
-User Input: {rep_voice_text if rep_voice_text else "N/A"}
+User Input: {rep_input if rep_input else 'N/A'}
 Segment: {segment}
 Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
@@ -190,7 +131,7 @@ Sales Approaches: {'; '.join(gsk_approaches)}
 Sales Call Flow: {' → '.join(sales_call_flow)}
 APACT Steps: {' → '.join(apact_steps)}
 References: {references}
-Reference material text: {reference_text if reference_text else "N/A"}
+Reference material text: {reference_text if reference_text else 'N/A'}
 Response Length: {response_length}
 Response Tone: {response_tone}
 """
