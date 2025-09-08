@@ -5,7 +5,7 @@ from io import BytesIO, BytesIO as io_bytes
 import groq
 from groq import Groq
 from datetime import datetime
-import pyttsx3  # Added for AI voice output
+from gtts import gTTS  # Using gTTS instead of pyttsx3
 
 # --- Optional dependency for Word download ---
 try:
@@ -185,11 +185,11 @@ Provide actionable suggestions tailored to this persona in a friendly and profes
     
     display_chat()
 
-    # --- AI voice output ---
-    tts_engine = pyttsx3.init()
-    tts_engine.save_to_file(ai_output, 'ai_response.mp3')
-    tts_engine.runAndWait()
-    st.audio('ai_response.mp3', format='audio/mp3')
+    # --- AI voice output using gTTS ---
+    lang_code = "ar" if language == "العربية" else "en"
+    tts = gTTS(text=ai_output, lang=lang_code)
+    tts.save("ai_response.mp3")
+    st.audio("ai_response.mp3", format="audio/mp3")
 
 # --- Word download outside the form ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
