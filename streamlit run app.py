@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime
 from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
+import time
 import os
 
 # Optional Word download
@@ -17,7 +18,7 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Groq API (replace YOUR_API_KEY with your actual key) ---
+# --- Groq API ---
 import groq
 from groq import Groq
 client = Groq(api_key="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")
@@ -25,6 +26,12 @@ client = Groq(api_key="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"
 # --- Session State ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "recording" not in st.session_state:
+    st.session_state.recording = False
+if "audio_path" not in st.session_state:
+    st.session_state.audio_path = None
+if "record_start" not in st.session_state:
+    st.session_state.record_start = None
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
@@ -63,7 +70,7 @@ gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leve
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
 apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
-# --- Sidebar Filters & Uploads (lower left) ---
+# --- Sidebar Filters & Uploads ---
 with st.sidebar:
     st.header("Filters & Options")
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=["Shingrix","Trelegy","Zejula"])
@@ -123,27 +130,28 @@ chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time","")
+        time_msg = msg.get("time","")
         content = msg["content"].replace("\n","<br>").strip()
         if msg["role"]=="user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; margin:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time_msg}</span></div>
                 </div>
             </div>"""
         else:
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; margin:5px;'>
                 <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; border:2px solid #888; max-width:70%; display:flex; align-items:flex-start;'>
-                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                    <div style='flex:1;'>{content}<br><span style='font-size:10px; color:gray;'>{time_msg}</span></div>
                 </div>
             </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
-# --- Voice Recording (WhatsApp style) ---
-st.subheader("🎙️ Record Your Voice Message")
+# --- Voice Recording (WhatsApp style with timer) ---
+st.subheader("🎙️ Voice Message")
+
 webrtc_ctx = webrtc_streamer(
     key="voice",
     mode=WebRtcMode.SENDRECV,
@@ -151,20 +159,35 @@ webrtc_ctx = webrtc_streamer(
     media_stream_constraints={"audio": True, "video": False},
 )
 
+col1, col2 = st.columns([1,4])
+with col1:
+    if st.button("🔴 Record" if not st.session_state.recording else "⏹️ Stop"):
+        if not st.session_state.recording:
+            st.session_state.recording = True
+            st.session_state.record_start = time.time()
+        else:
+            st.session_state.recording = False
+            st.success("Recording stopped. Processing...")
+            if webrtc_ctx and webrtc_ctx.audio_receiver:
+                frames = webrtc_ctx.audio_receiver.get_frames(timeout=2)
+                if frames:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+                        tmp_wav.write(frames[0].to_ndarray().tobytes())
+                        st.session_state.audio_path = tmp_wav.name
+with col2:
+    if st.session_state.recording:
+        elapsed = int(time.time() - st.session_state.record_start)
+        st.markdown(f"<span style='color:red; font-weight:bold;'>● Recording {elapsed}s</span>", unsafe_allow_html=True)
+
 rep_voice_text = None
-if webrtc_ctx and webrtc_ctx.audio_receiver:
-    frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if frames:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-            tmp_wav.write(frames[0].to_ndarray().tobytes())
-            audio_path = tmp_wav.name
-        # Transcription via Groq Whisper
-        transcript = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=open(audio_path,"rb")
-        )
-        rep_voice_text = transcript.text
-        st.text_area("Your voice converted to text:", value=rep_voice_text, height=80)
+if st.session_state.audio_path:
+    st.audio(st.session_state.audio_path, format="audio/wav")
+    transcript = client.audio.transcriptions.create(
+        model="whisper-large-v3",
+        file=open(st.session_state.audio_path,"rb")
+    )
+    rep_voice_text = transcript.text
+    st.text_area("Your voice converted to text:", value=rep_voice_text, height=80)
 
 # --- Chat Input ---
 with st.form("chat_form", clear_on_submit=True):
