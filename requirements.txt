@@ -3,6 +3,6 @@ pillow
 pymupdf
 python-pptx
 gtts
-streamlit-audiorecorder
+st-audio-recorder
 groq
 python-docx
