@@ -7,12 +7,14 @@ from docx import Document
 from pptx import Presentation
 from groq import Groq
 
-# --- Import st-audiorecorder ---
+# --- Try audio recorders ---
+use_audiorecorder = False
 try:
     from st_audiorecorder import st_audiorecorder
+    use_audiorecorder = True
 except ImportError:
-    st.error("❌ st-audiorecorder not installed. Please check requirements.txt")
-    st_audiorecorder = None
+    from streamlit_webrtc import webrtc_streamer, WebRtcMode
+    use_audiorecorder = False
 
 # --- Page Setup ---
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
@@ -115,11 +117,11 @@ if uploaded_file:
     with st.expander("📖 Extracted Reference Text"):
         st.write(reference_text if reference_text else "⚠️ No text extracted.")
 
-# --- Voice Recording (WhatsApp Style) ---
+# --- Voice Recording ---
 st.subheader("🎙️ Record Your Voice Message")
 audio_path, rep_voice_text = None, None
 
-if st_audiorecorder:
+if use_audiorecorder:  # Local WhatsApp-style
     st.info("Press 🎤 button below to record. Release when done.")
     audio = st_audiorecorder()
     if audio is not None:
@@ -135,6 +137,27 @@ if st_audiorecorder:
             )
             rep_voice_text = transcript.text
         st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
+else:  # Fallback for Streamlit Cloud
+    st.info("🎤 Using fallback (webrtc) for recording on Streamlit Cloud")
+    webrtc_ctx = webrtc_streamer(
+        key="voice",
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=1024,
+        media_stream_constraints={"audio": True, "video": False},
+    )
+    if webrtc_ctx and webrtc_ctx.audio_receiver:
+        frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+        if frames:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+                tmp_wav.write(frames[0].to_ndarray().tobytes())
+                audio_path = tmp_wav.name
+            with open(audio_path, "rb") as f:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-large-v3",
+                    file=f
+                )
+                rep_voice_text = transcript.text
+            st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
 
 # --- AI Response Generation ---
 if st.button("🚀 Generate AI Sales Call Suggestions"):
