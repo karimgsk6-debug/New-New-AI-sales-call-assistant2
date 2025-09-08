@@ -7,14 +7,21 @@ from docx import Document
 from pptx import Presentation
 from groq import Groq
 
-# --- Try audio recorders ---
+# --- Safe Audio Recorder Imports ---
 use_audiorecorder = False
+use_webrtc = False
+
 try:
     from st_audiorecorder import st_audiorecorder
     use_audiorecorder = True
 except ImportError:
+    st.warning("⚠️ st-audiorecorder not installed. Will try streamlit-webrtc fallback.")
+
+try:
     from streamlit_webrtc import webrtc_streamer, WebRtcMode
-    use_audiorecorder = False
+    use_webrtc = True
+except ImportError:
+    st.warning("⚠️ streamlit-webrtc not installed. Voice recording may not work.")
 
 # --- Page Setup ---
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
@@ -95,6 +102,8 @@ def extract_text_from_file(uploaded_file):
 
 def generate_ai_response(prompt):
     """Generates AI response using Groq LLM."""
+    if not client:
+        return "❌ Groq API Key not set. Cannot generate AI response."
     try:
         chat_completion = client.chat.completions.create(
             messages=[{"role": "system", "content": "You are a helpful AI sales assistant."},
@@ -121,7 +130,7 @@ if uploaded_file:
 st.subheader("🎙️ Record Your Voice Message")
 audio_path, rep_voice_text = None, None
 
-if use_audiorecorder:  # Local WhatsApp-style
+if use_audiorecorder:
     st.info("Press 🎤 button below to record. Release when done.")
     audio = st_audiorecorder()
     if audio is not None:
@@ -129,7 +138,6 @@ if use_audiorecorder:  # Local WhatsApp-style
             f.write(audio)
             audio_path = f.name
         st.audio(audio_path)
-
         with open(audio_path, "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-large-v3",
@@ -137,7 +145,7 @@ if use_audiorecorder:  # Local WhatsApp-style
             )
             rep_voice_text = transcript.text
         st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
-else:  # Fallback for Streamlit Cloud
+elif use_webrtc:
     st.info("🎤 Using fallback (webrtc) for recording on Streamlit Cloud")
     webrtc_ctx = webrtc_streamer(
         key="voice",
@@ -158,29 +166,34 @@ else:  # Fallback for Streamlit Cloud
                 )
                 rep_voice_text = transcript.text
             st.text_area("📝 Voice converted to text:", value=rep_voice_text, height=80)
+else:
+    st.info("⚠️ Voice recording not available. Please type your input below.")
 
 # --- AI Response Generation ---
+user_input = st.text_input("Type your message (if no voice input)")
+if user_input.strip():
+    rep_voice_text = user_input.strip()
+
 if st.button("🚀 Generate AI Sales Call Suggestions"):
     if not rep_voice_text and not reference_text:
         st.warning("⚠️ Please provide either a voice input or reference file.")
     else:
         final_prompt = f"""
-        Language: English
-        User Input: {rep_voice_text if rep_voice_text else "N/A"}
-        Segment: {segment}
-        Barrier: {', '.join(barrier) if barrier else 'None'}
-        Objective: {objective}
-        Specialty: {specialty}
-        Persona: {persona}
-        Sales Approaches: {'; '.join(gsk_approaches)}
-        Sales Call Flow: {' → '.join(sales_call_flow)}
-        APACT Steps: {' → '.join(apact_steps)}
-        References: {references}
-        Reference material text: {reference_text if reference_text else "N/A"}
-        Response Length: {response_length}
-        Response Tone: {response_tone}
-        """
-
+Language: English
+User Input: {rep_voice_text if rep_voice_text else "N/A"}
+Segment: {segment}
+Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Specialty: {specialty}
+Persona: {persona}
+Sales Approaches: {'; '.join(gsk_approaches)}
+Sales Call Flow: {' → '.join(sales_call_flow)}
+APACT Steps: {' → '.join(apact_steps)}
+References: {references}
+Reference material text: {reference_text if reference_text else "N/A"}
+Response Length: {response_length}
+Response Tone: {response_tone}
+"""
         response = generate_ai_response(final_prompt)
         st.markdown("## 🤖 AI Sales Call Suggestions")
         st.write(response)
