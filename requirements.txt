@@ -8,3 +8,6 @@ pyttsx3==2.90
 SpeechRecognition==3.9.0
 pydub==0.25.1
 python-docx==0.8.12
+
+python-docx==0.8.12
+gTTS==2.3.1
