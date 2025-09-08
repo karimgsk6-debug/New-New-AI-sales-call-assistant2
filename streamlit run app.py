@@ -17,7 +17,7 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Groq API ---
+# --- Groq API (replace YOUR_API_KEY with your actual key) ---
 import groq
 from groq import Groq
 client = Groq(api_key="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")
@@ -25,10 +25,6 @@ client = Groq(api_key="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"
 # --- Session State ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "recording" not in st.session_state:
-    st.session_state.recording = False
-if "audio_path" not in st.session_state:
-    st.session_state.audio_path = None
 
 # --- Language selection ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
@@ -67,7 +63,7 @@ gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leve
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Drive Impact", "Post Call Analysis"]
 apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
 
-# --- Sidebar Filters & Uploads ---
+# --- Sidebar Filters & Uploads (lower left) ---
 with st.sidebar:
     st.header("Filters & Options")
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=["Shingrix","Trelegy","Zejula"])
@@ -147,8 +143,7 @@ def display_chat():
 display_chat()
 
 # --- Voice Recording (WhatsApp style) ---
-st.subheader("🎙️ Record Your Voice Message (Press & Hold)")
-
+st.subheader("🎙️ Record Your Voice Message")
 webrtc_ctx = webrtc_streamer(
     key="voice",
     mode=WebRtcMode.SENDRECV,
@@ -156,31 +151,20 @@ webrtc_ctx = webrtc_streamer(
     media_stream_constraints={"audio": True, "video": False},
 )
 
-record_button = st.button("🎤 Hold to Record / اضغط للتسجيل")
-
-if record_button:
-    st.session_state.recording = True
-    st.info("Recording... Release button to stop.")
-else:
-    if st.session_state.recording:
-        st.session_state.recording = False
-        st.success("Recording stopped. Processing...")
-        if webrtc_ctx and webrtc_ctx.audio_receiver:
-            frames = webrtc_ctx.audio_receiver.get_frames(timeout=2)
-            if frames:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
-                    tmp_wav.write(frames[0].to_ndarray().tobytes())
-                    st.session_state.audio_path = tmp_wav.name
-
 rep_voice_text = None
-if st.session_state.audio_path:
-    st.audio(st.session_state.audio_path, format="audio/wav")
-    transcript = client.audio.transcriptions.create(
-        model="whisper-large-v3",
-        file=open(st.session_state.audio_path,"rb")
-    )
-    rep_voice_text = transcript.text
-    st.text_area("Your voice converted to text:", value=rep_voice_text, height=80)
+if webrtc_ctx and webrtc_ctx.audio_receiver:
+    frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if frames:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+            tmp_wav.write(frames[0].to_ndarray().tobytes())
+            audio_path = tmp_wav.name
+        # Transcription via Groq Whisper
+        transcript = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=open(audio_path,"rb")
+        )
+        rep_voice_text = transcript.text
+        st.text_area("Your voice converted to text:", value=rep_voice_text, height=80)
 
 # --- Chat Input ---
 with st.form("chat_form", clear_on_submit=True):
