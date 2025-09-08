@@ -3,6 +3,6 @@ pillow
 pymupdf
 python-pptx
 gtts
-st-audio-recorder
+st-audiorecorder==0.0.4
 groq
 python-docx
