@@ -10,7 +10,6 @@ from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-from pydub import AudioSegment
 
 # ----------------------------
 # App Configuration
@@ -56,12 +55,6 @@ def extract_text_from_pptx(file):
             if hasattr(shape, "text"):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
-
-def convert_audio_to_wav(file):
-    audio = AudioSegment.from_file(file)
-    wav_path = "temp_audio.wav"
-    audio.export(wav_path, format="wav")
-    return wav_path
 
 def generate_tts(text, lang="en", filename="output.mp3"):
     """Convert text to speech using gTTS in Arabic or English."""
@@ -180,7 +173,7 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # ----------------------------
-# Display brand image
+# Display Brand Image
 # ----------------------------
 image_path = gsk_brands_images.get(brand)
 try:
@@ -195,16 +188,14 @@ except:
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # ----------------------------
-# Upload Documents
+# Upload Documents / Voice
 # ----------------------------
-st.subheader("📤 Upload Supporting Documents / Leave Voice Message")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio (MP3/WAV/M4A)", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
+st.subheader("📤 Upload Supporting Documents or Voice Message")
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio (MP3/WAV/M4A)", type=["pdf","docx","pptx","mp3","wav","m4a"])
+extracted_text, extracted_images = "", []
 
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
-    extracted_text = ""
-    extracted_images = []
-
     if file_ext == "docx":
         extracted_text = extract_text_from_docx(uploaded_file)
     elif file_ext == "pdf":
@@ -212,9 +203,8 @@ if uploaded_file:
         extracted_images = extract_images_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["mp3", "wav", "m4a"]:
-        wav_path = convert_audio_to_wav(uploaded_file)
-        extracted_text = f"🔊 Voice message uploaded ({uploaded_file.name}) - transcription not implemented yet."
+    elif file_ext in ["mp3","wav","m4a"]:
+        extracted_text = f"🔊 Voice message uploaded ({uploaded_file.name}) - transcription not implemented."
 
     st.session_state.uploaded_docs = extracted_text[:8000]
 
@@ -228,25 +218,22 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# WhatsApp-style Chat Interface
+# WhatsApp-style Chat
 # ----------------------------
-st.subheader("💬 Chat with AI (Type or Voice)")
+st.subheader("💬 Chat with AI (Type or Upload Voice)")
 with st.form("chat_form", clear_on_submit=True):
     col1, col2 = st.columns([5,1])
     with col1:
         user_input = st.text_input("Type your message...", key="user_input_box")
     with col2:
-        voice_upload = st.file_uploader("🎤 Record/Upload voice", type=["mp3","wav","m4a"], key="voice_input_box")
+        voice_upload = st.file_uploader("🎤 Upload voice", type=["mp3","wav","m4a"], key="voice_input_box")
     submitted = st.form_submit_button("➤")
 
-# Convert voice input to text placeholder
 if voice_upload and not user_input:
     user_input = f"🔊 User uploaded a voice message: {voice_upload.name} (transcription not yet implemented)"
 
-# Process user input
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = (
@@ -276,7 +263,7 @@ Response Tone: {response_tone}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
     ai_output = ask_ai(prompt)
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
 # ----------------------------
 # Display Chat
@@ -285,10 +272,10 @@ chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace('\n','<br>')
-        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
+        time = msg.get("time","")
+        content = msg["content"].replace("\n","<br>")
+        for step in ["Acknowledge","Probing","Answer","Confirm","Transition"]:
+            content = content.replace(step,f"<b>{step}</b><br>")
         if msg["role"]=="user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
@@ -317,7 +304,7 @@ if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_heading("AI Sales Call Response",0)
         doc.add_paragraph(latest_ai[-1])
         word_buffer = io.BytesIO()
         doc.save(word_buffer)
