@@ -8,3 +8,4 @@ pdfplumber
 pydub
 streamlit-webrtc
 python-pptx
+gtts
