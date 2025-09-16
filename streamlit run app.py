@@ -228,7 +228,7 @@ class AudioProcessor(AudioProcessorBase):
 
 webrtc_ctx = webrtc_streamer(
     key="voice",
-    mode="SENDONLY",  # ✅ Corrected AttributeError
+    mode="SENDONLY",  # ✅ Fixed AttributeError
     audio_processor_factory=AudioProcessor,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"audio": True, "video": False},
@@ -261,20 +261,37 @@ display_chat()
 
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message here...")
-    submitted = st.form_submit_button("➤ Send")
-    if submitted and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-        combined_prompt = user_input
-        if st.session_state.uploaded_docs:
-            combined_prompt += "\n\nSupporting documents:\n" + st.session_state.uploaded_docs
-        ai_output = ask_ai(combined_prompt)
-        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-        display_chat()
+    submitted = st.form_submit_button("➤")
 
-# ----------------------------
-# TTS of AI Response
-# ----------------------------
-if st.session_state.chat_history:
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    # ---------------- AI Prompt ----------------
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    prompt = f"""
+Language: {language}
+User input: {user_input}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Brand: {brand}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+Approved Sales Approaches:
+{approaches_str}
+Sales Call Flow Steps:
+{flow_str}
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
+Response Length: {response_length}
+Response Tone: {response_tone}
+Additional Context / Uploaded Docs:
+{st.session_state.uploaded_docs}
+"""
+    ai_output = ask_ai(prompt)
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+    display_chat()
+
+    # ---------------- TTS ----------------
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         tts_lang = "ar" if language=="العربية" else "en"
