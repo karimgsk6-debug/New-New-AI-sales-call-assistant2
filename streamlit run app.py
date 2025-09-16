@@ -19,7 +19,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")  # Replace with your key or set env
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -46,6 +46,7 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 def generate_tts(text, filename="output.mp3"):
+    """Convert text to speech using gTTS."""
     try:
         tts = gTTS(text=text, lang="en")
         tts.save(filename)
@@ -55,14 +56,16 @@ def generate_tts(text, filename="output.mp3"):
 
 def transcribe_audio(file):
     recognizer = sr.Recognizer()
-    with sr.AudioFile(file) as source:
-        audio = recognizer.record(source)
     try:
-        return recognizer.recognize_google(audio)
-    except:
+        with sr.AudioFile(file) as source:
+            audio_data = recognizer.record(source)
+            text = recognizer.recognize_google(audio_data)
+            return text
+    except Exception:
         return "[Could not transcribe audio]"
 
 def ask_ai(prompt):
+    """Send a query to Groq model."""
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
@@ -110,10 +113,14 @@ with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
-# Upload Documents / Audio
+# Upload Documents & Audio
 # ----------------------------
-st.subheader("📤 Upload Documents or Audio")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf","docx","pptx","wav","mp3","m4a"])
+st.subheader("📤 Upload Supporting Documents or Audio")
+uploaded_file = st.file_uploader(
+    "Upload PDF, DOCX, PPTX, or Audio (MP3/WAV/M4A)",
+    type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"]
+)
+
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
@@ -124,7 +131,7 @@ if uploaded_file:
         extracted_text = extract_text_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["wav","mp3","m4a"]:
+    elif file_ext in ["mp3", "wav", "m4a"]:
         extracted_text = transcribe_audio(uploaded_file)
 
     st.session_state.uploaded_docs = extracted_text[:8000]
@@ -137,33 +144,53 @@ if uploaded_file:
 # Chat Interface
 # ----------------------------
 st.subheader("💬 Chat with AI")
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    audio_file = st.file_uploader("Or record audio", type=["wav","mp3","m4a"], key="audio_input")
-    submitted = st.form_submit_button("Send")
+user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type a message or leave audio...")
+submit_btn = st.button("Send")
 
-    if submitted:
-        if audio_file:
-            user_input = transcribe_audio(audio_file)
-        if user_input.strip():
-            st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-            prompt = f"Language: {language}\nUser input: {user_input}\nReference: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html"
-            ai_output = ask_ai(prompt)
-            st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+# Handle message submission
+if submit_btn and user_input.strip():
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": user_input,
+        "time": datetime.now().strftime("%H:%M")
+    })
+    prompt = f"""
+Language: {language}
+User input: {user_input}
+References:
+1. CDC Shingrix: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+2. WHO Herpes Zoster Info: https://www.who.int/news-room/fact-sheets/detail/herpes-zoster
+"""
+    ai_output = ask_ai(prompt)
+    st.session_state.chat_history.append({
+        "role": "ai",
+        "content": ai_output,
+        "time": datetime.now().strftime("%H:%M")
+    })
 
 # ----------------------------
-# Display Chat
+# Display Chat (WhatsApp-style)
 # ----------------------------
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n","<br>")
-        time = msg.get("time","")
-        if msg["role"]=="user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+        time = msg.get("time", "")
+        content = msg["content"].replace('\n', '<br>')
+        if msg["role"] == "user":
+            chat_html += f"""
+            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px;
+                        margin:5px; display:inline-block; max-width:80%;'>
+                {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
+            </div>
+            """
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"""
+            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px;
+                        margin:5px; display:inline-block; max-width:80%;'>
+                {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
+            </div>
+            """
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
@@ -179,16 +206,16 @@ if st.session_state.chat_history:
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
         else:
-            st.warning("⚠️ Voice response unavailable.")
+            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
 
 # ----------------------------
-# Download AI Response as Word
+# Word Download
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
+        doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
         word_buffer = io.BytesIO()
         doc.save(word_buffer)
