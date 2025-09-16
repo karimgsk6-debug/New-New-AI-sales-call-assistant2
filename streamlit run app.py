@@ -10,6 +10,8 @@ from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, RTCConfiguration
+import av
 
 # ----------------------------
 # App Configuration
@@ -57,7 +59,7 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 def generate_tts(text, lang="en", filename="output.mp3"):
-    """Convert text to speech using gTTS in Arabic or English."""
+    """Convert text to speech using gTTS."""
     try:
         tts = gTTS(text=text, lang=lang)
         tts.save(filename)
@@ -218,22 +220,52 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
+# Live Voice Recording using Streamlit WebRTC
+# ----------------------------
+st.subheader("🎤 Record Voice Question")
+RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.frames = []
+
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        self.frames.append(frame.to_ndarray())
+        return frame
+
+webrtc_ctx = webrtc_streamer(
+    key="voice",
+    mode="SENDONLY",
+    audio_processor_factory=AudioProcessor,
+    rtc_configuration=RTC_CONFIGURATION,
+    media_stream_constraints={"audio": True, "video": False},
+    async_processing=True
+)
+
+if webrtc_ctx.audio_processor:
+    if st.button("✅ Submit Recorded Voice"):
+        # Here you could save frames and convert to WAV, then transcribe
+        st.success("Voice recorded. Transcription feature can be integrated here.")
+        user_input = "🔊 User recorded a voice message."
+        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+
+# ----------------------------
 # WhatsApp-style Chat
 # ----------------------------
-st.subheader("💬 Chat with AI (Type or Upload Voice)")
+st.subheader("💬 Chat with AI (Type or Voice)")
 with st.form("chat_form", clear_on_submit=True):
     col1, col2 = st.columns([5,1])
     with col1:
-        user_input = st.text_input("Type your message...", key="user_input_box")
+        user_input_box = st.text_input("Type your message...", key="user_input_box")
     with col2:
-        voice_upload = st.file_uploader("🎤 Upload voice", type=["mp3","wav","m4a"], key="voice_input_box")
+        voice_upload_box = st.file_uploader("Upload voice", type=["mp3","wav","m4a"], key="voice_input_box")
     submitted = st.form_submit_button("➤")
 
-if voice_upload and not user_input:
-    user_input = f"🔊 User uploaded a voice message: {voice_upload.name} (transcription not yet implemented)"
+if voice_upload_box and not user_input_box:
+    user_input_box = f"🔊 User uploaded a voice message: {voice_upload_box.name} (transcription not yet implemented)"
 
-if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+if submitted and user_input_box.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input_box,"time":datetime.now().strftime("%H:%M")})
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = (
@@ -244,7 +276,7 @@ if submitted and user_input.strip():
     )
     prompt = f"""
 Language: {language}
-User input: {user_input}
+User input: {user_input_box}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
@@ -294,23 +326,21 @@ if st.session_state.chat_history:
         audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
-        else:
-            st.warning("⚠️ Voice generation unavailable. gTTS module may not be installed.")
 
 # ----------------------------
 # Word Download
 # ----------------------------
 if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io.BytesIO()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+    doc = Document()
+    doc.add_heading("AI Sales Call Response", 0)
+    for msg in st.session_state.chat_history:
+        role = msg["role"].upper()
+        doc.add_paragraph(f"{role}: {msg['content']}\nTime: {msg['time']}\n")
+    word_buffer = io.BytesIO()
+    doc.save(word_buffer)
+    st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
 # ----------------------------
-# Brand Leaflet
+# Brand Leaflet Link
 # ----------------------------
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
