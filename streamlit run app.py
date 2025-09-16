@@ -21,7 +21,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"  # Replace with your key
+GROQ_API_KEY = "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"  # Replace with your Groq key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -211,7 +211,7 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# Live Voice Recording using Streamlit WebRTC
+# WebRTC Voice Recording
 # ----------------------------
 st.subheader("🎤 Record Voice Question")
 RTC_CONFIGURATION = RTCConfiguration(
@@ -228,44 +228,24 @@ class AudioProcessor(AudioProcessorBase):
 
 webrtc_ctx = webrtc_streamer(
     key="voice",
-    mode="SENDONLY",  # ✅ Fixed AttributeError
+    mode="SENDONLY",  # ✅ string, not enum
     audio_processor_factory=AudioProcessor,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"audio": True, "video": False},
     async_processing=True
 )
 
-if webrtc_ctx.audio_processor:
-    if st.button("✅ Submit Recorded Voice"):
-        st.success("Voice recorded. Transcription feature can be integrated here.")
-        user_input = "🔊 User recorded a voice message."
-        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-
 # ----------------------------
-# WhatsApp-style Chat Input
+# Chat Interface
 # ----------------------------
-st.subheader("💬 Ask AI (Text or Voice)")
-chat_placeholder = st.empty()
-
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        content = msg["content"].replace('\n','<br>')
-        if msg["role"]=="user":
-            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px 15px 0 15px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
-        else:
-            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px 15px 15px 0;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
-display_chat()
-
+st.subheader("💬 Ask AI (Text input)")
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message here...")
+    user_input = st.text_input("Type your question here...")
     submitted = st.form_submit_button("➤")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-    # ---------------- AI Prompt ----------------
+
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     prompt = f"""
@@ -289,16 +269,33 @@ Additional Context / Uploaded Docs:
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-    display_chat()
 
-    # ---------------- TTS ----------------
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        tts_lang = "ar" if language=="العربية" else "en"
-        audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
-        if audio_file:
-            st.subheader("🎙️ AI Voice Response")
-            st.audio(audio_file, format="audio/mp3")
+# ----------------------------
+# Display Chat
+# ----------------------------
+def display_chat():
+    chat_html = ""
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n","<br>")
+        time = msg.get("time","")
+        if msg["role"]=="user":
+            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px 15px 0px 15px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{time}</span></div>"
+        else:
+            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px 15px 15px 0px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{time}</span></div>"
+    st.markdown(chat_html, unsafe_allow_html=True)
+
+display_chat()
+
+# ----------------------------
+# TTS
+# ----------------------------
+latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+if latest_ai:
+    tts_lang = "ar" if language=="العربية" else "en"
+    audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
+    if audio_file:
+        st.subheader("🎙️ AI Voice Response")
+        st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
 # Word Download
@@ -307,8 +304,7 @@ if st.session_state.chat_history:
     doc = Document()
     doc.add_heading("AI Sales Call Response",0)
     for msg in st.session_state.chat_history:
-        role = msg["role"].upper()
-        doc.add_paragraph(f"{role}: {msg['content']}\nTime: {msg['time']}\n")
+        doc.add_paragraph(f"{msg['role'].upper()}: {msg['content']}\nTime: {msg['time']}\n")
     word_buffer = io.BytesIO()
     doc.save(word_buffer)
     st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
