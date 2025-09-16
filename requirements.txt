@@ -1,5 +1,5 @@
 streamlit>=1.26.0
-streamlit-webrtc>=1.0.0
+streamlit-webrtc
 Pillow
 requests
 python-docx
@@ -7,5 +7,4 @@ pdfplumber
 python-pptx
 gTTS
 groq
-PyMuPDF
-av
+PyMuPDF==1.23.8
