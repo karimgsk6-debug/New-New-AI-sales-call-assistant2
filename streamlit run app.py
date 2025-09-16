@@ -44,11 +44,13 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-def generate_tts(text, filename="output.mp3"):
+def generate_tts(text):
     try:
         tts = gTTS(text=text, lang="en")
-        tts.save(filename)
-        return filename
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        return fp
     except Exception:
         return None
 
@@ -152,7 +154,13 @@ if uploaded_file:
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
 # ----------------------------
-# Display Chat
+# Clear Chat Button
+# ----------------------------
+if st.button("🧹 Clear Chat"):
+    st.session_state.chat_history = []
+
+# ----------------------------
+# Display Chat with Avatars
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
@@ -163,23 +171,20 @@ def display_chat():
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
         if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"""
+            <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;'>
+                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                <img src="https://i.imgur.com/7k12EPD.png" width="35" style="border-radius:50%; margin-left:5px;">
+            </div>"""
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"""
+            <div style='display:flex; justify-content:flex-start; align-items:flex-start; margin-bottom:5px;'>
+                <img src="https://i.imgur.com/0Jg1zHc.png" width="35" style="border-radius:50%; margin-right:5px;">
+                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+            </div>"""
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
-
-# ----------------------------
-# Voice Generation Above Prompt
-# ----------------------------
-if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        st.subheader("🎙️ AI Voice Response")
-        audio_file = generate_tts(latest_ai[-1])
-        if audio_file:
-            st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
 # Fixed Bottom Input Box
@@ -219,6 +224,11 @@ Respond professionally and concisely.
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
+
+    # Generate AI voice
+    audio_fp = generate_tts(ai_output)
+    if audio_fp:
+        st.audio(audio_fp, format="audio/mp3")
 
 # ----------------------------
 # Download as Word
