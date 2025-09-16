@@ -216,8 +216,9 @@ Include references at the end:
 {references}
 """
 
+    # --- Chat completion with supported model ---
     response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="llama-3.1-70b-versatile",  # ✅ Supported Groq model
         messages=[{"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
                   {"role": "user", "content": prompt}],
         temperature=0.7,
@@ -229,7 +230,7 @@ Include references at the end:
     # --- Generate voice output ---
     try:
         tts = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
+            model="gpt-4o-mini-tts",   # ✅ Supported TTS model
             voice="alloy",
             input=ai_output
         )
