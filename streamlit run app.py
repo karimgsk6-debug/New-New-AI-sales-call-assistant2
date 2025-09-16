@@ -4,8 +4,6 @@ import re
 import streamlit as st
 from PIL import Image
 from docx import Document
-import pdfplumber
-from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
@@ -27,22 +25,6 @@ client = Groq(api_key=GROQ_API_KEY)
 def extract_text_from_docx(file):
     doc = Document(file)
     return "\n".join([p.text for p in doc.paragraphs])
-
-def extract_text_from_pdf(file):
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text
-
-def extract_text_from_pptx(file):
-    prs = Presentation(file)
-    text_runs = []
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text_runs.append(shape.text)
-    return "\n".join(text_runs)
 
 def generate_tts(text):
     try:
@@ -152,23 +134,13 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", interface_modes)
 
 # ----------------------------
-# Upload Documents
+# Upload Documents (DOCX only for Streamlit Cloud)
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, or PPTX", type=["pdf", "docx", "pptx"])
+uploaded_file = st.file_uploader("Upload DOCX file", type=["docx"])
 if uploaded_file:
-    file_ext = uploaded_file.name.split(".")[-1].lower()
-    extracted_text = ""
-
-    if file_ext == "docx":
-        extracted_text = extract_text_from_docx(uploaded_file)
-    elif file_ext == "pdf":
-        extracted_text = extract_text_from_pdf(uploaded_file)
-    elif file_ext == "pptx":
-        extracted_text = extract_text_from_pptx(uploaded_file)
-
+    extracted_text = extract_text_from_docx(uploaded_file)
     st.session_state.uploaded_docs = extracted_text[:8000]
-
     if extracted_text:
         st.subheader("📄 Extracted Text")
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
@@ -181,7 +153,7 @@ if st.button("🧹 Clear Chat"):
     st.session_state.last_audio = None
 
 # ----------------------------
-# Display Chat with Robotic Avatars & Double Check Marks
+# Display Chat
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
@@ -206,7 +178,6 @@ def display_chat():
                 <span style='font-size:10px; color:gray;'>{time}</span></div>
             </div>"""
     chat_html += "</div>"
-    # Auto-scroll
     chat_html += """
     <script>
     var chatContainer = document.getElementById('chat_container');
@@ -218,13 +189,13 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Send Icon Image
+# Send Icon
 # ----------------------------
 send_icon_path = "/mnt/data/f5047f3e-ba79-4afb-88d7-49f31cfdc408.png"
 send_icon_img = Image.open(send_icon_path).resize((40,40))
 
 # ----------------------------
-# Input Box with Voice Bar and Send Icon
+# Input Box
 # ----------------------------
 if st.session_state.last_audio:
     st.audio(st.session_state.last_audio, format="audio/mp3")
@@ -259,7 +230,7 @@ Uploaded Docs Context: {st.session_state.uploaded_docs}
 References:
 {references}
 
-Use the **GSK Sales Call Module** structure for the conversation:
+Use the **GSK Sales Call Module**:
 1. Prepare (before the call)
 2. ENGAGE (build rapport)
 3. CREATE OPPORTUNITY
@@ -267,7 +238,7 @@ Use the **GSK Sales Call Module** structure for the conversation:
 5. IMPACT / Good Sell Outcome
 6. Post-call Analysis
 
-Handle objections using the **APACT technique**:
+Handle objections using **APACT**:
 - Acknowledge
 - Probe
 - Action
@@ -279,7 +250,6 @@ Respond professionally, concisely, and in a lively style with emojis for chat di
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
-    # TTS without emojis
     voice_text = remove_emojis_for_tts(ai_output)
     audio_fp = generate_tts(voice_text)
     if audio_fp:
