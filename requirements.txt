@@ -1,9 +1,5 @@
-streamlit>=1.26.0
-Pillow
-requests
-python-docx
-pdfplumber
-python-pptx
-gTTS
+streamlit==1.38.0
 groq
-PyMuPDF==1.23.8
+PyPDF2
+python-docx
+gTTS
