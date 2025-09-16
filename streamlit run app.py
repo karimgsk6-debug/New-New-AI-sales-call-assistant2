@@ -56,7 +56,7 @@ def generate_tts(text):
 
 def remove_emojis_for_tts(text):
     emoji_pattern = re.compile(
-        "["
+        "[" 
         "\U0001F600-\U0001F64F"
         "\U0001F300-\U0001F5FF"
         "\U0001F680-\U0001F6FF"
@@ -259,8 +259,22 @@ Uploaded Docs Context: {st.session_state.uploaded_docs}
 References:
 {references}
 
-Use the GSK Sales Call Module structure and APCT technique (Acknowledge, Probe, Challenge, Takeaway) for handling objections.
-Respond professionally, concisely, and in a lively style with emojis for the chat display.
+Use the **GSK Sales Call Module** structure for the conversation:
+1. Prepare (before the call)
+2. ENGAGE (build rapport)
+3. CREATE OPPORTUNITY
+4. INFLUENCE
+5. IMPACT / Good Sell Outcome
+6. Post-call Analysis
+
+Handle objections using the **APACT technique**:
+- Acknowledge
+- Probe
+- Action
+- Confirm
+- Transition to next step or call
+
+Respond professionally, concisely, and in a lively style with emojis for chat display.
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
