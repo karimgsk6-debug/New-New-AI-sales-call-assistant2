@@ -1,7 +1,6 @@
 import os
 import io
 import streamlit as st
-import requests
 from PIL import Image
 from docx import Document
 import pdfplumber
@@ -55,20 +54,22 @@ def generate_tts(text):
         return None
 
 def ask_ai(prompt):
+    # Add emojis and catchy style
+    prompt += "\nPlease respond in a lively, engaging style with emojis when appropriate."
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+            messages=[{"role": "system", "content": "You are a fun, helpful AI medical sales assistant."},
                       {"role": "user", "content": prompt}],
-            temperature=0.7,
+            temperature=0.8,
             max_tokens=1000
         )
     except Exception:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+            messages=[{"role": "system", "content": "You are a fun, helpful AI medical sales assistant."},
                       {"role": "user", "content": prompt}],
-            temperature=0.7,
+            temperature=0.8,
             max_tokens=1000
         )
     return response.choices[0].message.content
@@ -80,6 +81,8 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
+if "last_audio" not in st.session_state:
+    st.session_state.last_audio = None
 
 # ----------------------------
 # Language
@@ -158,43 +161,58 @@ if uploaded_file:
 # ----------------------------
 if st.button("🧹 Clear Chat"):
     st.session_state.chat_history = []
+    st.session_state.last_audio = None
 
 # ----------------------------
-# Display Chat with Avatars
+# Display Chat with Robotic Avatars
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
 
 def display_chat():
-    chat_html = ""
+    chat_html = "<div id='chat_container' style='max-height:500px; overflow-y:auto; padding:5px;'>"
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
         if msg["role"] == "user":
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;'>
-                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
-                <img src="https://i.imgur.com/7k12EPD.png" width="35" style="border-radius:50%; margin-left:5px;">
+                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%'>{content}<br>
+                <span style='font-size:10px; color:gray;'>{time}</span></div>
+                <div style='font-size:35px; margin-left:5px;'>🚹</div>
             </div>"""
         else:
             chat_html += f"""
             <div style='display:flex; justify-content:flex-start; align-items:flex-start; margin-bottom:5px;'>
-                <img src="https://i.imgur.com/0Jg1zHc.png" width="35" style="border-radius:50%; margin-right:5px;">
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>
+                <div style='font-size:35px; margin-right:5px;'>🤖</div>
+                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%'>{content}<br>
+                <span style='font-size:10px; color:gray;'>{time}</span></div>
             </div>"""
+    chat_html += "</div>"
+
+    # Auto-scroll to bottom
+    chat_html += """
+    <script>
+    var chatContainer = document.getElementById('chat_container');
+    if (chatContainer) { chatContainer.scrollTop = chatContainer.scrollHeight; }
+    </script>
+    """
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
 # ----------------------------
-# Fixed Bottom Input Box
+# Fixed Bottom Input Box with Voice Bar Above
 # ----------------------------
+if st.session_state.last_audio:
+    st.audio(st.session_state.last_audio, format="audio/mp3")
+
 with st.form("chat_form", clear_on_submit=True):
     col1, col2 = st.columns([8,1])
     with col1:
-        user_input = st.text_input("Type your message...", key="user_input_box")
+        user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type your message ⏩")
     with col2:
-        submitted = st.form_submit_button("➤")
+        submitted = st.form_submit_button("⏩")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
@@ -223,12 +241,13 @@ Respond professionally and concisely.
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
-    display_chat()
 
     # Generate AI voice
     audio_fp = generate_tts(ai_output)
     if audio_fp:
-        st.audio(audio_fp, format="audio/mp3")
+        st.session_state.last_audio = audio_fp
+
+    display_chat()
 
 # ----------------------------
 # Download as Word
