@@ -1,6 +1,7 @@
 import os
 import io
 import streamlit as st
+import requests
 from PIL import Image
 from docx import Document
 import pdfplumber
@@ -17,7 +18,9 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    st.error("❌ GROQ_API_KEY not found. Please set it in your environment.")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -53,15 +56,20 @@ def generate_tts(text, filename="output.mp3"):
         return None
 
 def ask_ai(prompt):
-    """Send a query to Groq model."""
-    response = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
-        messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                  {"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=1000
-    )
-    return response.choices[0].message.content
+    """Send a query to Groq model with fallback."""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ AI response failed: {str(e)}"
 
 # ----------------------------
 # Session State
@@ -72,29 +80,22 @@ if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Language & Logo
+# Language
 # ----------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-logo_local_path = "images/gsk_logo.png"
+
+# ----------------------------
+# GSK Logo
+# ----------------------------
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
-with col1:
-    try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
-    except:
-        st.image(logo_fallback_url, width=120)
-with col2:
-    st.title("🧠 AI Sales Call Assistant")
+st.image(logo_fallback_url, width=120)
+st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
 # Upload Documents
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader(
-    "Upload PDF, DOCX, or PPTX",
-    type=["pdf", "docx", "pptx"]
-)
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX", type=["pdf", "docx", "pptx"])
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
@@ -104,7 +105,6 @@ if uploaded_file:
         extracted_text = extract_text_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
-
     st.session_state.uploaded_docs = extracted_text[:8000]
     if extracted_text:
         st.subheader("📄 Extracted Text")
@@ -114,28 +114,29 @@ if uploaded_file:
 # Chat Interface
 # ----------------------------
 st.subheader("💬 Chat with AI")
-user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type your question...")
-submit_btn = st.button("Send")
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message here...", key="user_input_box")
+    submitted = st.form_submit_button("➤")
 
-if submit_btn and user_input.strip():
-    st.session_state.chat_history.append({
-        "role": "user",
-        "content": user_input,
-        "time": datetime.now().strftime("%H:%M")
-    })
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+
+    # Build prompt
+    references = (
+        "1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
+        "2. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html\n"
+        "3. WHO Herpes Zoster Overview: https://www.who.int/news-room/fact-sheets/detail/herpes-zoster"
+    )
     prompt = f"""
 Language: {language}
 User input: {user_input}
+Uploaded Docs Text: {st.session_state.uploaded_docs}
 References:
-1. CDC Shingrix: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-2. WHO Herpes Zoster Info: https://www.who.int/news-room/fact-sheets/detail/herpes-zoster
+{references}
+Provide a professional and friendly medical sales response.
 """
     ai_output = ask_ai(prompt)
-    st.session_state.chat_history.append({
-        "role": "ai",
-        "content": ai_output,
-        "time": datetime.now().strftime("%H:%M")
-    })
+    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
 # ----------------------------
 # Display Chat
@@ -147,15 +148,15 @@ def display_chat():
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
         if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
 # ----------------------------
-# Voice Generation
+# Voice Generation (Safe)
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
@@ -164,3 +165,5 @@ if st.session_state.chat_history:
         audio_file = generate_tts(latest_ai[-1])
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
+        else:
+            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
