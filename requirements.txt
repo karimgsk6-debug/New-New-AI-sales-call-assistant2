@@ -3,9 +3,9 @@ streamlit-webrtc>=1.0.0
 Pillow
 requests
 python-docx
-PyMuPDF
 pdfplumber
 python-pptx
 gTTS
 groq
+PyMuPDF
 av
