@@ -1,5 +1,10 @@
 streamlit==1.38.0
 groq
-PyPDF2
+PyMuPDF
+pdfplumber
 python-docx
+python-pptx
+Pillow
 gTTS
+streamlit-mic-recorder
+requests
