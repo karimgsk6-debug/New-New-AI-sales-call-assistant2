@@ -1,39 +1,114 @@
+import os
+import io
 import streamlit as st
-from PIL import Image
 import requests
-from io import BytesIO, BytesIO as io_bytes
-import groq
+from PIL import Image
+from docx import Document
+import fitz  # PyMuPDF
+import pdfplumber
+from pptx import Presentation
+from pydub import AudioSegment
+from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-import fitz  # PyMuPDF for PDF
-import pdfplumber
-from pptx import Presentation  # For PPTX extraction
-import os
 
-# --- Optional dependency for Word download ---
-try:
-    from docx import Document
-    DOCX_AVAILABLE = True
-except ImportError:
-    DOCX_AVAILABLE = False
-    st.warning("⚠️ python-docx not installed. Word download unavailable.")
+# ----------------------------
+# App Configuration
+# ----------------------------
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
-# --- Initialize Groq client ---
-client = Groq(api_key=os.getenv("GROQ_API_KEY", "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"))
+# Initialize Groq client
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    st.error("❌ GROQ_API_KEY not found. Please set it in your environment.")
+client = Groq(api_key=GROQ_API_KEY)
 
-# --- Session state ---
+# ----------------------------
+# Helper Functions
+# ----------------------------
+
+def extract_text_from_docx(file):
+    doc = Document(file)
+    return "\n".join([p.text for p in doc.paragraphs])
+
+def extract_text_from_pdf(file):
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+    return text
+
+def extract_images_from_pdf(file):
+    images = []
+    pdf = fitz.open(file)
+    for page_num in range(len(pdf)):
+        for img_index, img in enumerate(pdf[page_num].get_images()):
+            xref = img[0]
+            base_image = pdf.extract_image(xref)
+            image_bytes = base_image["image"]
+            images.append(Image.open(io.BytesIO(image_bytes)))
+    return images
+
+def extract_text_from_pptx(file):
+    prs = Presentation(file)
+    text_runs = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text_runs.append(shape.text)
+    return "\n".join(text_runs)
+
+def convert_audio_to_wav(file):
+    audio = AudioSegment.from_file(file)
+    wav_path = "temp_audio.wav"
+    audio.export(wav_path, format="wav")
+    return wav_path
+
+def generate_tts(text, filename="output.mp3"):
+    """Convert text to speech using gTTS."""
+    tts = gTTS(text=text, lang="en")
+    tts.save(filename)
+    return filename
+
+def ask_ai(prompt):
+    """Send a query to Groq model with fallback."""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+    except Exception:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+    return response.choices[0].message["content"]
+
+# ----------------------------
+# Session state
+# ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
-# --- Language ---
+# ----------------------------
+# Language
+# ----------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# --- GSK Logo ---
+# ----------------------------
+# GSK Logo
+# ----------------------------
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1, 5])
+col1, col2 = st.columns([1,5])
 with col1:
     try:
         logo_img = Image.open(logo_local_path)
@@ -43,7 +118,9 @@ with col1:
 with col2:
     st.title("🧠 AI Sales Call Assistant")
 
-# --- Brand & product data ---
+# ----------------------------
+# Brand & Product Data
+# ----------------------------
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
     "Trelegy": "https://example.com/trelegy-leaflet",
@@ -55,7 +132,9 @@ gsk_brands_images = {
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 
-# --- Filters & options ---
+# ----------------------------
+# Filters & Options
+# ----------------------------
 race_segments = [
     "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
     "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
@@ -84,7 +163,9 @@ gsk_approaches = [
 ]
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
-# --- Sidebar filters ---
+# ----------------------------
+# Sidebar Filters
+# ----------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
@@ -96,12 +177,14 @@ response_length = st.sidebar.selectbox("Response Length / اختر طول الر
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Display brand image safely ---
+# ----------------------------
+# Display brand image
+# ----------------------------
 image_path = gsk_brands_images.get(brand)
 try:
     if image_path.startswith("http"):
         response = requests.get(image_path)
-        img = Image.open(BytesIO(response.content))
+        img = Image.open(io.BytesIO(response.content))
     else:
         img = Image.open(image_path)
     st.image(img, width=200)
@@ -109,42 +192,47 @@ except:
     st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
-# --- Upload PDF/PPTX ---
+# ----------------------------
+# Upload Documents
+# ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF or PPTX", type=["pdf", "pptx"])
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
 if uploaded_file:
-    text_content = ""
-    visuals = []
-    if uploaded_file.type == "application/pdf":
-        with pdfplumber.open(uploaded_file) as pdf:
-            for page in pdf.pages:
-                text_content += page.extract_text() or ""
-        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-        for page in doc:
-            for img_index, img in enumerate(page.get_images(full=True)):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                visuals.append(Image.open(BytesIO(base_image["image"])))
-    elif uploaded_file.name.endswith(".pptx"):
-        prs = Presentation(uploaded_file)
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    text_content += shape.text + "\n"
-                if shape.shape_type == 13:  # Picture
-                    try:
-                        image_stream = BytesIO(shape.image.blob)
-                        visuals.append(Image.open(image_stream))
-                    except:
-                        pass
-    st.session_state.uploaded_docs = text_content[:8000]  # limit length
-    st.success("✅ Document uploaded and processed")
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+    extracted_text = ""
+    extracted_images = []
 
-# --- Clear chat ---
+    if file_ext == "docx":
+        extracted_text = extract_text_from_docx(uploaded_file)
+    elif file_ext == "pdf":
+        extracted_text = extract_text_from_pdf(uploaded_file)
+        extracted_images = extract_images_from_pdf(uploaded_file)
+    elif file_ext == "pptx":
+        extracted_text = extract_text_from_pptx(uploaded_file)
+    elif file_ext in ["mp3", "wav", "m4a"]:
+        wav_path = convert_audio_to_wav(uploaded_file)
+        extracted_text = f"🔊 Audio file uploaded and converted to {wav_path} (transcription not yet added)."
+
+    st.session_state.uploaded_docs = extracted_text[:8000]  # limit length
+
+    if extracted_text:
+        st.subheader("📄 Extracted Text")
+        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
+
+    if extracted_images:
+        st.subheader("🖼️ Extracted Images")
+        for img in extracted_images:
+            st.image(img, use_container_width=True)
+
+# ----------------------------
+# Clear Chat
+# ----------------------------
 if st.button("🗑️ Clear Chat / مسح المحادثة"):
     st.session_state.chat_history = []
 
-# --- Chat history display ---
+# ----------------------------
+# Chat History Display
+# ----------------------------
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
@@ -152,7 +240,7 @@ def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
+        content = msg["content"].replace("\n", "<br>")
         apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
         for step in apact_steps:
             content = content.replace(step, f"<b>{step}</b><br>")
@@ -164,7 +252,9 @@ def display_chat():
 
 display_chat()
 
-# --- Chat input ---
+# ----------------------------
+# Chat Input
+# ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
@@ -189,67 +279,40 @@ Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
 Approved Sales Approaches:
-{", ".join(gsk_approaches)}
+{', '.join(gsk_approaches)}
 Sales Call Flow Steps:
-{" → ".join(sales_call_flow)}
+{' → '.join(sales_call_flow)}
 Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
 Response Length: {response_length}
 Response Tone: {response_tone}
-Supporting Docs: {st.session_state.uploaded_docs[:4000] if st.session_state.uploaded_docs else "None"}
+Supporting Docs: {st.session_state.uploaded_docs[:4000] if st.session_state.uploaded_docs else 'None'}
 Always support responses with these references:
 {references}
 """
 
-    # --- Call Groq API with model fallback ---
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[
-                {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=1000
-        )
-    except groq.BadRequestError:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-    ai_output = response.choices[0].message.content
+    ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
 
-    # --- Voice output ---
-    try:
-        tts = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice="alloy",
-            input=ai_output
-        )
-        audio_file = "ai_response.mp3"
-        with open(audio_file, "wb") as f:
-            f.write(tts.read())
-        st.audio(audio_file, format="audio/mp3")
-    except Exception as e:
-        st.warning(f"⚠️ Voice generation failed: {e}")
+    # Voice Output
+    st.subheader("🎙️ AI Voice Response")
+    audio_file = generate_tts(ai_output)
+    st.audio(audio_file, format="audio/mp3")
 
-# --- Word download ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
+        word_buffer = io.BytesIO()
         doc.save(word_buffer)
         st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
-# --- Brand leaflet ---
+# ----------------------------
+# Brand Leaflet
+# ----------------------------
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
