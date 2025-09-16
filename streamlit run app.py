@@ -228,7 +228,7 @@ class AudioProcessor(AudioProcessorBase):
 
 webrtc_ctx = webrtc_streamer(
     key="voice",
-    mode="SENDONLY",  # ✅ Fixed AttributeError
+    mode="SENDONLY",  # ✅ Corrected AttributeError
     audio_processor_factory=AudioProcessor,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"audio": True, "video": False},
@@ -240,11 +240,11 @@ if webrtc_ctx.audio_processor:
         st.success("Voice recorded. Transcription feature can be integrated here.")
         user_input = "🔊 User recorded a voice message."
         st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+
 # ----------------------------
 # WhatsApp-style Chat Input
 # ----------------------------
 st.subheader("💬 Ask AI (Text or Voice)")
-
 chat_placeholder = st.empty()
 
 def display_chat():
@@ -259,13 +259,11 @@ def display_chat():
 
 display_chat()
 
-# Chat input box like WhatsApp
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message here...")
     submitted = st.form_submit_button("➤ Send")
     if submitted and user_input.strip():
         st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-        # Combine uploaded docs if any
         combined_prompt = user_input
         if st.session_state.uploaded_docs:
             combined_prompt += "\n\nSupporting documents:\n" + st.session_state.uploaded_docs
