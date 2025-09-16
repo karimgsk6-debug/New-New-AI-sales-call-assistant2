@@ -10,9 +10,6 @@ from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-import sounddevice as sd
-import wavio
-import openai
 
 # ----------------------------
 # App Configuration
@@ -24,12 +21,6 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 GROQ_API_KEY = "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"  # Replace with your key
 client = Groq(api_key=GROQ_API_KEY)
-
-# ----------------------------
-# Whisper API Setup (OpenAI) for transcription
-# ----------------------------
-OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"  # Replace with your key
-openai.api_key = OPENAI_API_KEY
 
 # ----------------------------
 # Helper Functions
@@ -74,6 +65,7 @@ def generate_tts(text, filename="output.mp3"):
         return None
 
 def ask_ai(prompt):
+    """Send query to Groq model with fallback"""
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
@@ -91,19 +83,6 @@ def ask_ai(prompt):
             max_tokens=1000
         )
     return response.choices[0].message.content
-
-def record_audio(duration=5, fs=16000, filename="user_recording.wav"):
-    st.info(f"🎤 Recording {duration} seconds...")
-    recording = sd.rec(int(duration * fs), samplerate=fs, channels=1)
-    sd.wait()
-    wavio.write(filename, recording, fs, sampwidth=2)
-    st.success("✅ Recording complete")
-    return filename
-
-def transcribe_audio(file_path):
-    with open(file_path, "rb") as f:
-        transcript = openai.Audio.transcriptions.create(model="whisper-1", file=f)
-    return transcript.text
 
 # ----------------------------
 # Session State
@@ -152,6 +131,29 @@ gsk_brands_images = {
 # ----------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"])
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=["HCP does not consider HZ as risk", "No time to discuss preventive measures", "Cost considerations", "Not convinced HZ Vx effective", "Accessibility issues"], default=[])
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=["Awareness", "Adoption", "Retention"])
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"])
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"])
+response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
+interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
+
+# ----------------------------
+# Display brand image
+# ----------------------------
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(io.BytesIO(response.content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # ----------------------------
 # Upload Documents
@@ -185,44 +187,37 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# Chat Interface
+# Chat Interface (Bottom)
 # ----------------------------
+st.markdown("---")
 st.subheader("💬 Chat with AI")
-col_input, col_send = st.columns([8,1])
-with col_input:
-    user_input = st.text_input("Type your message...", key="user_input_box")
-with col_send:
-    send_btn = st.button("➤ Send")
+chat_placeholder = st.empty()
 
-mic_col, _ = st.columns([1,9])
-with mic_col:
-    record_btn = st.button("🎤 Record 5s")
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message here...", key="user_input_box")
+    submitted = st.form_submit_button("Send ➤")
 
-# Handle Recording
-if record_btn:
-    audio_file = record_audio(duration=5)
-    transcription = transcribe_audio(audio_file)
-    user_input = transcription
-    st.success(f"🎤 Transcribed: {transcription}")
-
-if send_btn and user_input.strip():
+if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
-    references = (
-        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information: https://www.cdc.gov\n"
-        "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
-        "3. Strezova et al., 2022: https://doi.org/10.1093/ofid/ofac485"
-    )
-    prompt = f"Language: {language}\nUser input: {user_input}\nBrand: {brand}\nReferences:\n{references}"
-
-    # Call AI
+    prompt = f"""
+Language: {language}
+User input: {user_input}
+Brand: {brand}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+References:
+1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
+2. WHO: https://www.who.int/news-room/fact-sheets/detail/shingles
+"""
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
 # ----------------------------
 # Display Chat
 # ----------------------------
-chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
