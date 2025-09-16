@@ -240,8 +240,65 @@ if webrtc_ctx.audio_processor:
         st.success("Voice recorded. Transcription feature can be integrated here.")
         user_input = "🔊 User recorded a voice message."
         st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+# ----------------------------
+# WhatsApp-style Chat Input
+# ----------------------------
+st.subheader("💬 Ask AI (Text or Voice)")
+
+chat_placeholder = st.empty()
+
+def display_chat():
+    chat_html = ""
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace('\n','<br>')
+        if msg["role"]=="user":
+            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px 15px 0 15px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
+        else:
+            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px 15px 15px 0;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+display_chat()
+
+# Chat input box like WhatsApp
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message here...")
+    submitted = st.form_submit_button("➤ Send")
+    if submitted and user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+        # Combine uploaded docs if any
+        combined_prompt = user_input
+        if st.session_state.uploaded_docs:
+            combined_prompt += "\n\nSupporting documents:\n" + st.session_state.uploaded_docs
+        ai_output = ask_ai(combined_prompt)
+        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+        display_chat()
 
 # ----------------------------
-# WhatsApp-style Chat
+# TTS of AI Response
 # ----------------------------
-st.subheader("
+if st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        tts_lang = "ar" if language=="العربية" else "en"
+        audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
+        if audio_file:
+            st.subheader("🎙️ AI Voice Response")
+            st.audio(audio_file, format="audio/mp3")
+
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
+    doc = Document()
+    doc.add_heading("AI Sales Call Response",0)
+    for msg in st.session_state.chat_history:
+        role = msg["role"].upper()
+        doc.add_paragraph(f"{role}: {msg['content']}\nTime: {msg['time']}\n")
+    word_buffer = io.BytesIO()
+    doc.save(word_buffer)
+    st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# ----------------------------
+# Brand Leaflet
+# ----------------------------
+st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
