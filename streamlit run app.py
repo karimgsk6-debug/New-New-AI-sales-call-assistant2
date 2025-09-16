@@ -4,7 +4,6 @@ import streamlit as st
 import requests
 from PIL import Image
 from docx import Document
-import fitz  # PyMuPDF
 import pdfplumber
 from pptx import Presentation
 from gtts import gTTS
@@ -36,17 +35,6 @@ def extract_text_from_pdf(file):
             text += page.extract_text() or ""
     return text
 
-def extract_images_from_pdf(file):
-    images = []
-    pdf = fitz.open(file)
-    for page_num in range(len(pdf)):
-        for img_index, img in enumerate(pdf[page_num].get_images()):
-            xref = img[0]
-            base_image = pdf.extract_image(xref)
-            image_bytes = base_image["image"]
-            images.append(Image.open(io.BytesIO(image_bytes)))
-    return images
-
 def extract_text_from_pptx(file):
     prs = Presentation(file)
     text_runs = []
@@ -65,7 +53,7 @@ def generate_tts(text, filename="output.mp3"):
         return None
 
 def ask_ai(prompt):
-    """Send query to Groq model with fallback"""
+    """Send a query to Groq model with fallback."""
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
@@ -127,15 +115,46 @@ gsk_brands_images = {
 }
 
 # ----------------------------
+# Filters & Options
+# ----------------------------
+race_segments = [
+    "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
+    "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
+    "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
+    "E – Engagement: Proactively prescribe to different patient profiles"
+]
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = [
+    "Uncommitted Vaccinator",
+    "Reluctant Efficiency",
+    "Patient Influenced",
+    "Committed Vaccinator"
+]
+gsk_approaches = [
+    "Use data-driven evidence",
+    "Focus on patient outcomes",
+    "Leverage storytelling techniques"
+]
+sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
+
+# ----------------------------
 # Sidebar Filters
 # ----------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
-segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"])
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=["HCP does not consider HZ as risk", "No time to discuss preventive measures", "Cost considerations", "Not convinced HZ Vx effective", "Accessibility issues"], default=[])
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=["Awareness", "Adoption", "Retention"])
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"])
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"])
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
 response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
 response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
@@ -163,13 +182,11 @@ uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf"
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
-    extracted_images = []
 
     if file_ext == "docx":
         extracted_text = extract_text_from_docx(uploaded_file)
     elif file_ext == "pdf":
         extracted_text = extract_text_from_pdf(uploaded_file)
-        extracted_images = extract_images_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
     elif file_ext in ["mp3", "wav", "m4a"]:
@@ -181,36 +198,42 @@ if uploaded_file:
         st.subheader("📄 Extracted Text")
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
-    if extracted_images:
-        st.subheader("🖼️ Extracted Images")
-        for img in extracted_images:
-            st.image(img, use_container_width=True)
-
 # ----------------------------
-# Chat Interface (Bottom)
+# Chat Interface
 # ----------------------------
-st.markdown("---")
 st.subheader("💬 Chat with AI")
-chat_placeholder = st.empty()
-
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message here...", key="user_input_box")
-    submitted = st.form_submit_button("Send ➤")
-
-if submitted and user_input.strip():
+user_input = st.text_input("Type your message...", key="user_input_box")
+if st.button("Send") and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+
+    # Build prompt
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    references = (
+        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
+        "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
+        "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
+        "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
+    )
     prompt = f"""
 Language: {language}
 User input: {user_input}
-Brand: {brand}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
+Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
+Approved Sales Approaches:
+{approaches_str}
+Sales Call Flow Steps:
+{flow_str}
 References:
-1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-2. WHO: https://www.who.int/news-room/fact-sheets/detail/shingles
+{references}
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
+Response Length: {response_length}
+Response Tone: {response_tone}
+Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
@@ -218,11 +241,14 @@ References:
 # ----------------------------
 # Display Chat
 # ----------------------------
+chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
+        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+            content = content.replace(step, f"<b>{step}</b><br>")
         if msg["role"] == "user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
@@ -245,7 +271,7 @@ if st.session_state.chat_history:
             st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
 
 # ----------------------------
-# Word Download
+# Download Word
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
