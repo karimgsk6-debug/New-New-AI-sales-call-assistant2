@@ -7,7 +7,6 @@ from docx import Document
 import fitz  # PyMuPDF
 import pdfplumber
 from pptx import Presentation
-from pydub import AudioSegment
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
@@ -17,16 +16,15 @@ from datetime import datetime
 # ----------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
-# Initialize Groq client
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    st.error("❌ GROQ_API_KEY not found. Please set it in your environment.")
+# ----------------------------
+# Groq API Setup
+# ----------------------------
+GROQ_API_KEY = "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"  # Replace with your key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
 # Helper Functions
 # ----------------------------
-
 def extract_text_from_docx(file):
     doc = Document(file)
     return "\n".join([p.text for p in doc.paragraphs])
@@ -58,12 +56,6 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-def convert_audio_to_wav(file):
-    audio = AudioSegment.from_file(file)
-    wav_path = "temp_audio.wav"
-    audio.export(wav_path, format="wav")
-    return wav_path
-
 def generate_tts(text, filename="output.mp3"):
     """Convert text to speech using gTTS."""
     tts = gTTS(text=text, lang="en")
@@ -91,7 +83,7 @@ def ask_ai(prompt):
     return response.choices[0].message["content"]
 
 # ----------------------------
-# Session state
+# Session State
 # ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -210,10 +202,9 @@ if uploaded_file:
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
     elif file_ext in ["mp3", "wav", "m4a"]:
-        wav_path = convert_audio_to_wav(uploaded_file)
-        extracted_text = f"🔊 Audio file uploaded and converted to {wav_path} (transcription not yet added)."
+        extracted_text = f"🔊 Audio file uploaded ({uploaded_file.name}) - transcription not implemented yet."
 
-    st.session_state.uploaded_docs = extracted_text[:8000]  # limit length
+    st.session_state.uploaded_docs = extracted_text[:8000]
 
     if extracted_text:
         st.subheader("📄 Extracted Text")
@@ -225,36 +216,9 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# Clear Chat
+# Chat Interface
 # ----------------------------
-if st.button("🗑️ Clear Chat / مسح المحادثة"):
-    st.session_state.chat_history = []
-
-# ----------------------------
-# Chat History Display
-# ----------------------------
-st.subheader("💬 Chatbot Interface")
-chat_placeholder = st.empty()
-
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace("\n", "<br>")
-        apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
-        for step in apact_steps:
-            content = content.replace(step, f"<b>{step}</b><br>")
-        if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
-        else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; max-width:80%;'>{content}<span style='font-size:10px; color:gray;'><br>{time}</span></div>"
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
-display_chat()
-
-# ----------------------------
-# Chat Input
-# ----------------------------
+st.subheader("💬 Chat with AI")
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
@@ -262,13 +226,15 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    references = """
-1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.
-2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html
-3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485
-4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html
-"""
-
+    # Build prompt
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    references = (
+        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
+        "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
+        "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
+        "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
+    )
     prompt = f"""
 Language: {language}
 User input: {user_input}
@@ -279,31 +245,56 @@ Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
 Approved Sales Approaches:
-{', '.join(gsk_approaches)}
+{approaches_str}
 Sales Call Flow Steps:
-{' → '.join(sales_call_flow)}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
+{flow_str}
+References:
+{references}
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
 Response Length: {response_length}
 Response Tone: {response_tone}
-Supporting Docs: {st.session_state.uploaded_docs[:4000] if st.session_state.uploaded_docs else 'None'}
-Always support responses with these references:
-{references}
+Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
 
+    # Call AI
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
-    display_chat()
 
-    # Voice Output
-    st.subheader("🎙️ AI Voice Response")
-    audio_file = generate_tts(ai_output)
-    st.audio(audio_file, format="audio/mp3")
+# ----------------------------
+# Display Chat
+# ----------------------------
+chat_placeholder = st.empty()
+def display_chat():
+    chat_html = ""
+    for msg in st.session_state.chat_history:
+        time = msg.get("time", "")
+        content = msg["content"].replace('\n', '<br>')
+        # Bold APACT steps
+        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
+            content = content.replace(step, f"<b>{step}</b><br>")
+        if msg["role"] == "user":
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+        else:
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+display_chat()
+
+# ----------------------------
+# Voice Generation
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        st.subheader("🎙️ AI Voice Response")
+        audio_file = generate_tts(latest_ai[-1])
+        st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
 # Word Download
 # ----------------------------
 if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
