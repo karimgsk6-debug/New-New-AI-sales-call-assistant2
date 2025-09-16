@@ -7,6 +7,8 @@ from docx import Document
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
+from PyPDF2 import PdfReader
+from pptx import Presentation
 
 # ----------------------------
 # App Configuration
@@ -25,6 +27,22 @@ client = Groq(api_key=GROQ_API_KEY)
 def extract_text_from_docx(file):
     doc = Document(file)
     return "\n".join([p.text for p in doc.paragraphs])
+
+def extract_text_from_pdf(file):
+    reader = PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
+
+def extract_text_from_pptx(file):
+    prs = Presentation(file)
+    text_runs = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text_runs.append(shape.text)
+    return "\n".join(text_runs)
 
 def generate_tts(text):
     try:
@@ -134,19 +152,29 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", interface_modes)
 
 # ----------------------------
-# Upload Documents (DOCX only for Streamlit Cloud)
+# Upload Documents (PDF, DOCX, PPTX)
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload DOCX file", type=["docx"])
+uploaded_file = st.file_uploader("Upload PDF, DOCX, or PPTX", type=["pdf", "docx", "pptx"])
 if uploaded_file:
-    extracted_text = extract_text_from_docx(uploaded_file)
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+    extracted_text = ""
+
+    if file_ext == "docx":
+        extracted_text = extract_text_from_docx(uploaded_file)
+    elif file_ext == "pdf":
+        extracted_text = extract_text_from_pdf(uploaded_file)
+    elif file_ext == "pptx":
+        extracted_text = extract_text_from_pptx(uploaded_file)
+
     st.session_state.uploaded_docs = extracted_text[:8000]
+
     if extracted_text:
         st.subheader("📄 Extracted Text")
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
 # ----------------------------
-# Clear Chat Button
+# Clear Chat
 # ----------------------------
 if st.button("🧹 Clear Chat"):
     st.session_state.chat_history = []
