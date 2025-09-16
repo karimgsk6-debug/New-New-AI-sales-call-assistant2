@@ -4,13 +4,12 @@ import streamlit as st
 import requests
 from PIL import Image
 from docx import Document
-import fitz  # PyMuPDF
 import pdfplumber
+import PyPDF2
 from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 import speech_recognition as sr
 
 # ----------------------------
@@ -37,17 +36,6 @@ def extract_text_from_pdf(file):
         for page in pdf.pages:
             text += page.extract_text() or ""
     return text
-
-def extract_images_from_pdf(file):
-    images = []
-    pdf = fitz.open(file)
-    for page_num in range(len(pdf)):
-        for img_index, img in enumerate(pdf[page_num].get_images()):
-            xref = img[0]
-            base_image = pdf.extract_image(xref)
-            image_bytes = base_image["image"]
-            images.append(Image.open(io.BytesIO(image_bytes)))
-    return images
 
 def extract_text_from_pptx(file):
     prs = Presentation(file)
@@ -87,6 +75,19 @@ def ask_ai(prompt):
         )
     return response.choices[0].message.content
 
+def transcribe_audio(file):
+    recognizer = sr.Recognizer()
+    audio = sr.AudioFile(file)
+    with audio as source:
+        audio_data = recognizer.record(source)
+    try:
+        text = recognizer.recognize_google(audio_data)
+    except sr.UnknownValueError:
+        text = "[Could not understand audio]"
+    except sr.RequestError:
+        text = "[Speech recognition service failed]"
+    return text
+
 # ----------------------------
 # Session State
 # ----------------------------
@@ -116,116 +117,90 @@ with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
-# Brand & Product Data
+# Upload Documents or Audio
 # ----------------------------
-gsk_brands = {
-    "Shingrix": "https://example.com/shingrix-leaflet",
-    "Trelegy": "https://example.com/trelegy-leaflet",
-    "Zejula": "https://example.com/zejula-leaflet",
-}
-gsk_brands_images = {
-    "Trelegy": "https://www.example.com/trelegy.png",
-    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
-}
-
-# ----------------------------
-# Upload Documents
-# ----------------------------
-st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
+st.subheader("📤 Upload Supporting Documents or Audio")
+uploaded_file = st.file_uploader("PDF, DOCX, PPTX, MP3, WAV, M4A", type=["pdf","docx","pptx","mp3","wav","m4a"])
+extracted_text = ""
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
-    extracted_text = ""
-    extracted_images = []
-
-    if file_ext == "docx":
+    if file_ext in ["docx"]:
         extracted_text = extract_text_from_docx(uploaded_file)
-    elif file_ext == "pdf":
+    elif file_ext in ["pdf"]:
         extracted_text = extract_text_from_pdf(uploaded_file)
-        extracted_images = extract_images_from_pdf(uploaded_file)
-    elif file_ext == "pptx":
+    elif file_ext in ["pptx"]:
         extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["mp3", "wav", "m4a"]:
-        extracted_text = f"🔊 Audio file uploaded ({uploaded_file.name}) - transcription not implemented yet."
-
+    elif file_ext in ["mp3","wav","m4a"]:
+        extracted_text = transcribe_audio(uploaded_file)
     st.session_state.uploaded_docs = extracted_text[:8000]
-
-    if extracted_text:
-        st.subheader("📄 Extracted Text")
-        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
-
-    if extracted_images:
-        st.subheader("🖼️ Extracted Images")
-        for img in extracted_images:
-            st.image(img, use_container_width=True)
+    st.subheader("📄 Extracted / Transcribed Text")
+    st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
 # ----------------------------
-# Chat Interface with Mic (WhatsApp-like)
+# Chat Interface (Bottom Box)
 # ----------------------------
 st.subheader("💬 Chat with AI")
-
-def transcribe_audio(audio_file):
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_file) as source:
-        audio_data = recognizer.record(source)
-    try:
-        text = recognizer.recognize_google(audio_data, language="en-US" if language=="English" else "ar-EG")
-        return text
-    except:
-        return None
-
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type or use mic 🎤")
-    mic_file = st.file_uploader("Or record voice (wav/mp3) 🎤", type=["wav","mp3"], key="mic_upload")
-    submitted = st.form_submit_button("Send")
-
+    user_input = st.text_input("Type your message...", key="user_input_box")
+    audio_input = st.file_uploader("Or upload voice message (mp3/wav/m4a) → will be transcribed", type=["mp3","wav","m4a"], key="audio_upload")
+    submitted = st.form_submit_button("Send ➤")
+    
 if submitted:
-    if mic_file:
-        user_input = transcribe_audio(mic_file)
-        if not user_input:
-            st.warning("⚠️ Could not transcribe audio.")
-            user_input = ""
-    if user_input.strip():
-        st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
-        # Build prompt
+    if audio_input:
+        user_text = transcribe_audio(audio_input)
+    else:
+        user_text = user_input.strip()
+    if user_text:
+        st.session_state.chat_history.append({"role":"user", "content":user_text, "time":datetime.now().strftime("%H:%M")})
+        # AI Prompt
         references = (
-            "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
+            "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.\n"
             "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
             "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
             "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
         )
-        prompt = f"{st.session_state.uploaded_docs}\nUser Input: {user_input}\nReferences:\n{references}"
+        prompt = f"Language: {language}\nUser input: {user_text}\nReferences:\n{references}"
         ai_output = ask_ai(prompt)
-        st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
+        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
 
 # ----------------------------
-# Display Chat
+# Display Chat (WhatsApp-like)
 # ----------------------------
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
+        time = msg.get("time","")
         content = msg["content"].replace("\n","<br>")
         if msg["role"]=="user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
             chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
 display_chat()
 
 # ----------------------------
-# Voice Generation
+# Voice Response
 # ----------------------------
 if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
     if latest_ai:
         st.subheader("🎙️ AI Voice Response")
         audio_file = generate_tts(latest_ai[-1])
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
         else:
-            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
+            st.warning("⚠️ gTTS not available")
+
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io.BytesIO()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
