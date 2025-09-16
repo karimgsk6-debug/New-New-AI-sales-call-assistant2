@@ -100,6 +100,36 @@ with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
+# Filters
+# ----------------------------
+st.sidebar.header("Filters & Options")
+gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
+response_lengths = ["Short", "Medium", "Long"]
+response_tones = ["Formal", "Casual", "Friendly", "Persuasive"]
+interface_modes = ["Chatbot", "Card Dashboard", "Flow Visualization"]
+
+brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", gsk_brands)
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", doctor_barriers)
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", specialties)
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", personas)
+response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", response_lengths)
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", response_tones)
+interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", interface_modes)
+
+# ----------------------------
 # Upload Documents
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
@@ -122,7 +152,7 @@ if uploaded_file:
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
 # ----------------------------
-# Chat Interface (WhatsApp-like)
+# Display Chat
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
@@ -139,6 +169,17 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
+
+# ----------------------------
+# Voice Generation Above Prompt
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        st.subheader("🎙️ AI Voice Response")
+        audio_file = generate_tts(latest_ai[-1])
+        if audio_file:
+            st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
 # Fixed Bottom Input Box
@@ -162,25 +203,22 @@ if submitted and user_input.strip():
     prompt = f"""
 Language: {language}
 User input: {user_input}
+Brand: {brand}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
 Uploaded Docs Context: {st.session_state.uploaded_docs}
 References:
 {references}
+Response Length: {response_length}
+Response Tone: {response_tone}
 Respond professionally and concisely.
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
     display_chat()
-
-# ----------------------------
-# Voice Generation (TTS)
-# ----------------------------
-if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        st.subheader("🎙️ AI Voice Response")
-        audio_file = generate_tts(latest_ai[-1])
-        if audio_file:
-            st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
 # Download as Word
