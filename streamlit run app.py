@@ -58,9 +58,12 @@ def extract_text_from_pptx(file):
 
 def generate_tts(text, filename="output.mp3"):
     """Convert text to speech using gTTS."""
-    tts = gTTS(text=text, lang="en")
-    tts.save(filename)
-    return filename
+    try:
+        tts = gTTS(text=text, lang="en")
+        tts.save(filename)
+        return filename
+    except Exception:
+        return None
 
 def ask_ai(prompt):
     """Send a query to Groq model with fallback."""
@@ -80,7 +83,8 @@ def ask_ai(prompt):
             temperature=0.7,
             max_tokens=1000
         )
-    return response.choices[0].message["content"]
+    # ✅ Fixed access to content
+    return response.choices[0].message.content
 
 # ----------------------------
 # Session State
@@ -281,14 +285,17 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Voice Generation
+# Voice Generation (Safe)
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         st.subheader("🎙️ AI Voice Response")
         audio_file = generate_tts(latest_ai[-1])
-        st.audio(audio_file, format="audio/mp3")
+        if audio_file:
+            st.audio(audio_file, format="audio/mp3")
+        else:
+            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
 
 # ----------------------------
 # Word Download
