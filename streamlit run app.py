@@ -1,141 +1,130 @@
-import os
-import io
 import streamlit as st
-import requests
-from PIL import Image
-from docx import Document
-import fitz  # PyMuPDF
-import pdfplumber
-from pptx import Presentation
-from gtts import gTTS
 from groq import Groq
+import os
+from gtts import gTTS
+import base64
+from io import BytesIO
+import PyPDF2
+import docx
 
 # ----------------------------
-# App Configuration
+# Config & API
 # ----------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
+st.set_page_config(page_title="AI Health Assistant", layout="centered")
 
-# Initialize Groq client
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
-    st.error("❌ GROQ_API_KEY not found. Please set it in your environment.")
-client = Groq(api_key=GROQ_API_KEY)
+    st.warning("⚠️ Please set your GROQ_API_KEY environment variable.")
+else:
+    client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
 # Helper Functions
 # ----------------------------
-def extract_text_from_docx(file):
-    doc = Document(file)
-    return "\n".join([p.text for p in doc.paragraphs])
+def text_to_speech(text, lang="en"):
+    """Convert text to speech (AI reply)"""
+    try:
+        tts = gTTS(text=text, lang=lang)
+        audio_fp = BytesIO()
+        tts.write_to_fp(audio_fp)
+        audio_fp.seek(0)
+        audio_bytes = audio_fp.read()
+        b64 = base64.b64encode(audio_bytes).decode()
+        return f'<audio autoplay controls src="data:audio/mp3;base64,{b64}"></audio>'
+    except Exception as e:
+        return f"⚠️ TTS error: {e}"
 
-def extract_text_from_pdf(file):
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text
-
-def extract_images_from_pdf(file):
-    images = []
-    pdf = fitz.open(file)
-    for page_num in range(len(pdf)):
-        for img_index, img in enumerate(pdf[page_num].get_images()):
-            xref = img[0]
-            base_image = pdf.extract_image(xref)
-            image_bytes = base_image["image"]
-            images.append(Image.open(io.BytesIO(image_bytes)))
-    return images
-
-def extract_text_from_pptx(file):
-    prs = Presentation(file)
-    text_runs = []
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text_runs.append(shape.text)
-    return "\n".join(text_runs)
-
-def generate_tts(text, lang="en", filename="output.mp3"):
-    """Convert text to speech using gTTS (supports English & Arabic)."""
-    tts = gTTS(text=text, lang=lang)
-    tts.save(filename)
-    return filename
+def parse_file(uploaded_file):
+    """Extract text from uploaded file"""
+    if uploaded_file is None:
+        return None
+    if uploaded_file.name.endswith(".pdf"):
+        reader = PyPDF2.PdfReader(uploaded_file)
+        return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    elif uploaded_file.name.endswith(".docx"):
+        doc = docx.Document(uploaded_file)
+        return " ".join([para.text for para in doc.paragraphs])
+    elif uploaded_file.name.endswith(".txt"):
+        return uploaded_file.read().decode("utf-8")
+    return None
 
 def ask_ai(prompt):
-    """Send a query to Groq model."""
-    response = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
-        messages=[
-            {"role": "system", "content": "You are a helpful AI medical sales assistant. Always cite credible sources (CDC, WHO, PubMed)."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=800
-    )
-    # Ensure safe extraction of response content
+    """Send user prompt to Groq LLM"""
     try:
-        return response.choices[0].message.content
-    except Exception:
-        return "⚠️ No valid response received from AI."
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a medical AI assistant. Provide clear, evidence-based answers."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.7,
+        )
+        return response.choices[0].message["content"].strip()
+    except Exception as e:
+        return f"⚠️ AI error: {e}"
 
 # ----------------------------
-# Streamlit UI
+# UI
 # ----------------------------
-st.title("💊 AI Sales Call Assistant")
+st.title("💬 AI Health Assistant")
+st.caption("Powered by Groq | Includes CDC/WHO references | WhatsApp-style UI")
 
-# WhatsApp-style chat input
-user_input = st.chat_input("💬 Type your message or upload a file below...")
-
-# File uploader (PDF, DOCX, PPTX, audio)
-uploaded_file = st.file_uploader(
-    "📂 Upload a document (PDF, DOCX, PPTX) or an audio file",
-    type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"]
+st.markdown(
+    """
+    **🔗 Medical References:**  
+    - [CDC Health Topics](https://www.cdc.gov)  
+    - [WHO Official Website](https://www.who.int)  
+    """
 )
 
-extracted_text = ""
-extracted_images = []
+# Session state for messages
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []
 
+# File Upload
+uploaded_file = st.file_uploader("📎 Upload a file (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"])
 if uploaded_file:
-    file_ext = uploaded_file.name.split(".")[-1].lower()
+    file_text = parse_file(uploaded_file)
+    if file_text:
+        st.session_state["messages"].append({"role": "user", "content": file_text})
 
-    if file_ext == "docx":
-        extracted_text = extract_text_from_docx(uploaded_file)
-    elif file_ext == "pdf":
-        extracted_text = extract_text_from_pdf(uploaded_file)
-        extracted_images = extract_images_from_pdf(uploaded_file)
-    elif file_ext == "pptx":
-        extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["mp3", "wav", "m4a"]:
-        extracted_text = f"🔊 Audio file uploaded: {uploaded_file.name} (transcription not yet supported)."
+# Display messages (WhatsApp style)
+for msg in st.session_state["messages"]:
+    if msg["role"] == "user":
+        st.markdown(
+            f"""
+            <div style="display:flex;align-items:center;justify-content:flex-end;margin:5px;">
+                <div style="background:#dcf8c6;padding:10px;border-radius:10px;max-width:70%;margin-left:5px;">
+                    {msg['content']}
+                </div>
+                <div style="margin-left:5px;">👤</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:  # AI
+        st.markdown(
+            f"""
+            <div style="display:flex;align-items:center;justify-content:flex-start;margin:5px;">
+                <div style="margin-right:5px;">🤖</div>
+                <div style="background:#ffffff;padding:10px;border-radius:10px;max-width:70%;box-shadow:0px 1px 2px rgba(0,0,0,0.1);">
+                    {msg['content']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(text_to_speech(msg["content"], lang="ar" if any("\u0600" <= c <= "\u06FF" for c in msg["content"]) else "en"), unsafe_allow_html=True)
 
-    if extracted_text:
-        st.subheader("📄 Extracted Text")
-        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
+# Input box like WhatsApp
+st.markdown("---")
+with st.form("chat_form", clear_on_submit=True):
+    cols = st.columns([8, 1])
+    user_input = cols[0].text_input("💬 Type your message...", placeholder="Message AI...", label_visibility="collapsed")
+    submitted = cols[1].form_submit_button("📤")
 
-    if extracted_images:
-        st.subheader("🖼️ Extracted Images")
-        for img in extracted_images:
-            st.image(img, use_container_width=True)
-
-# Handle chat input or extracted text
-if user_input or extracted_text:
-    st.subheader("🤖 AI Assistant Response")
-
-    query = user_input if user_input else extracted_text
-    ai_response = ask_ai(query)
-    st.write(ai_response)
-
-    # Voice generation (English by default, switch to Arabic if input seems Arabic)
-    st.subheader("🎙️ AI Voice Response")
-    lang = "ar" if any("\u0600" <= ch <= "\u06FF" for ch in ai_response) else "en"
-    audio_file = generate_tts(ai_response, lang=lang)
-    st.audio(audio_file, format="audio/mp3")
-
-    # References section
-    st.subheader("📚 Medical References")
-    st.markdown("""
-    - [CDC - Centers for Disease Control and Prevention](https://www.cdc.gov)
-    - [WHO - World Health Organization](https://www.who.int)
-    - [PubMed - Biomedical Literature](https://pubmed.ncbi.nlm.nih.gov)
-    """)
-
+if submitted and user_input:
+    st.session_state["messages"].append({"role": "user", "content": user_input})
+    ai_reply = ask_ai(user_input)
+    st.session_state["messages"].append({"role": "assistant", "content": ai_reply})
+    st.rerun()
