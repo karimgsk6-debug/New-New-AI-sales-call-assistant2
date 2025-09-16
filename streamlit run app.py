@@ -18,7 +18,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"  # Replace with your key
+GROQ_API_KEY = "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"  # <-- Add your API key here
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -45,6 +45,7 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 def generate_tts(text, filename="output.mp3"):
+    """Convert text to speech using gTTS."""
     try:
         tts = gTTS(text=text, lang="en")
         tts.save(filename)
@@ -202,17 +203,19 @@ if uploaded_file:
 # Chat Interface
 # ----------------------------
 st.subheader("💬 Chat with AI")
-user_input = st.text_input("Type your message...", key="user_input_box")
-if st.button("Send") and user_input.strip():
+user_input = st.text_input("Type your message or use the mic...", key="user_input_box")
+send_btn = st.button("Send")
+
+if send_btn and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
     # Build prompt
     approaches_str = "\n".join(gsk_approaches)
     flow_str = " → ".join(sales_call_flow)
     references = (
-        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
+        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information.\n"
         "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
-        "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
+        "3. Strezova et al., 2022: https://doi.org/10.1093/ofid/ofac485\n"
         "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
     )
     prompt = f"""
@@ -230,11 +233,13 @@ Sales Call Flow Steps:
 {flow_str}
 References:
 {references}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
+Use APACT technique for handling objections.
 Response Length: {response_length}
 Response Tone: {response_tone}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
+
+    # Call AI
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
@@ -247,8 +252,6 @@ def display_chat():
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
-        for step in ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
         if msg["role"] == "user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
@@ -271,7 +274,7 @@ if st.session_state.chat_history:
             st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
 
 # ----------------------------
-# Download Word
+# Word Download
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
