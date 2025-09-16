@@ -68,23 +68,14 @@ def generate_tts(text, lang="en", filename="output.mp3"):
         return None
 
 def ask_ai(prompt):
-    """Send a query to Groq model with fallback."""
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=1000
-        )
-    except Exception:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=1000
-        )
+    """Send a query to Groq model."""
+    response = client.chat.completions.create(
+        model="llama-3.1-70b-versatile",
+        messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=1000
+    )
     return response.choices[0].message.content
 
 # ----------------------------
@@ -237,7 +228,7 @@ class AudioProcessor(AudioProcessorBase):
 
 webrtc_ctx = webrtc_streamer(
     key="voice",
-    mode="SENDONLY",  # ✅ Must be string
+    mode="SENDONLY",  # ✅ Fixed AttributeError
     audio_processor_factory=AudioProcessor,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"audio": True, "video": False},
@@ -253,92 +244,4 @@ if webrtc_ctx.audio_processor:
 # ----------------------------
 # WhatsApp-style Chat
 # ----------------------------
-st.subheader("💬 Chat with AI (Type or Voice)")
-with st.form("chat_form", clear_on_submit=True):
-    col1, col2 = st.columns([5,1])
-    with col1:
-        user_input_box = st.text_input("Type your message...", key="user_input_box")
-    with col2:
-        voice_upload_box = st.file_uploader("Upload voice", type=["mp3","wav","m4a"], key="voice_input_box")
-    submitted = st.form_submit_button("➤")
-
-if voice_upload_box and not user_input_box:
-    user_input_box = f"🔊 User uploaded a voice message: {voice_upload_box.name} (transcription not yet implemented)"
-
-if submitted and user_input_box.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input_box,"time":datetime.now().strftime("%H:%M")})
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
-    references = (
-        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
-        "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
-        "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
-        "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
-    )
-    prompt = f"""
-Language: {language}
-User input: {user_input_box}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
-{flow_str}
-References:
-{references}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
-Response Length: {response_length}
-Response Tone: {response_tone}
-Provide actionable suggestions tailored to this persona in a friendly and professional manner.
-"""
-    ai_output = ask_ai(prompt)
-    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
-
-# ----------------------------
-# Display Chat
-# ----------------------------
-chat_placeholder = st.empty()
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        content = msg["content"].replace('\n','<br>')
-        if msg["role"]=="user":
-            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px 15px 0 15px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
-        else:
-            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px 15px 15px 0;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-display_chat()
-
-# ----------------------------
-# TTS of AI Response
-# ----------------------------
-if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        tts_lang = "ar" if language=="العربية" else "en"
-        audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
-        if audio_file:
-            st.subheader("🎙️ AI Voice Response")
-            st.audio(audio_file, format="audio/mp3")
-
-# ----------------------------
-# Word Download
-# ----------------------------
-if st.session_state.chat_history:
-    doc = Document()
-    doc.add_heading("AI Sales Call Response",0)
-    for msg in st.session_state.chat_history:
-        role = msg["role"].upper()
-        doc.add_paragraph(f"{role}: {msg['content']}\nTime: {msg['time']}\n")
-    word_buffer = io.BytesIO()
-    doc.save(word_buffer)
-    st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-# ----------------------------
-# Brand Leaflet
-# ----------------------------
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+st.subheader("
