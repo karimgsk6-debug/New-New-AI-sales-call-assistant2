@@ -223,7 +223,9 @@ if uploaded_file:
 # Live Voice Recording using Streamlit WebRTC
 # ----------------------------
 st.subheader("🎤 Record Voice Question")
-RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
 
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
@@ -235,7 +237,7 @@ class AudioProcessor(AudioProcessorBase):
 
 webrtc_ctx = webrtc_streamer(
     key="voice",
-    mode="SENDONLY",
+    mode="SENDONLY",  # ✅ Must be string
     audio_processor_factory=AudioProcessor,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"audio": True, "video": False},
@@ -244,7 +246,6 @@ webrtc_ctx = webrtc_streamer(
 
 if webrtc_ctx.audio_processor:
     if st.button("✅ Submit Recorded Voice"):
-        # Here you could save frames and convert to WAV, then transcribe
         st.success("Voice recorded. Transcription feature can be integrated here.")
         user_input = "🔊 User recorded a voice message."
         st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
@@ -304,27 +305,24 @@ chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time","")
-        content = msg["content"].replace("\n","<br>")
-        for step in ["Acknowledge","Probing","Answer","Confirm","Transition"]:
-            content = content.replace(step,f"<b>{step}</b><br>")
+        content = msg["content"].replace('\n','<br>')
         if msg["role"]=="user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='text-align:right;background:#dcf8c6;padding:10px;border-radius:15px 15px 0 15px;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='text-align:left;background:#f0f2f6;padding:10px;border-radius:15px 15px 15px 0;margin:5px;display:inline-block;max-width:80%'>{content}<br><span style='font-size:10px;color:gray'>{msg['time']}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 display_chat()
 
 # ----------------------------
-# Voice TTS (Arabic & English)
+# TTS of AI Response
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
-        st.subheader("🎙️ AI Voice Response")
         tts_lang = "ar" if language=="العربية" else "en"
         audio_file = generate_tts(latest_ai[-1], lang=tts_lang)
         if audio_file:
+            st.subheader("🎙️ AI Voice Response")
             st.audio(audio_file, format="audio/mp3")
 
 # ----------------------------
@@ -332,7 +330,7 @@ if st.session_state.chat_history:
 # ----------------------------
 if st.session_state.chat_history:
     doc = Document()
-    doc.add_heading("AI Sales Call Response", 0)
+    doc.add_heading("AI Sales Call Response",0)
     for msg in st.session_state.chat_history:
         role = msg["role"].upper()
         doc.add_paragraph(f"{role}: {msg['content']}\nTime: {msg['time']}\n")
@@ -341,6 +339,6 @@ if st.session_state.chat_history:
     st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
 # ----------------------------
-# Brand Leaflet Link
+# Brand Leaflet
 # ----------------------------
 st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
