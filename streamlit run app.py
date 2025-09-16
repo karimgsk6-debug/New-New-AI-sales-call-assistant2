@@ -1,7 +1,6 @@
 import os
 import io
 import streamlit as st
-import requests
 from PIL import Image
 from docx import Document
 import pdfplumber
@@ -9,7 +8,6 @@ from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-import speech_recognition as sr
 
 # ----------------------------
 # App Configuration
@@ -19,7 +17,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")  # Replace with your key or set env
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -54,34 +52,15 @@ def generate_tts(text, filename="output.mp3"):
     except Exception:
         return None
 
-def transcribe_audio(file):
-    recognizer = sr.Recognizer()
-    try:
-        with sr.AudioFile(file) as source:
-            audio_data = recognizer.record(source)
-            text = recognizer.recognize_google(audio_data)
-            return text
-    except Exception:
-        return "[Could not transcribe audio]"
-
 def ask_ai(prompt):
     """Send a query to Groq model."""
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=1000
-        )
-    except Exception:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=1000
-        )
+    response = client.chat.completions.create(
+        model="llama-3.1-70b-versatile",
+        messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=1000
+    )
     return response.choices[0].message.content
 
 # ----------------------------
@@ -93,13 +72,9 @@ if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Language
+# Language & Logo
 # ----------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-
-# ----------------------------
-# GSK Logo
-# ----------------------------
 logo_local_path = "images/gsk_logo.png"
 logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
@@ -113,29 +88,24 @@ with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
-# Upload Documents & Audio
+# Upload Documents
 # ----------------------------
-st.subheader("📤 Upload Supporting Documents or Audio")
+st.subheader("📤 Upload Supporting Documents")
 uploaded_file = st.file_uploader(
-    "Upload PDF, DOCX, PPTX, or Audio (MP3/WAV/M4A)",
-    type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"]
+    "Upload PDF, DOCX, or PPTX",
+    type=["pdf", "docx", "pptx"]
 )
-
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
-
     if file_ext == "docx":
         extracted_text = extract_text_from_docx(uploaded_file)
     elif file_ext == "pdf":
         extracted_text = extract_text_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["mp3", "wav", "m4a"]:
-        extracted_text = transcribe_audio(uploaded_file)
 
     st.session_state.uploaded_docs = extracted_text[:8000]
-
     if extracted_text:
         st.subheader("📄 Extracted Text")
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
@@ -144,10 +114,9 @@ if uploaded_file:
 # Chat Interface
 # ----------------------------
 st.subheader("💬 Chat with AI")
-user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type a message or leave audio...")
+user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type your question...")
 submit_btn = st.button("Send")
 
-# Handle message submission
 if submit_btn and user_input.strip():
     st.session_state.chat_history.append({
         "role": "user",
@@ -169,7 +138,7 @@ References:
     })
 
 # ----------------------------
-# Display Chat (WhatsApp-style)
+# Display Chat
 # ----------------------------
 chat_placeholder = st.empty()
 def display_chat():
@@ -178,19 +147,9 @@ def display_chat():
         time = msg.get("time", "")
         content = msg["content"].replace('\n', '<br>')
         if msg["role"] == "user":
-            chat_html += f"""
-            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px;
-                        margin:5px; display:inline-block; max-width:80%;'>
-                {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
-            chat_html += f"""
-            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px;
-                        margin:5px; display:inline-block; max-width:80%;'>
-                {content}<br><span style='font-size:10px; color:gray;'>{time}</span>
-            </div>
-            """
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
@@ -205,18 +164,3 @@ if st.session_state.chat_history:
         audio_file = generate_tts(latest_ai[-1])
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
-        else:
-            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
-
-# ----------------------------
-# Word Download
-# ----------------------------
-if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io.BytesIO()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
