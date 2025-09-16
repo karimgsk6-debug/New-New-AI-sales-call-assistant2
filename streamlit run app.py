@@ -8,7 +8,6 @@ from gtts import gTTS
 from groq import Groq
 from datetime import datetime
 from PyPDF2 import PdfReader
-from pptx import Presentation
 
 # ----------------------------
 # App Configuration
@@ -34,15 +33,6 @@ def extract_text_from_pdf(file):
     for page in reader.pages:
         text += page.extract_text() or ""
     return text
-
-def extract_text_from_pptx(file):
-    prs = Presentation(file)
-    text_runs = []
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text_runs.append(shape.text)
-    return "\n".join(text_runs)
 
 def generate_tts(text):
     try:
@@ -152,10 +142,10 @@ response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد
 interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", interface_modes)
 
 # ----------------------------
-# Upload Documents (PDF, DOCX, PPTX)
+# Upload Documents (PDF, DOCX only)
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, or PPTX", type=["pdf", "docx", "pptx"])
+uploaded_file = st.file_uploader("Upload PDF or DOCX", type=["pdf", "docx"])
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
@@ -164,8 +154,6 @@ if uploaded_file:
         extracted_text = extract_text_from_docx(uploaded_file)
     elif file_ext == "pdf":
         extracted_text = extract_text_from_pdf(uploaded_file)
-    elif file_ext == "pptx":
-        extracted_text = extract_text_from_pptx(uploaded_file)
 
     st.session_state.uploaded_docs = extracted_text[:8000]
 
