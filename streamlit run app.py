@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import streamlit as st
 from PIL import Image
 from docx import Document
@@ -53,8 +54,25 @@ def generate_tts(text):
     except Exception:
         return None
 
+def remove_emojis_for_tts(text):
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002700-\U000027BF"  # dingbats
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U00002600-\U000026FF"  # miscellaneous symbols
+        "\U00002B00-\U00002BFF"  # arrows
+        "\U00002300-\U000023FF"  # miscellaneous technical
+        "]+",
+        flags=re.UNICODE
+    )
+    return emoji_pattern.sub(r'', text)
+
 def ask_ai(prompt):
-    # Add emojis and catchy style
+    # Enhance AI response with catchy style and emojis
     prompt += "\nPlease respond in a lively, engaging style with emojis when appropriate."
     try:
         response = client.chat.completions.create(
@@ -164,7 +182,7 @@ if st.button("🧹 Clear Chat"):
     st.session_state.last_audio = None
 
 # ----------------------------
-# Display Chat with Robotic Avatars
+# Display Chat with Robotic Avatars & Auto-scroll
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
@@ -189,8 +207,7 @@ def display_chat():
                 <span style='font-size:10px; color:gray;'>{time}</span></div>
             </div>"""
     chat_html += "</div>"
-
-    # Auto-scroll to bottom
+    # Auto-scroll
     chat_html += """
     <script>
     var chatContainer = document.getElementById('chat_container');
@@ -242,8 +259,9 @@ Respond professionally and concisely.
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
-    # Generate AI voice
-    audio_fp = generate_tts(ai_output)
+    # Remove emojis for TTS
+    voice_text = remove_emojis_for_tts(ai_output)
+    audio_fp = generate_tts(voice_text)
     if audio_fp:
         st.session_state.last_audio = audio_fp
 
