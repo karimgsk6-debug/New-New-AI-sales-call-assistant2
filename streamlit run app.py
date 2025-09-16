@@ -18,7 +18,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"  # Replace with your key
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -57,15 +57,15 @@ def generate_tts(text):
 def remove_emojis_for_tts(text):
     emoji_pattern = re.compile(
         "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002700-\U000027BF"  # dingbats
-        "\U0001F900-\U0001F9FF"  # supplemental symbols
-        "\U00002600-\U000026FF"  # miscellaneous symbols
-        "\U00002B00-\U00002BFF"  # arrows
-        "\U00002300-\U000023FF"  # miscellaneous technical
+        "\U0001F600-\U0001F64F"
+        "\U0001F300-\U0001F5FF"
+        "\U0001F680-\U0001F6FF"
+        "\U0001F1E0-\U0001F1FF"
+        "\U00002700-\U000027BF"
+        "\U0001F900-\U0001F9FF"
+        "\U00002600-\U000026FF"
+        "\U00002B00-\U00002BFF"
+        "\U00002300-\U000023FF"
         "]+",
         flags=re.UNICODE
     )
@@ -181,7 +181,7 @@ if st.button("🧹 Clear Chat"):
     st.session_state.last_audio = None
 
 # ----------------------------
-# Display Chat with Robotic Avatars & Auto-scroll
+# Display Chat with Robotic Avatars & Double Check Marks
 # ----------------------------
 st.subheader("💬 Chat with AI")
 chat_placeholder = st.empty()
@@ -195,7 +195,7 @@ def display_chat():
             chat_html += f"""
             <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;'>
                 <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%'>{content}<br>
-                <span style='font-size:10px; color:gray;'>{time}</span></div>
+                <span style='font-size:10px; color:gray;'>{time} ✅✅</span></div>
                 <div style='font-size:35px; margin-left:5px;'>🚹</div>
             </div>"""
         else:
@@ -218,7 +218,13 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Fixed Bottom Input Box with Voice Bar Above and Send Icon
+# Send Icon Image
+# ----------------------------
+send_icon_path = "/mnt/data/f5047f3e-ba79-4afb-88d7-49f31cfdc408.png"
+send_icon_img = Image.open(send_icon_path).resize((40,40))
+
+# ----------------------------
+# Input Box with Voice Bar and Send Icon
 # ----------------------------
 if st.session_state.last_audio:
     st.audio(st.session_state.last_audio, format="audio/mp3")
@@ -226,18 +232,14 @@ if st.session_state.last_audio:
 with st.form("chat_form", clear_on_submit=True):
     col1, col2 = st.columns([8,1])
     with col1:
-        user_input = st.text_input(
-            "Type your message...", 
-            key="user_input_box", 
-            placeholder="Type your message ▶️"
-        )
+        user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type your message")
     with col2:
-        submitted = st.form_submit_button("▶️")
+        submitted = st.form_submit_button(label="", help="Send", use_container_width=False)
+        st.image(send_icon_img, width=40)
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    # References & GSK Sales Call + APCT technique
     references = (
         "1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
         "2. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html\n"
@@ -263,7 +265,7 @@ Respond professionally, concisely, and in a lively style with emojis for the cha
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
-    # Generate AI voice without emojis
+    # TTS without emojis
     voice_text = remove_emojis_for_tts(ai_output)
     audio_fp = generate_tts(voice_text)
     if audio_fp:
