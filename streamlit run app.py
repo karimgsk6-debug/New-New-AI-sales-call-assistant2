@@ -72,8 +72,7 @@ def remove_emojis_for_tts(text):
     return emoji_pattern.sub(r'', text)
 
 def ask_ai(prompt):
-    # Enhance AI response with catchy style and emojis
-    prompt += "\nPlease respond in a lively, engaging style with emojis when appropriate."
+    prompt += "\nRespond in a lively, engaging style with emojis when appropriate."
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
@@ -219,7 +218,7 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Fixed Bottom Input Box with Voice Bar Above
+# Fixed Bottom Input Box with Voice Bar Above and Send Icon
 # ----------------------------
 if st.session_state.last_audio:
     st.audio(st.session_state.last_audio, format="audio/mp3")
@@ -227,13 +226,18 @@ if st.session_state.last_audio:
 with st.form("chat_form", clear_on_submit=True):
     col1, col2 = st.columns([8,1])
     with col1:
-        user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Type your message ⏩")
+        user_input = st.text_input(
+            "Type your message...", 
+            key="user_input_box", 
+            placeholder="Type your message ▶️"
+        )
     with col2:
-        submitted = st.form_submit_button("⏩")
+        submitted = st.form_submit_button("▶️")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
+    # References & GSK Sales Call + APCT technique
     references = (
         "1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
         "2. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html\n"
@@ -252,14 +256,14 @@ HCP Persona: {persona}
 Uploaded Docs Context: {st.session_state.uploaded_docs}
 References:
 {references}
-Response Length: {response_length}
-Response Tone: {response_tone}
-Respond professionally and concisely.
+
+Use the GSK Sales Call Module structure and APCT technique (Acknowledge, Probe, Challenge, Takeaway) for handling objections.
+Respond professionally, concisely, and in a lively style with emojis for the chat display.
 """
     ai_output = ask_ai(prompt)
     st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
-    # Remove emojis for TTS
+    # Generate AI voice without emojis
     voice_text = remove_emojis_for_tts(ai_output)
     audio_fp = generate_tts(voice_text)
     if audio_fp:
