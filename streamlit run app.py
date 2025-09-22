@@ -1,21 +1,15 @@
 import os
 import io
-import asyncio
 import streamlit as st
 import requests
 from PIL import Image
 from docx import Document
+import pdfplumber
 from pptx import Presentation
 from gtts import gTTS
 from datetime import datetime
-
-# Edge TTS import with safe fallback
-try:
-    from edge_tts import Communicate
-    EDGE_TTS_AVAILABLE = True
-except ModuleNotFoundError:
-    EDGE_TTS_AVAILABLE = False
-
+import asyncio
+import edge_tts  # for humanized Arabic TTS
 from groq import Groq
 
 # ----------------------------
@@ -36,6 +30,13 @@ def extract_text_from_docx(file):
     doc = Document(file)
     return "\n".join([p.text for p in doc.paragraphs])
 
+def extract_text_from_pdf(file):
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+    return text
+
 def extract_text_from_pptx(file):
     prs = Presentation(file)
     text_runs = []
@@ -45,40 +46,38 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-def generate_tts(text, lang="en"):
-    """gTTS fallback TTS"""
-    try:
-        tts = gTTS(text=text, lang=lang)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return fp
-    except Exception as e:
-        st.warning(f"⚠️ TTS error: {e}")
-        return None
-
-async def generate_edge_tts(text, voice="ar-EG-HanaNeural", filename="arabic.mp3"):
-    """Use edge-tts for Arabic humanized voice"""
-    communicate = Communicate(text, voice)
+async def generate_edge_tts(text, filename="output.mp3", voice="ar-SY-HodaNeural"):
+    communicate = edge_tts.Communicate(text, voice)
     await communicate.save(filename)
     return filename
 
+def generate_gtts(text, filename="output.mp3", lang="en"):
+    try:
+        tts = gTTS(text=text, lang=lang)
+        tts.save(filename)
+        return filename
+    except Exception:
+        return None
+
 def ask_ai(prompt):
-    """Call Groq AI with fallback"""
-    model = "llama-3.1-70b-versatile"
-    for attempt in range(2):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role":"system","content":"You are a helpful AI medical sales assistant."},
-                          {"role":"user","content":prompt}],
-                temperature=0.8,
-                max_tokens=1000
-            )
-            return response.choices[0].message.content
-        except Exception:
-            model = "llama-3.1-8b-instant" if attempt == 0 else model
-    raise RuntimeError("Unable to get AI response")
+    """Send a query to Groq model"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+    except Exception:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+    return response.choices[0].message.content
 
 # ----------------------------
 # Session State
@@ -86,143 +85,145 @@ def ask_ai(prompt):
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = None
-if "last_audio" not in st.session_state:
-    st.session_state.last_audio = None
+    st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Language Selection
-# ----------------------------
-language = st.radio("Select Language / اختر اللغة", ["English", "العربية"], horizontal=True)
-
-# ----------------------------
-# GSK Logo
-# ----------------------------
-logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
-with col1:
-    st.image(logo_url, width=120)
-with col2:
-    st.title("🧠 AI Sales Call Assistant")
-
-# ----------------------------
-# Sidebar Filters (multi-select)
+# Sidebar Filters (WhatsApp-style info/settings)
 # ----------------------------
 st.sidebar.header("Filters & Options")
-gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
-race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-doctor_barriers = ["HCP does not consider HZ as risk","No time","Cost","Not convinced","Accessibility issues"]
-objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist"]
-personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+brands = ["Shingrix", "Trelegy", "Zejula"]
+brand = st.sidebar.selectbox("Select Brand", brands)
 
-brand = st.sidebar.selectbox("Brand", gsk_brands)
-segment = st.sidebar.selectbox("RACE Segment", race_segments)
-barrier = st.sidebar.multiselect("Doctor Barrier", doctor_barriers)
-objective = st.sidebar.selectbox("Objective", objectives)
+race_segments = [
+    "R – Reach",
+    "A – Acquisition",
+    "C – Conversion",
+    "E – Engagement"
+]
+segment = st.sidebar.selectbox("Select RACE Segment", race_segments)
+
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+barrier = st.sidebar.multiselect("Select Doctor Barrier", doctor_barriers)
+
+specialties = ["GP", "Cardiologist", "Dermatologist"]
 specialty = st.sidebar.selectbox("Doctor Specialty", specialties)
+
+personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced"]
 persona = st.sidebar.selectbox("HCP Persona", personas)
+
+objectives = ["Awareness", "Adoption", "Retention"]
+objective = st.sidebar.selectbox("Objective", objectives)
+
+response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
 
 # ----------------------------
 # Upload Documents
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX", type=["pdf","docx","pptx"])
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
 if uploaded_file:
-    ext = uploaded_file.name.split(".")[-1].lower()
-    text = ""
-    if ext == "docx":
-        text = extract_text_from_docx(uploaded_file)
-    elif ext == "pptx":
-        text = extract_text_from_pptx(uploaded_file)
-    st.session_state.uploaded_docs = text[:8000]
-    st.write(text[:2000]+"..." if len(text)>2000 else text)
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+    extracted_text = ""
+
+    if file_ext == "docx":
+        extracted_text = extract_text_from_docx(uploaded_file)
+    elif file_ext == "pdf":
+        extracted_text = extract_text_from_pdf(uploaded_file)
+    elif file_ext == "pptx":
+        extracted_text = extract_text_from_pptx(uploaded_file)
+    elif file_ext in ["mp3", "wav", "m4a"]:
+        extracted_text = f"🔊 Audio file uploaded ({uploaded_file.name}) - transcription not implemented yet."
+
+    st.session_state.uploaded_docs = extracted_text[:8000]
+    if extracted_text:
+        st.subheader("📄 Extracted Text")
+        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
 # ----------------------------
-# Chat Placeholder
+# Chat interface
 # ----------------------------
+st.markdown("<h2>💬 Chat with AI</h2>", unsafe_allow_html=True)
 chat_placeholder = st.empty()
 
 def render_chat():
-    html = "<div style='max-height:500px; overflow-y:auto;'>"
+    chat_html = ""
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n","<br>")
-        time = msg.get("time","")
-        if msg["role"]=="user":
-            html += f"""
-            <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;'>
-                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%;'>
-                    {content}<br><span style='font-size:10px;color:gray;'>{time} ✅✅</span>
-                </div>
-                <div style='font-size:35px; margin-left:5px;'>🚹</div>
-            </div>
-            """
+        content = msg["content"].replace('\n', '<br>')
+        time = msg.get("time", "")
+        if msg["role"] == "user":
+            chat_html += f"<div style='text-align:right; display:flex; justify-content:flex-end; margin-bottom:5px;'>"
+            chat_html += f"<div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='font-size:35px; margin-left:5px;'>🚹</div></div>"
         else:
-            html += f"""
-            <div style='display:flex; justify-content:flex-start; align-items:flex-start; margin-bottom:5px;'>
-                <div style='font-size:35px; margin-right:5px;'>🤖</div>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%;'>
-                    {content}<br><span style='font-size:10px;color:gray;'>{time}</span>
-                </div>
-            </div>
-            """
-    html += "</div>"
-    chat_placeholder.markdown(html, unsafe_allow_html=True)
-
-render_chat()
+            chat_html += f"<div style='text-align:left; display:flex; justify-content:flex-start; margin-bottom:5px;'>"
+            chat_html += f"<div style='font-size:35px; margin-right:5px;'>🤖</div>"
+            chat_html += f"<div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div></div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Message Input at Bottom
+# Input box fixed at bottom
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("", placeholder="Type your message…")
-    submitted = st.form_submit_button("📤")
+    user_input = st.text_input("Type your message...", key="user_input_box")
+    submitted = st.form_submit_button("➤")
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-    # Build prompt
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": user_input,
+        "time": datetime.now().strftime("%H:%M")
+    })
+
+    # Build AI prompt
+    references = "1. CDC Shingrix Recommendations\n2. Clinical Overview of Shingles\n3. WHO Vaccine Overview"
     prompt = f"""
-Language: {language}
-User Input: {user_input}
-Brand: {brand}
+User input: {user_input}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
+Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Uploaded Docs: {st.session_state.uploaded_docs if st.session_state.uploaded_docs else 'None'}
-Respond concisely in a friendly, professional tone with emojis.
+References: {references}
+Response Length: {response_length}
+Response Tone: {response_tone}
 """
-    ai_response = ask_ai(prompt)
-    st.session_state.chat_history.append({"role":"ai","content":ai_response,"time":datetime.now().strftime("%H:%M")})
-    
-    # Generate voice
-    if language=="العربية" and EDGE_TTS_AVAILABLE:
-        asyncio.run(generate_edge_tts(ai_response))
-        st.session_state.last_audio = "arabic.mp3"
-    else:
-        audio_fp = generate_tts(ai_response, lang="ar" if language=="العربية" else "en")
-        st.session_state.last_audio = audio_fp
 
+    # Get AI output
+    ai_output = ask_ai(prompt)
+    st.session_state.chat_history.append({
+        "role": "ai",
+        "content": ai_output,
+        "time": datetime.now().strftime("%H:%M")
+    })
     render_chat()
 
-# ----------------------------
-# Play Audio
-# ----------------------------
-if st.session_state.last_audio:
-    st.audio(st.session_state.last_audio, format="audio/mp3")
+    # Generate voice
+    if response_tone.lower() in ["arabic", "العربية"]:
+        asyncio.run(generate_edge_tts(ai_output, filename="ai_response.mp3", voice="ar-SY-HodaNeural"))
+    else:
+        generate_gtts(ai_output, filename="ai_response.mp3", lang="en")
+    st.audio("ai_response.mp3", format="audio/mp3")
+
+# Initial render
+render_chat()
 
 # ----------------------------
-# Download AI Response as Word
+# Word Download
 # ----------------------------
 if st.session_state.chat_history:
-    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
-        from docx import Document
         doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
+        doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        st.download_button("📥 Download as Word (.docx)", buffer, file_name="AI_Response.docx")
+        word_buffer = io.BytesIO()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
