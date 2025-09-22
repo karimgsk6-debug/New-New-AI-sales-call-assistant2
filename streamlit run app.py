@@ -19,7 +19,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -46,7 +46,8 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 async def generate_tts_edge(text, lang="en", filename="output.mp3"):
-    communicate = edge_tts.Communicate(text, voice="ar-SaoudNeural" if lang=="ar" else "en-US-JennyNeural")
+    voice = "ar-SaoudNeural" if lang=="ar" else "en-US-JennyNeural"
+    communicate = edge_tts.Communicate(text, voice=voice)
     await communicate.save(filename)
     return filename
 
@@ -78,7 +79,7 @@ if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Language
+# Language Selection
 # ----------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
