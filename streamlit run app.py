@@ -9,7 +9,7 @@ from pptx import Presentation
 from datetime import datetime
 from groq import Groq
 import asyncio
-import edge_tts  # Humanized TTS for Arabic
+import edge_tts
 
 # ----------------------------
 # App Configuration
@@ -47,7 +47,6 @@ def extract_text_from_pptx(file):
 
 async def generate_tts_edge(text, lang="en"):
     filename = f"ai_tts_temp.mp3"
-    # Use valid Microsoft voice names
     voice = "ar-SA-HamedNeural" if lang=="ar" else "en-US-JennyNeural"
     communicate = edge_tts.Communicate(text, voice=voice)
     await communicate.save(filename)
@@ -204,22 +203,42 @@ def display_chat():
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n", "<br>")
         time = msg.get("time", "")
+        double_arrow = "&#10148;&#10148;" if msg["role"]=="user" else ""
         if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time} {double_arrow}</span></div>"
         else:
             chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
             if "audio_bytes" in msg:
                 st.audio(msg["audio_bytes"], format="audio/mp3")
                 st.download_button("Download Voice", msg["audio_bytes"], file_name=f"{msg['time']}_AI_Response.mp3", mime="audio/mp3")
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Message Box at Bottom
+# Bottom Chat Input (fixed)
 # ----------------------------
-st.markdown("<div style='position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;'>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+.chat-container {
+    position: fixed;
+    bottom: 10px;
+    width: 95%;
+    background: #fff;
+    padding: 5px 10px;
+    z-index: 999;
+    box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("", placeholder="Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
-st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+    col1, col2 = st.columns([8,1])
+    with col1:
+        user_input = st.text_input("", placeholder="Type your message...", key="user_input_box")
+    with col2:
+        submitted = st.form_submit_button("📩")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
@@ -239,7 +258,6 @@ Uploaded Docs Context: {st.session_state.uploaded_docs[:1000]}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 Use APACT (Acknowledge → Probe → Answer → Confirm → Transition) technique.
 """
-    # AI response + TTS
     ai_text = ask_ai(prompt)
     audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar" if language=="العربية" else "en"))
     st.session_state.chat_history.append({
