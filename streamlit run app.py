@@ -46,7 +46,7 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 async def generate_tts_edge(text, lang="en"):
-    filename = f"ai_tts_temp.mp3"
+    filename = f"ai_tts_{datetime.now().strftime('%H%M%S')}.mp3"
     voice = "ar-SA-HamedNeural" if lang=="ar" else "en-US-JennyNeural"
     communicate = edge_tts.Communicate(text, voice=voice)
     await communicate.save(filename)
@@ -196,53 +196,67 @@ if uploaded_file:
 # ----------------------------
 # Chat Interface
 # ----------------------------
-chat_placeholder = st.empty()
-
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n", "<br>")
-        time = msg.get("time", "")
-        double_arrow = "&#10148;&#10148;" if msg["role"]=="user" else ""
-        if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time} {double_arrow}</span></div>"
-        else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
-            if "audio_bytes" in msg:
-                st.audio(msg["audio_bytes"], format="audio/mp3")
-                st.download_button("Download Voice", msg["audio_bytes"], file_name=f"{msg['time']}_AI_Response.mp3", mime="audio/mp3")
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-
-# ----------------------------
-# Bottom Chat Input (fixed)
-# ----------------------------
 st.markdown("""
 <style>
 .chat-container {
-    position: fixed;
-    bottom: 10px;
-    width: 95%;
-    background: #fff;
-    padding: 5px 10px;
-    z-index: 999;
-    box-shadow: 0 0 5px rgba(0,0,0,0.1);
-    border-radius: 10px;
+    max-height: 65vh;
+    overflow-y: auto;
+    padding-bottom: 70px;
+}
+.user-bubble {
+    text-align:right;
+    background:#dcf8c6;
+    padding:10px;
+    border-radius:15px 15px 0px 15px;
+    margin:5px;
+    display:inline-block;
+    max-width:80%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.ai-bubble {
+    text-align:left;
+    background:#f0f2f6;
+    padding:10px;
+    border-radius:15px 15px 15px 0px;
+    margin:5px;
+    display:inline-block;
+    max-width:80%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 </style>
 """, unsafe_allow_html=True)
 
+chat_placeholder = st.empty()
+
+def display_chat():
+    chat_html = "<div class='chat-container'>"
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n","<br>")
+        time = msg.get("time","")
+        double_arrow = "&#10148;&#10148;" if msg["role"]=="user" else ""
+        if msg["role"]=="user":
+            chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} {double_arrow}</span></div>"
+        else:
+            chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
+            if "audio_bytes" in msg:
+                chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{msg['audio_base64']}' type='audio/mp3'></audio>"
+    chat_html += "</div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+# ----------------------------
+# Bottom Chat Input
+# ----------------------------
+st.markdown("<div style='position:fixed;bottom:10px;width:95%;background:#fff;padding:5px 10px;z-index:999;box-shadow:0 0 5px rgba(0,0,0,0.1);border-radius:10px;'>", unsafe_allow_html=True)
 with st.form("chat_form", clear_on_submit=True):
-    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
     col1, col2 = st.columns([8,1])
     with col1:
         user_input = st.text_input("", placeholder="Type your message...", key="user_input_box")
     with col2:
         submitted = st.form_submit_button("📩")
-    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
     prompt = f"""
 Language: {language}
 User input: {user_input}
@@ -260,12 +274,9 @@ Use APACT (Acknowledge → Probe → Answer → Confirm → Transition) techniqu
 """
     ai_text = ask_ai(prompt)
     audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar" if language=="العربية" else "en"))
-    st.session_state.chat_history.append({
-        "role": "ai",
-        "content": ai_text,
-        "time": datetime.now().strftime("%H:%M"),
-        "audio_bytes": audio_bytes
-    })
+    import base64
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes,"audio_base64":audio_base64})
 
 display_chat()
 
