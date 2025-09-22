@@ -25,7 +25,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # 2. ENVIRONMENT / API KEYS
 # --------------------------------------------------------------------------- #
 # ⚠️ Hard-coded API key (replace with your real one)
-GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
+GROQ_API_KEY = "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"
 
 if not GROQ_API_KEY or GROQ_API_KEY.strip() == "":
     st.error("❌ GROQ_API_KEY is missing. Please add it to the code.")
