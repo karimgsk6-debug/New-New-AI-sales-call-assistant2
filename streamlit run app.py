@@ -1,4 +1,5 @@
-AI Sales Call Assistant – Cleaned & Production‑ready
+"""
+AI Sales Call Assistant – Streamlit‑Cloud ready
 Author:  GSK Digital Solutions
 Date:    2025‑09‑22
 """
@@ -6,8 +7,6 @@ Date:    2025‑09‑22
 import os
 import io
 import re
-import time
-import base64
 from datetime import datetime
 
 import streamlit as st
@@ -25,7 +24,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # --------------------------------------------------------------------------- #
 # 2. ENVIRONMENT / API KEYS
 # --------------------------------------------------------------------------- #
-GROQ_API_KEY = os.getenv("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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     st.error("❌ GROQ_API_KEY not found. Add it as an environment secret.")
     st.stop()
@@ -98,7 +97,6 @@ def ask_ai(prompt: str) -> str:
             )
             return response.choices[0].message.content
         except Exception:
-            # Switch to the 8B model on first failure
             if attempt == 0:
                 model = "llama-3.1-8b-instant"
             else:
@@ -129,8 +127,7 @@ logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
     try:
-        local_logo_path = "images/gsk_logo.png"
-        logo_img = Image.open(local_logo_path)
+        logo_img = Image.open("images/gsk_logo.png")
         st.image(logo_img, width=120)
     except Exception:
         st.image(logo_url, width=120)
@@ -201,7 +198,7 @@ if st.button("🧹 Clear Chat"):
 # --------------------------------------------------------------------------- #
 # 10. CHAT DISPLAY
 # --------------------------------------------------------------------------- #
-chat_container = st.empty()
+chat_placeholder = st.empty()
 
 def render_chat():
     chat_html = """
@@ -237,7 +234,7 @@ def render_chat():
       if (chat) chat.scrollTop = chat.scrollHeight;
     </script>
     """
-    chat_container.markdown(chat_html, unsafe_allow_html=True)
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 render_chat()
 
@@ -255,7 +252,8 @@ with st.form("chat_form", clear_on_submit=True):
     with col_msg:
         user_input = st.text_input("Type your message…", key="user_input_box", placeholder="Enter your question")
     with col_send:
-        submitted = st.form_submit_button(label="", help="Send")
+        # Use a plain emoji button – no external image needed
+        submitted = st.form_submit_button(label="📤", help="Send")
 
 # --------------------------------------------------------------------------- #
 # 13. PROCESS USER MESSAGE
