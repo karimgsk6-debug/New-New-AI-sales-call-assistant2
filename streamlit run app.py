@@ -1,24 +1,15 @@
 import os
 import io
+import asyncio
 import streamlit as st
 import requests
 from PIL import Image
 from docx import Document
 import pdfplumber
 from pptx import Presentation
-from gtts import gTTS
-from groq import Groq
 from datetime import datetime
-
-# ----------------------------
-# Optional PyMuPDF import (for PDF images)
-# ----------------------------
-try:
-    import fitz  # PyMuPDF
-    pymupdf_installed = True
-except ModuleNotFoundError:
-    pymupdf_installed = False
-    st.warning("⚠️ PyMuPDF not installed. PDF image extraction will be skipped.")
+from edge_tts import Communicate
+from groq import Groq
 
 # ----------------------------
 # App Configuration
@@ -45,19 +36,6 @@ def extract_text_from_pdf(file):
             text += page.extract_text() or ""
     return text
 
-def extract_images_from_pdf(file):
-    images = []
-    if not pymupdf_installed:
-        return images
-    pdf = fitz.open(file)
-    for page_num in range(len(pdf)):
-        for img_index, img in enumerate(pdf[page_num].get_images()):
-            xref = img[0]
-            base_image = pdf.extract_image(xref)
-            image_bytes = base_image["image"]
-            images.append(Image.open(io.BytesIO(image_bytes)))
-    return images
-
 def extract_text_from_pptx(file):
     prs = Presentation(file)
     text_runs = []
@@ -67,8 +45,14 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-def generate_tts(text, filename="output.mp3"):
+async def generate_arabic_voice(text, filename="arabic.mp3"):
+    communicate = Communicate(text, voice="ar-EG-HodaNeural")  # Human-like Arabic voice
+    await communicate.save(filename)
+    return filename
+
+def generate_english_tts(text, filename="output.mp3"):
     try:
+        from gtts import gTTS
         tts = gTTS(text=text, lang="en")
         tts.save(filename)
         return filename
@@ -168,7 +152,7 @@ gsk_approaches = [
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
 # ----------------------------
-# Sidebar Filters (multi-select where needed)
+# Sidebar Filters (multi-select enabled)
 # ----------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
@@ -204,13 +188,11 @@ uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf"
 if uploaded_file:
     file_ext = uploaded_file.name.split(".")[-1].lower()
     extracted_text = ""
-    extracted_images = []
 
     if file_ext == "docx":
         extracted_text = extract_text_from_docx(uploaded_file)
     elif file_ext == "pdf":
         extracted_text = extract_text_from_pdf(uploaded_file)
-        extracted_images = extract_images_from_pdf(uploaded_file)
     elif file_ext == "pptx":
         extracted_text = extract_text_from_pptx(uploaded_file)
     elif file_ext in ["mp3", "wav", "m4a"]:
@@ -222,21 +204,33 @@ if uploaded_file:
         st.subheader("📄 Extracted Text")
         st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
 
-    if extracted_images:
-        st.subheader("🖼️ Extracted Images")
-        for img in extracted_images:
-            st.image(img, use_container_width=True)
+# ----------------------------
+# Chat Interface (bottom-fixed)
+# ----------------------------
+chat_placeholder = st.empty()
+input_container = st.empty()
+
+def display_chat():
+    chat_html = ""
+    for msg in st.session_state.chat_history:
+        time = msg.get("time", "")
+        content = msg["content"].replace("\n", "<br>")
+        if msg["role"] == "user":
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; max-width:80%; display:inline-block'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+        else:
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; max-width:80%; display:inline-block'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Interface (bottom input, WhatsApp style)
+# Input form pinned at bottom
 # ----------------------------
-st.subheader("💬 Chat with AI")
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+with input_container.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("", placeholder="Type your message...", key="user_input_box")
+    submitted = st.form_submit_button("Send")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+    display_chat()
 
     # Build prompt
     approaches_str = "\n".join(gsk_approaches)
@@ -256,7 +250,6 @@ Objective: {objective}
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
-Uploaded Docs Context: {st.session_state.uploaded_docs}
 Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
@@ -268,40 +261,28 @@ Response Length: {response_length}
 Response Tone: {response_tone}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
+    # Get AI output
     ai_output = ask_ai(prompt)
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
-# ----------------------------
-# Display Chat
-# ----------------------------
-chat_placeholder = st.empty()
-def display_chat():
-    chat_html = ""
-    for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
-        for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
-            content = content.replace(step, f"<b>{step}</b><br>")
-        if msg["role"] == "user":
-            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
+    # Word-by-word streaming
+    current_text = ""
+    for word in ai_output.split():
+        current_text += word + " "
+        if st.session_state.chat_history[-1]["role"] == "ai":
+            st.session_state.chat_history[-1]["content"] = current_text
         else:
-            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+            st.session_state.chat_history.append({"role": "ai", "content": current_text, "time": datetime.now().strftime("%H:%M")})
+        display_chat()
+        asyncio.sleep(0.1)
 
-display_chat()
-
-# ----------------------------
-# Voice Generation
-# ----------------------------
-if st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
-    if latest_ai:
-        st.subheader("🎙️ AI Voice Response")
-        audio_file = generate_tts(latest_ai[-1])
+    # TTS
+    if language == "العربية":
+        asyncio.run(generate_arabic_voice(ai_output))
+        st.audio("arabic.mp3", format="audio/mp3")
+    else:
+        audio_file = generate_english_tts(ai_output)
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
-        else:
-            st.warning("⚠️ gTTS module not installed. Voice response unavailable.")
 
 # ----------------------------
 # Word Download
