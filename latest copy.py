@@ -1,5 +1,6 @@
 import os
 import io
+import time
 import streamlit as st
 import requests
 from PIL import Image
@@ -8,8 +9,8 @@ import fitz  # PyMuPDF
 import pdfplumber
 from pptx import Presentation
 from gtts import gTTS
+from groq import Groq
 from datetime import datetime
-import time
 
 # ----------------------------
 # App Configuration
@@ -19,18 +20,8 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"
-API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-# ----------------------------
-# Session State
-# ----------------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "typing" not in st.session_state:
-    st.session_state.typing = False
-if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = ""
+GROQ_API_KEY = "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"  # Replace with your key
+client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
 # Helper Functions
@@ -74,189 +65,268 @@ def generate_tts(text, filename="output.mp3"):
     except Exception:
         return None
 
-def stream_ai_response(user_input):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": "llama-3.1-70b-versatile",
-        "messages": [{"role": "user", "content": user_input}],
-        "stream": True
-    }
-    with requests.post(API_URL, headers=headers, json=payload, stream=True) as r:
-        partial_text = ""
-        for line in r.iter_lines():
-            if line:
-                try:
-                    chunk = line.decode("utf-8").replace("data: ", "")
-                    if chunk.strip() == "[DONE]":
-                        break
-                    data = eval(chunk)  # crude SSE parser
-                    delta = data["choices"][0]["delta"].get("content", "")
-                    if delta:
-                        partial_text += delta
-                        yield partial_text
-                except Exception:
-                    continue
+def ask_ai_streaming(prompt):
+    """Stream AI response word by word."""
+    model = "llama-3.1-70b-versatile"
+    try:
+        # Streaming simulation: Groq does not natively support streaming
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        full_text = response.choices[0].message.content
+        words = full_text.split()
+        streaming_text = ""
+        for word in words:
+            streaming_text += word + " "
+            yield streaming_text
+            time.sleep(0.03)  # Adjust typing speed here
+    except Exception:
+        # Fallback
+        model = "llama-3.1-8b-instant"
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        yield response.choices[0].message.content
 
 # ----------------------------
-# Sidebar (collapsible)
+# Session State
 # ----------------------------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "uploaded_docs" not in st.session_state:
+    st.session_state.uploaded_docs = ""
+if "typing" not in st.session_state:
+    st.session_state.typing = False
+
+# ----------------------------
+# Language
+# ----------------------------
+language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+
+# ----------------------------
+# GSK Logo
+# ----------------------------
+logo_local_path = "images/gsk_logo.png"
+logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+col1, col2 = st.columns([1,5])
+with col1:
+    try:
+        logo_img = Image.open(logo_local_path)
+        st.image(logo_img, width=120)
+    except:
+        st.image(logo_fallback_url, width=120)
+with col2:
+    st.title("🧠 AI Sales Call Assistant")
+
+# ----------------------------
+# Brand & Product Data
+# ----------------------------
+gsk_brands = {
+    "Shingrix": "https://example.com/shingrix-leaflet",
+    "Trelegy": "https://example.com/trelegy-leaflet",
+    "Zejula": "https://example.com/zejula-leaflet",
+}
+gsk_brands_images = {
+    "Trelegy": "https://www.example.com/trelegy.png",
+    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
+}
+
+# ----------------------------
+# Filters & Options (Multi-select & sidebar)
+# ----------------------------
+race_segments = [
+    "R – Reach",
+    "A – Acquisition",
+    "C – Conversion",
+    "E – Engagement"
+]
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = [
+    "Uncommitted Vaccinator",
+    "Reluctant Efficiency",
+    "Patient Influenced",
+    "Committed Vaccinator"
+]
+
+# Sidebar
 with st.sidebar:
-    st.markdown("## 🎯 Filters")
-    brands = ["Shingrix", "Trelegy", "Zejula"]
-    segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-    barriers = [
-        "HCP does not consider HZ as risk",
-        "No time to discuss preventive measures",
-        "Cost considerations",
-        "Not convinced HZ Vx effective",
-        "Accessibility issues"
-    ]
-    objectives = ["Awareness", "Adoption", "Retention"]
-    specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
-    personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
-    approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
-
-    selected_brands = st.multiselect("Brand", brands, default=brands)
-    selected_segments = st.multiselect("RACE Segment", segments, default=segments)
-    selected_barriers = st.multiselect("Doctor Barriers", barriers)
-    selected_objectives = st.multiselect("Objective", objectives)
-    selected_specialties = st.multiselect("Specialty", specialties)
-    selected_personas = st.multiselect("HCP Persona", personas)
-    selected_approaches = st.multiselect("Sales Approaches", approaches)
-
-    st.markdown("## 📄 Upload Documents")
-    uploaded_file = st.file_uploader("PDF, DOCX, PPTX, Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
-    if uploaded_file:
-        ext = uploaded_file.name.split(".")[-1].lower()
-        extracted_text = ""
-        extracted_images = []
-        if ext == "docx":
-            extracted_text = extract_text_from_docx(uploaded_file)
-        elif ext == "pdf":
-            extracted_text = extract_text_from_pdf(uploaded_file)
-            extracted_images = extract_images_from_pdf(uploaded_file)
-        elif ext == "pptx":
-            extracted_text = extract_text_from_pptx(uploaded_file)
-        elif ext in ["mp3", "wav", "m4a"]:
-            extracted_text = f"🔊 Audio uploaded ({uploaded_file.name}) – transcription not implemented."
-
-        st.session_state.uploaded_docs = extracted_text[:8000]
-        if extracted_text:
-            st.subheader("📄 Extracted Text")
-            st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
-        if extracted_images:
-            st.subheader("🖼️ Extracted Images")
-            for img in extracted_images:
-                st.image(img, use_container_width=True)
-
-    st.markdown("## ⚙️ Settings")
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"])
-    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-    tts_enabled = st.checkbox("Enable TTS", value=True)
-    if st.button("📥 Download Latest AI Response as Word"):
-        if st.session_state.messages:
-            latest_ai = [m["content"] for m in st.session_state.messages if m["role"]=="assistant"]
-            if latest_ai:
-                doc = Document()
-                doc.add_heading("AI Sales Call Response", 0)
-                doc.add_paragraph(latest_ai[-1])
-                word_buffer = io.BytesIO()
-                doc.save(word_buffer)
-                st.download_button("Download", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-    st.markdown("### References")
-    st.markdown("""
-1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html  
-2. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html  
-3. WHO Vaccine Overview: https://www.who.int/news-room/fact-sheets/detail/shingles
-""")
+    st.header("Filters & Options")
+    brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+    segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", options=race_segments)
+    barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers)
+    objective = st.selectbox("Select Objective / اختر الهدف", options=objectives)
+    specialty = st.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+    persona = st.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
+    response_length = st.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
+    response_tone = st.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
 
 # ----------------------------
-# Main Chat Interface
+# Display brand image
 # ----------------------------
-st.subheader("💬 Chat with AI")
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(io.BytesIO(response.content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
-# Display chat
+# ----------------------------
+# Upload Documents
+# ----------------------------
+st.subheader("📤 Upload Supporting Documents")
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
+if uploaded_file:
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+    extracted_text = ""
+    extracted_images = []
+
+    if file_ext == "docx":
+        extracted_text = extract_text_from_docx(uploaded_file)
+    elif file_ext == "pdf":
+        extracted_text = extract_text_from_pdf(uploaded_file)
+        extracted_images = extract_images_from_pdf(uploaded_file)
+    elif file_ext == "pptx":
+        extracted_text = extract_text_from_pptx(uploaded_file)
+    elif file_ext in ["mp3", "wav", "m4a"]:
+        extracted_text = f"🔊 Audio file uploaded ({uploaded_file.name}) - transcription not implemented yet."
+
+    st.session_state.uploaded_docs = extracted_text[:8000]
+
+    if extracted_text:
+        st.subheader("📄 Extracted Text")
+        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
+
+    if extracted_images:
+        st.subheader("🖼️ Extracted Images")
+        for img in extracted_images:
+            st.image(img, use_container_width=True)
+
+# ----------------------------
+# Chat Interface
+# ----------------------------
 chat_placeholder = st.empty()
+
 def display_chat():
     chat_html = ""
-    for msg in st.session_state.messages:
-        time_str = msg.get("time", "")
-        content = msg["content"].replace("\n","<br>")
-        if msg["role"]=="user":
+    for msg in st.session_state.chat_history:
+        time_stamp = msg.get("time", "")
+        content = msg["content"].replace("\n", "<br>")
+        if msg["role"] == "user":
             chat_html += f"""
-            <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:5px'>
-                <div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%'>
+            <div style="display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;">
+                <div style="background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%;">
                     {content}<br>
-                    <span style='font-size:10px; color:gray;'>{time_str} ✅✅</span>
+                    <span style="font-size:10px; color:gray;">{time_stamp} ✅✅</span>
                 </div>
-                <div style='font-size:35px; margin-left:5px;'>🚹</div>
+                <div style="font-size:35px; margin-left:5px;">🚹</div>
             </div>
             """
         else:
             chat_html += f"""
-            <div style='display:flex; justify-content:flex-start; align-items:flex-start; margin:5px'>
-                <div style='font-size:35px; margin-right:5px;'>🤖</div>
-                <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%'>
+            <div style="display:flex; justify-content:flex-start; align-items:flex-start; margin-bottom:5px;">
+                <div style="font-size:35px; margin-right:5px;">🤖</div>
+                <div style="background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%;">
                     {content}<br>
-                    <span style='font-size:10px; color:gray;'>{time_str} ✔✔</span>
+                    <span style="font-size:10px; color:gray;">{time_stamp}</span>
                 </div>
             </div>
             """
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
-# Input fixed at bottom
-st.markdown("""
-<style>
-div[data-testid="stTextInput"] {position: fixed; bottom: 15px; width: 80%;}
-.block-container {padding-bottom: 150px;}
-</style>
-""", unsafe_allow_html=True)
+# ----------------------------
+# Message Form at Bottom
+# ----------------------------
+with st.form("chat_form", clear_on_submit=True):
+    col_msg, col_send = st.columns([8,1])
+    with col_msg:
+        user_input = st.text_input("Type your message…", key="user_input_box", placeholder="Enter your question")
+    with col_send:
+        submitted = st.form_submit_button("📤")
 
-user_input = st.text_input("Type your message...", key="input")
-if user_input:
-    current_time = datetime.now().strftime("%H:%M")
-    st.session_state.messages.append({"role":"user","content":user_input,"time":current_time})
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    # Build prompt
+    references = (
+        "1. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
+        "2. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html\n"
+        "3. WHO Vaccine Overview: https://www.who.int/news-room/fact-sheets/detail/shingles"
+    )
+    prompt = f"""
+Language: {language}
+User input: {user_input}
+Brand: {brand}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+Uploaded Docs Context: {st.session_state.uploaded_docs}
+References:
+{references}
+Respond in a lively, engaging style with emojis.
+"""
+    # Stream AI response
     st.session_state.typing = True
-    st.experimental_rerun()
-
-# Word-by-word streaming AI response
-if st.session_state.typing:
-    last_user = st.session_state.messages[-1]["content"]
-    current_time = datetime.now().strftime("%H:%M")
-    placeholder = st.empty()
     ai_text = ""
-
-    for partial in stream_ai_response(last_user):
-        ai_text = partial
-        placeholder.markdown(f"""
-        <div style='display:flex; justify-content:flex-start; align-items:flex-start; margin:5px'>
-            <div style='font-size:35px; margin-right:5px;'>🤖</div>
-            <div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%'>
-                {ai_text}<br>
-                <span style='font-size:10px; color:gray;'>{current_time} ✔✔</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        time.sleep(0.05)
-
-    st.session_state.messages.append({"role":"assistant","content":ai_text,"time":current_time})
+    for chunk in ask_ai_streaming(prompt):
+        ai_text = chunk
+        if st.session_state.typing:
+            if len(st.session_state.chat_history) == 0 or st.session_state.chat_history[-1]["role"] != "ai":
+                st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M")})
+            else:
+                st.session_state.chat_history[-1]["content"] = ai_text
+        display_chat()
     st.session_state.typing = False
-    st.experimental_rerun()
 
 # ----------------------------
 # TTS Playback
 # ----------------------------
-if tts_enabled and st.session_state.messages:
-    latest_ai = [m["content"] for m in st.session_state.messages if m["role"]=="assistant"]
+if st.session_state.chat_history:
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
     if latest_ai:
         audio_file = generate_tts(latest_ai[-1])
         if audio_file:
             st.audio(audio_file, format="audio/mp3")
-        else:
-            st.warning("⚠️ Voice response unavailable.")
 
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io.BytesIO()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# ----------------------------
+# Brand Leaflet
+# ----------------------------
+st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+
+# Display chat
 display_chat()
