@@ -1,9 +1,8 @@
 streamlit
-requests
 Pillow
-python-docx
+docx
 pdfplumber
 python-pptx
 gTTS
 groq
-PyMuPDF
+edge-tts
