@@ -46,29 +46,35 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-async def generate_tts_edge(text, lang="en"):
-    filename = f"ai_tts_{datetime.now().strftime('%H%M%S')}.mp3"
-    voice = "ar-SA-HamedNeural" if lang=="ar" else "en-US-JennyNeural"
-    communicate = edge_tts.Communicate(text, voice=voice)
+async def generate_tts_edge(text, lang="en-US-JennyNeural"):
+    # Remove punctuation for smoother TTS
+    text_clean = text.replace(".", "").replace(",", "").replace("*", "")
+    filename = f"ai_tts_{datetime.now().strftime('%H%M%S%f')}.mp3"
+    communicate = edge_tts.Communicate(text_clean, voice=lang)
     await communicate.save(filename)
     with open(filename, "rb") as f:
         audio_bytes = f.read()
     return audio_bytes
 
 def ask_ai(prompt):
+    # Use Groq LLM to generate AI response
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Provide actionable suggestions using APACT technique and reference uploaded documents."},
+                {"role": "user", "content": prompt}
+            ],
             temperature=0.7,
             max_tokens=1000
         )
-    except Exception:
+    except:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
-                      {"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Provide actionable suggestions using APACT technique and reference uploaded documents."},
+                {"role": "user", "content": prompt}
+            ],
             temperature=0.7,
             max_tokens=1000
         )
@@ -86,6 +92,7 @@ if "uploaded_docs" not in st.session_state:
 # Language Selection
 # ----------------------------
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
 # GSK Logo
@@ -117,59 +124,17 @@ gsk_brands_images = {
 }
 
 # ----------------------------
-# Filters & Options
+# Sales Call Flow
 # ----------------------------
-race_segments = [
-    "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
-    "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
-    "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
-    "E – Engagement: Proactively prescribe to different patient profiles"
+call_flow = [
+    "Pre-Call Planning",
+    "Engage",
+    "Create Opportunity",
+    "Impact (GSO)",
+    "Closing with Commitment",
+    "Post-Call Analysis"
 ]
-doctor_barriers = [
-    "HCP does not consider HZ as risk",
-    "No time to discuss preventive measures",
-    "Cost considerations",
-    "Not convinced HZ Vx effective",
-    "Accessibility issues"
-]
-objectives = ["Awareness", "Adoption", "Retention"]
-specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
-personas = [
-    "Uncommitted Vaccinator",
-    "Reluctant Efficiency",
-    "Patient Influenced",
-    "Committed Vaccinator"
-]
-ai_tones = ["Formal", "Casual", "Friendly", "Persuasive"]
-hcp_thinking = ["Analytical", "Skeptic", "Emotional", "Pragmatic"]
-
-# ----------------------------
-# Sidebar Filters
-# ----------------------------
-st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
-segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
-tone = st.sidebar.selectbox("AI Response Tone / نبرة الرد", options=ai_tones)
-thinking = st.sidebar.selectbox("HCP Thinking Style / طريقة تفكير الطبيب", options=hcp_thinking)
-
-# ----------------------------
-# Display brand image
-# ----------------------------
-image_path = gsk_brands_images.get(brand)
-try:
-    if image_path.startswith("http"):
-        response = requests.get(image_path)
-        img = Image.open(io.BytesIO(response.content))
-    else:
-        img = Image.open(image_path)
-    st.image(img, width=200)
-except:
-    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+call_stage = st.selectbox("Select Call Stage", options=call_flow)
 
 # ----------------------------
 # Upload Documents
@@ -177,29 +142,25 @@ except:
 st.subheader("📤 Upload Supporting Documents")
 uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
 if uploaded_file:
-    file_ext = uploaded_file.name.split(".")[-1].lower()
-    extracted_text = ""
-    if file_ext == "docx":
-        extracted_text = extract_text_from_docx(uploaded_file)
-    elif file_ext == "pdf":
-        extracted_text = extract_text_from_pdf(uploaded_file)
-    elif file_ext == "pptx":
-        extracted_text = extract_text_from_pptx(uploaded_file)
-    elif file_ext in ["mp3", "wav", "m4a"]:
-        extracted_text = f"🔊 Audio file uploaded ({uploaded_file.name}) - transcription not implemented yet."
-    st.session_state.uploaded_docs = extracted_text[:8000]
-    if extracted_text:
-        st.subheader("📄 Extracted Text")
-        st.write(extracted_text[:2000] + ("..." if len(extracted_text) > 2000 else ""))
+    ext = uploaded_file.name.split(".")[-1].lower()
+    if ext=="pdf":
+        st.session_state.uploaded_docs = extract_text_from_pdf(uploaded_file)
+    elif ext=="docx":
+        st.session_state.uploaded_docs = extract_text_from_docx(uploaded_file)
+    elif ext=="pptx":
+        st.session_state.uploaded_docs = extract_text_from_pptx(uploaded_file)
+    else:
+        st.session_state.uploaded_docs = f"Audio uploaded: {uploaded_file.name} (transcription not implemented)"
+    st.write(st.session_state.uploaded_docs[:2000]+"..." if len(st.session_state.uploaded_docs)>2000 else st.session_state.uploaded_docs)
 
 # ----------------------------
 # Chat CSS
 # ----------------------------
 st.markdown("""
 <style>
-.chat-container { max-height: 65vh; overflow-y: auto; padding-bottom: 70px; }
-.user-bubble { text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
-.ai-bubble { text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+.chat-container { max-height:65vh; overflow-y:auto; padding-bottom:70px; }
+.user-bubble { text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+.ai-bubble { text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
 .prompt-container { position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}
 </style>
 """, unsafe_allow_html=True)
@@ -215,10 +176,12 @@ def display_chat():
             chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
         else:
             chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
-            if "audio_base64" in msg:
-                chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{msg['audio_base64']}' type='audio/mp3'></audio>"
+            if "audio_bytes" in msg:
+                audio_base64 = base64.b64encode(msg["audio_bytes"]).decode()
+                chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{audio_base64}' type='audio/mp3'></audio>"
     chat_html += "</div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+    st.experimental_rerun()
 
 # ----------------------------
 # Chat Input Form
@@ -235,24 +198,15 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
     prompt = f"""
+Stage: {call_stage}
 Language: {language}
-User input: {user_input}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-HCP Thinking Style: {thinking}
-AI Tone: {tone}
-Uploaded Docs Context: {st.session_state.uploaded_docs[:1000]}
-Provide actionable suggestions tailored to this persona in a friendly and professional manner.
-Use APACT (Acknowledge → Probe → Answer → Confirm → Transition) technique.
+Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
+User Input: {user_input}
+Provide actionable suggestions using APACT technique, reference the uploaded documents, and structure according to the sales call flow.
 """
     ai_text = ask_ai(prompt)
-    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar" if language=="العربية" else "en"))
-    audio_base64 = base64.b64encode(audio_bytes).decode()
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes,"audio_base64":audio_base64})
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
 
 display_chat()
 
@@ -263,7 +217,7 @@ if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
     if latest_ai:
         doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_heading("AI Sales Call Response",0)
         doc.add_paragraph(latest_ai[-1])
         word_buffer = io.BytesIO()
         doc.save(word_buffer)
@@ -272,4 +226,4 @@ if st.session_state.chat_history:
 # ----------------------------
 # Brand Leaflet
 # ----------------------------
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+st.markdown(f"[Brand Leaflet]({gsk_brands.get('Shingrix')})")
