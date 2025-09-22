@@ -57,7 +57,6 @@ async def generate_tts_edge(text, lang="en-US-JennyNeural"):
     return audio_bytes
 
 def ask_ai(prompt):
-    # Use Groq LLM to generate AI response
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
@@ -110,8 +109,11 @@ with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
-# Brand & Product Data
+# Filters & Sidebar
 # ----------------------------
+st.sidebar.header("Filters & Options")
+
+# Brand & Product
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
     "Trelegy": "https://example.com/trelegy-leaflet",
@@ -122,19 +124,54 @@ gsk_brands_images = {
     "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
+brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+
+# RACE Segment
+race_segments = [
+    "R – Reach: Did not start to prescribe yet",
+    "A – Acquisition: Prescribe to patient who initiate discussion",
+    "C – Conversion: Proactively initiate discussion with specific patient profile",
+    "E – Engagement: Proactively prescribe to different patient profiles"
+]
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+
+# Doctor Barriers
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time to discuss preventive measures",
+    "Cost considerations",
+    "Not convinced HZ Vx effective",
+    "Accessibility issues"
+]
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
+
+# Objectives, Specialty, Persona, Tone, Thinking
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+ai_tones = ["Formal", "Casual", "Friendly", "Persuasive"]
+hcp_thinking = ["Analytical", "Skeptic", "Emotional", "Pragmatic"]
+
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+persona = st.sidebar.selectbox("HCP Persona / اختر شخصية الطبيب", options=personas)
+tone = st.sidebar.selectbox("AI Tone / نبرة الرد", options=ai_tones)
+thinking = st.sidebar.selectbox("HCP Thinking Style / طريقة تفكير الطبيب", options=hcp_thinking)
 
 # ----------------------------
-# Sales Call Flow
+# Display Brand Image
 # ----------------------------
-call_flow = [
-    "Pre-Call Planning",
-    "Engage",
-    "Create Opportunity",
-    "Impact (GSO)",
-    "Closing with Commitment",
-    "Post-Call Analysis"
-]
-call_stage = st.selectbox("Select Call Stage", options=call_flow)
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(io.BytesIO(response.content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # ----------------------------
 # Upload Documents
@@ -154,6 +191,19 @@ if uploaded_file:
     st.write(st.session_state.uploaded_docs[:2000]+"..." if len(st.session_state.uploaded_docs)>2000 else st.session_state.uploaded_docs)
 
 # ----------------------------
+# Sales Call Flow
+# ----------------------------
+call_flow = [
+    "Pre-Call Planning",
+    "Engage",
+    "Create Opportunity",
+    "Impact (GSO)",
+    "Closing with Commitment",
+    "Post-Call Analysis"
+]
+call_stage = st.selectbox("Select Call Stage", options=call_flow)
+
+# ----------------------------
 # Chat CSS
 # ----------------------------
 st.markdown("""
@@ -167,6 +217,9 @@ st.markdown("""
 
 chat_placeholder = st.empty()
 
+# ----------------------------
+# Display Chat Function
+# ----------------------------
 def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
@@ -181,7 +234,6 @@ def display_chat():
                 chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{audio_base64}' type='audio/mp3'></audio>"
     chat_html += "</div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
-    st.experimental_rerun()
 
 # ----------------------------
 # Chat Input Form
@@ -200,6 +252,14 @@ if submitted and user_input.strip():
     prompt = f"""
 Stage: {call_stage}
 Language: {language}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Brand: {brand}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+HCP Thinking Style: {thinking}
+AI Tone: {tone}
 Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
 User Input: {user_input}
 Provide actionable suggestions using APACT technique, reference the uploaded documents, and structure according to the sales call flow.
@@ -226,4 +286,4 @@ if st.session_state.chat_history:
 # ----------------------------
 # Brand Leaflet
 # ----------------------------
-st.markdown(f"[Brand Leaflet]({gsk_brands.get('Shingrix')})")
+st.markdown(f"[Brand Leaflet]({gsk_brands.get(brand)})")
