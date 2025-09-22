@@ -1,7 +1,7 @@
 """
-AI Sales Call Assistant – Streamlit‑Cloud ready
+AI Sales Call Assistant – Streamlit-Cloud ready
 Author:  GSK Digital Solutions
-Date:    2025‑09‑22
+Date:    2025-09-22
 """
 
 import os
@@ -24,9 +24,11 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # --------------------------------------------------------------------------- #
 # 2. ENVIRONMENT / API KEYS
 # --------------------------------------------------------------------------- #
-GROQ_API_KEY = os.getenv("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")
-if not GROQ_API_KEY:
-    st.error("❌ GROQ_API_KEY not found. Add it as an environment secret.")
+# ⚠️ Hard-coded API key (replace with your real one)
+GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
+
+if not GROQ_API_KEY or GROQ_API_KEY.strip() == "":
+    st.error("❌ GROQ_API_KEY is missing. Please add it to the code.")
     st.stop()
 
 client = Groq(api_key=GROQ_API_KEY)
@@ -48,7 +50,7 @@ def extract_text_from_pdf(file):
     return text
 
 def generate_tts(text, lang="en"):
-    """Return an in‑memory MP3 file created by gTTS."""
+    """Return an in-memory MP3 file created by gTTS."""
     try:
         tts = gTTS(text=text, lang=lang)
         fp = io.BytesIO()
@@ -180,7 +182,6 @@ if uploaded_file:
     elif file_ext == "pdf":
         extracted_text = extract_text_from_pdf(uploaded_file)
 
-    # Trim to a reasonable chunk for the LLM
     st.session_state.uploaded_docs = extracted_text[:8000]
 
     if extracted_text:
@@ -252,7 +253,6 @@ with st.form("chat_form", clear_on_submit=True):
     with col_msg:
         user_input = st.text_input("Type your message…", key="user_input_box", placeholder="Enter your question")
     with col_send:
-        # Use a plain emoji button – no external image needed
         submitted = st.form_submit_button(label="📤", help="Send")
 
 # --------------------------------------------------------------------------- #
@@ -306,7 +306,6 @@ if submitted and user_input.strip():
         {"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")}
     )
 
-    # Generate TTS (trim to 2k chars to avoid gTTS errors)
     safe_text = remove_emojis_for_tts(ai_output)[:2000]
     audio_fp = generate_tts(safe_text)
 
