@@ -8,3 +8,7 @@ python-pptx
 gTTS
 edge-tts
 groq
+streamlit==1.29.0
+requests==2.31.0
+Pillow==10.0.0
+python-docx==0.8.
