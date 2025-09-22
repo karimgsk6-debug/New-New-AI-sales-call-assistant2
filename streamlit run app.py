@@ -4,13 +4,21 @@ import streamlit as st
 import requests
 from PIL import Image
 from docx import Document
-import fitz  # PyMuPDF
 import pdfplumber
 from pptx import Presentation
 from gtts import gTTS
 from groq import Groq
 from datetime import datetime
-import time
+
+# ----------------------------
+# Optional PyMuPDF import (for PDF images)
+# ----------------------------
+try:
+    import fitz  # PyMuPDF
+    pymupdf_installed = True
+except ModuleNotFoundError:
+    pymupdf_installed = False
+    st.warning("⚠️ PyMuPDF not installed. PDF image extraction will be skipped.")
 
 # ----------------------------
 # App Configuration
@@ -20,7 +28,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"  # Replace with your key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -39,6 +47,8 @@ def extract_text_from_pdf(file):
 
 def extract_images_from_pdf(file):
     images = []
+    if not pymupdf_installed:
+        return images
     pdf = fitz.open(file)
     for page_num in range(len(pdf)):
         for img_index, img in enumerate(pdf[page_num].get_images()):
@@ -65,24 +75,24 @@ def generate_tts(text, filename="output.mp3"):
     except Exception:
         return None
 
-def ask_ai_streaming(prompt):
-    """Simulate word-by-word streaming using Groq API."""
+def ask_ai(prompt):
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
             messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
                       {"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=1000,
-            stream=True  # streaming enabled
+            max_tokens=1000
         )
-        final_text = ""
-        for chunk in response:
-            delta = chunk.choices[0].delta.get("content", "")
-            final_text += delta
-            yield final_text
     except Exception:
-        yield "⚠️ AI model error or streaming not available."
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
+    return response.choices[0].message.content
 
 # ----------------------------
 # Session State
@@ -158,7 +168,7 @@ gsk_approaches = [
 sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
 # ----------------------------
-# Sidebar Filters
+# Sidebar Filters (multi-select where needed)
 # ----------------------------
 st.sidebar.header("Filters & Options")
 brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
@@ -218,7 +228,7 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# Chat Interface
+# Chat Interface (bottom input, WhatsApp style)
 # ----------------------------
 st.subheader("💬 Chat with AI")
 with st.form("chat_form", clear_on_submit=True):
@@ -228,76 +238,16 @@ with st.form("chat_form", clear_on_submit=True):
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    # Check for HCP objection flow
-    if "handle hcp objection" in user_input.lower():
-        ai_text = """
-**Prepare (Before the Call)**
-
-📞📝 Let's get ready for this call!
-
-* **HCP Persona:** Uncommitted Vaccinator 🤔
-* **Doctor Specialty:** GP 👨‍⚕️
-* **Objective:** Awareness 📢
-* **Brand:** Shingrix 💉
-* **Doctor Barrier:** HCP does not consider HZ as a risk 🚫
-* **Uploaded Docs Context:** References to CDC Shingrix Recommendations, Clinical Overview of Shingles, and WHO Vaccine Overview 📄
-
-**ENGAGE (Build Rapport)**
-
-👋 Hi Dr. [Last Name], great to speak with you today! How's your day going so far? 🌞
-
-We're here to discuss the importance of Shingrix in protecting your patients from shingles. Have you seen any cases of shingles in your practice recently? 🤯
-
-**CREATE OPPORTUNITY**
-
-💡 Shingrix is an effective vaccine against shingles, and we'd love to discuss how it can benefit your patients. 🤝
-
-As you know, shingles can be a significant risk for people over 50. In fact, according to the CDC, about 1 in 3 people will develop shingles in their lifetime. 📊
-
-**INFLUENCE**
-
-👍 I understand that you might not consider HZ as a risk, but the CDC recommends Shingrix for people 50 years and older to prevent shingles and its complications. 📜
-
-Let's take a look at the clinical benefits of Shingrix. Studies have shown that Shingrix is 90% effective in preventing shingles and its complications. 🔬
-
-**Handle Objection using APACT**
-
-🔍 **Acknowledge:** I understand that you might not consider HZ as a risk, Dr. [Last Name]. Can you tell me more about your concerns? 🤔
-
-💭 **Probe:** What specifically makes you think that HZ isn't a risk for your patients? 🤔
-
-💻 **Action:** Let's review the CDC recommendations and clinical benefits of Shingrix together. I'd be happy to share some resources with you. 📄
-
-👍 **Confirm:** So, you agree that shingles is a significant risk for people over 50, and Shingrix can help prevent it? 👍
-
-🔜 **Transition to next step or call:** Now that we've discussed the benefits of Shingrix, I'd like to schedule a follow-up call to answer any additional questions you may have and provide more information on how to incorporate Shingrix into your practice. 📅
-
-**IMPACT / Good Sell Outcome**
-
-🎉 Great conversation, Dr. [Last Name]! We've made some progress today, and I'm confident that Shingrix can make a positive impact on your patients' health. 💉
-
-**Post-call Analysis**
-
-📝 Let's review the call and identify the key takeaways:
-
-* We acknowledged and addressed Dr. [Last Name]'s concerns about HZ as a risk.
-* We reviewed the clinical benefits and CDC recommendations for Shingrix.
-* We transitioned to a follow-up call to provide more information and answer any additional questions.
-
-This call was a success! 🎉
-"""
-        st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M")})
-    else:
-        # Build prompt
-        approaches_str = "\n".join(gsk_approaches)
-        flow_str = " → ".join(sales_call_flow)
-        references = (
-            "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
-            "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
-            "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
-            "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
-        )
-        prompt = f"""
+    # Build prompt
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    references = (
+        "1. SHINGRIX Egyptian Drug Authority Approved Prescribing Information. Approval Date: 11-9-2023. Version: GDS07/IPI02.\n"
+        "2. CDC Shingrix Recommendations: https://www.cdc.gov/shingles/hcp/vaccine-considerations/index.html\n"
+        "3. Strezova et al., 2022. Long-term Protection Against Herpes Zoster: https://doi.org/10.1093/ofid/ofac485\n"
+        "4. CDC Clinical Overview of Shingles: https://www.cdc.gov/shingles/hcp/clinical-overview/index.html"
+    )
+    prompt = f"""
 Language: {language}
 User input: {user_input}
 RACE Segment: {segment}
@@ -306,6 +256,7 @@ Objective: {objective}
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
+Uploaded Docs Context: {st.session_state.uploaded_docs}
 Approved Sales Approaches:
 {approaches_str}
 Sales Call Flow Steps:
@@ -317,33 +268,30 @@ Response Length: {response_length}
 Response Tone: {response_tone}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 """
-        ai_output = ""
-        placeholder = st.empty()
-        for chunk in ask_ai_streaming(prompt):
-            ai_output = chunk
-            # WhatsApp-style bubble
-            placeholder.markdown(f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{ai_output.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
-        st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M")})
+    ai_output = ask_ai(prompt)
+    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
 
 # ----------------------------
-# Display Chat History
+# Display Chat
 # ----------------------------
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n','<br>')
-        if msg["role"]=="user":
-            chat_html += f"<div style='display:flex; justify-content:flex-end; align-items:flex-end; margin-bottom:5px;'><div style='background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; max-width:70%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div><div style='font-size:35px; margin-left:5px;'>🚹</div></div>"
+        content = msg["content"].replace('\n', '<br>')
+        for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
+            content = content.replace(step, f"<b>{step}</b><br>")
+        if msg["role"] == "user":
+            chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
-            chat_html += f"<div style='display:flex; justify-content:flex-start; align-items:flex-start; margin-bottom:5px;'><div style='font-size:35px; margin-right:5px;'>🤖</div><div style='background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; max-width:70%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div></div>"
+            chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
 # ----------------------------
-# Voice Generation (Safe)
+# Voice Generation
 # ----------------------------
 if st.session_state.chat_history:
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
