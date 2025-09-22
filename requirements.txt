@@ -1,8 +1,10 @@
-streamlit
+streamlit>=1.25.0
+requests
 Pillow
-docx
+python-docx
 pdfplumber
+PyMuPDF
 python-pptx
 gTTS
-groq
 edge-tts
+groq
