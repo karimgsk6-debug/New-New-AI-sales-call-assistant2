@@ -24,7 +24,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # --------------------------------------------------------------------------- #
 # 2. ENVIRONMENT / API KEYS
 # --------------------------------------------------------------------------- #
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("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")
 if not GROQ_API_KEY:
     st.error("❌ GROQ_API_KEY not found. Add it as an environment secret.")
     st.stop()
