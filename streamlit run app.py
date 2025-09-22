@@ -47,7 +47,8 @@ def extract_text_from_pptx(file):
 
 async def generate_tts_edge(text, lang="en"):
     filename = f"ai_tts_temp.mp3"
-    voice = "ar-SaoudNeural" if lang=="ar" else "en-US-JennyNeural"
+    # Use valid Microsoft voice names
+    voice = "ar-SA-HamedNeural" if lang=="ar" else "en-US-JennyNeural"
     communicate = edge_tts.Communicate(text, voice=voice)
     await communicate.save(filename)
     with open(filename, "rb") as f:
