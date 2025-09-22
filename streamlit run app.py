@@ -21,7 +21,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 # ----------------------------
 # Groq API Setup
 # ----------------------------
-GROQ_API_KEY = "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"  # Insert your key here
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -59,10 +59,6 @@ def extract_text_from_pptx(file):
     return "\n".join(text_runs)
 
 def generate_tts(text, lang="en", filename="output.mp3", voice_type="en-US-JennyNeural"):
-    """
-    Convert text to speech.
-    If Arabic, use edge-tts for more humanized voice, else gTTS fallback.
-    """
     try:
         if lang == "ar":
             communicate = edge_tts.Communicate(text, voice=voice_type)
@@ -76,9 +72,6 @@ def generate_tts(text, lang="en", filename="output.mp3", voice_type="en-US-Jenny
         return None
 
 def ask_ai_streaming(prompt):
-    """
-    Streamed AI response from Groq word-by-word.
-    """
     response_text = ""
     try:
         resp = client.chat.completions.stream(
@@ -93,7 +86,6 @@ def ask_ai_streaming(prompt):
             response_text += delta
             yield response_text
     except Exception:
-        # Fallback if streaming fails
         response_text = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": "You are a helpful AI medical sales assistant."},
@@ -112,20 +104,13 @@ if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Language
-# ----------------------------
-language = st.sidebar.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-
-# ----------------------------
 # Sidebar Filters
 # ----------------------------
 st.sidebar.header("Filters & Options")
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 brand = st.sidebar.selectbox("Brand", gsk_brands)
 
-race_segments = [
-    "R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"
-]
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 segment = st.sidebar.selectbox("RACE Segment", race_segments)
 
 doctor_barriers = [
@@ -148,6 +133,8 @@ hcp_thinking = st.sidebar.selectbox("HCP Thinking Style", thinking_styles)
 
 response_tones = ["Formal", "Casual", "Friendly", "Persuasive"]
 response_tone = st.sidebar.selectbox("AI Response Tone", response_tones)
+
+language = st.sidebar.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
 # ----------------------------
 # Upload Documents
@@ -179,18 +166,26 @@ if uploaded_file:
             st.image(img, use_container_width=True)
 
 # ----------------------------
-# Chat Interface at bottom
+# Chat container and sticky input
 # ----------------------------
-st.markdown("<div style='height:400px; overflow-y:auto;' id='chat_container'></div>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+#chat_container { height: 500px; overflow-y: auto; padding:10px; border:1px solid #ccc; border-radius:10px; }
+#input_form { position: fixed; bottom: 0; left: 25%; width: 70%; background: #fff; padding:10px; border-top:1px solid #ccc; z-index: 999; }
+</style>
+<div id='chat_container'></div>
+""", unsafe_allow_html=True)
 
-with st.form("chat_form", clear_on_submit=True):
+with st.form("chat_form", clear_on_submit=True, key='input_form'):
     user_input = st.text_input("Type your message...", key="user_input_box", placeholder="Write a message...")
     submitted = st.form_submit_button("➤")
 
+# ----------------------------
+# Process user input
+# ----------------------------
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
 
-    # Build AI Prompt
     prompt = f"""
 Language: {language}
 User Input: {user_input}
@@ -204,25 +199,25 @@ AI Response Tone: {response_tone}
 Uploaded Docs Context: {st.session_state.uploaded_docs}
 Provide actionable suggestions tailored to this persona.
 """
-    # Streaming AI
+
     response_container = st.empty()
+    full_response = ""
     audio_files = []
 
-    full_response = ""
     for chunk in ask_ai_streaming(prompt):
         full_response = chunk
-        # Display streaming word-by-word
         response_container.markdown(full_response.replace('\n','<br>'), unsafe_allow_html=True)
+
     st.session_state.chat_history.append({"role":"ai","content":full_response,"time":datetime.now().strftime("%H:%M")})
 
-    # Generate TTS per AI message
+    # Generate TTS
     filename = f"ai_voice_{len(st.session_state.chat_history)}.mp3"
     lang_code = "ar" if language=="العربية" else "en"
     generate_tts(full_response, lang=lang_code, filename=filename)
     audio_files.append(filename)
 
 # ----------------------------
-# Display Chat with Voice
+# Display chat
 # ----------------------------
 chat_html = ""
 for i, msg in enumerate(st.session_state.chat_history):
@@ -232,7 +227,6 @@ for i, msg in enumerate(st.session_state.chat_history):
         chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     else:
         chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span>"
-        # Show audio if exists
         voice_file = f"ai_voice_{i+1}.mp3"
         if os.path.exists(voice_file):
             chat_html += f"<audio controls src='{voice_file}'></audio>"
