@@ -45,11 +45,14 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
-async def generate_tts_edge(text, lang="en", filename="output.mp3"):
+async def generate_tts_edge(text, lang="en"):
+    filename = f"ai_tts_temp.mp3"
     voice = "ar-SaoudNeural" if lang=="ar" else "en-US-JennyNeural"
     communicate = edge_tts.Communicate(text, voice=voice)
     await communicate.save(filename)
-    return filename
+    with open(filename, "rb") as f:
+        audio_bytes = f.read()
+    return audio_bytes
 
 def ask_ai(prompt):
     try:
@@ -197,18 +200,16 @@ chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = ""
-    for i, msg in enumerate(st.session_state.chat_history):
-        content = msg["content"].replace('\n', '<br>')
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n", "<br>")
         time = msg.get("time", "")
         if msg["role"] == "user":
             chat_html += f"<div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
             chat_html += f"<div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
-            # Add AI audio if exists
-            audio_file = msg.get("audio")
-            if audio_file:
-                chat_html += f"<audio controls style='margin-left:10px;'><source src='{audio_file}' type='audio/mp3'></audio>"
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+            if "audio_bytes" in msg:
+                st.audio(msg["audio_bytes"], format="audio/mp3")
+                st.download_button("Download Voice", msg["audio_bytes"], file_name=f"{msg['time']}_AI_Response.mp3", mime="audio/mp3")
 
 # ----------------------------
 # Message Box at Bottom
@@ -222,7 +223,6 @@ st.markdown("</div>", unsafe_allow_html=True)
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
 
-    # Build prompt
     prompt = f"""
 Language: {language}
 User input: {user_input}
@@ -238,12 +238,15 @@ Uploaded Docs Context: {st.session_state.uploaded_docs[:1000]}
 Provide actionable suggestions tailored to this persona in a friendly and professional manner.
 Use APACT (Acknowledge → Probe → Answer → Confirm → Transition) technique.
 """
-
-    # AI response
+    # AI response + TTS
     ai_text = ask_ai(prompt)
-    audio_file = f"ai_audio_{len(st.session_state.chat_history)}.mp3"
-    asyncio.run(generate_tts_edge(ai_text, lang="ar" if language=="العربية" else "en", filename=audio_file))
-    st.session_state.chat_history.append({"role": "ai", "content": ai_text, "time": datetime.now().strftime("%H:%M"), "audio": audio_file})
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar" if language=="العربية" else "en"))
+    st.session_state.chat_history.append({
+        "role": "ai",
+        "content": ai_text,
+        "time": datetime.now().strftime("%H:%M"),
+        "audio_bytes": audio_bytes
+    })
 
 display_chat()
 
