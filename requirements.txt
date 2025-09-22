@@ -1,14 +1,9 @@
-# Streamlit + core UI
-streamlit>=1.28.0
-pillow>=9.3.0
-
-# Documents
-python-docx>=0.8.11
-PyPDF2>=3.0.1
-
-# TTS & LLM
-gtts>=2.5.0
-groq>=0.4.3
-
-# Misc
-tqdm>=4.66.1
+streamlit
+requests
+Pillow
+python-docx
+pdfplumber
+python-pptx
+gTTS
+groq
+PyMuPDF
