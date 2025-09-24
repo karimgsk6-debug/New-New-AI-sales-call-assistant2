@@ -107,6 +107,20 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
+# Home Page Background
+# ----------------------------
+st.markdown(f"""
+    <style>
+    body {{
+        background-image: url("https://YOUR_IMAGE_URL_HERE");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+# ----------------------------
 # Header + Disclaimer
 # ----------------------------
 st.markdown(f"""
@@ -245,6 +259,7 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
+        # Highlight APACT steps
         content = content.replace("Acknowledge","<span class='apact-step'>Acknowledge</span>")
         content = content.replace("Probing","<span class='apact-step'>Probing</span>")
         content = content.replace("Action","<span class='apact-step'>Action</span>")
@@ -252,4 +267,81 @@ def display_chat():
         content = content.replace("Transition","<span class='apact-step'>Transition</span>")
         time = msg.get("time","")
         if msg["role"]=="user":
-            chat_html += f"<div class='user-bubble'>{content}<br><span style='font
+            chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
+        else:
+            chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
+            if "audio_bytes" in msg:
+                audio_base64 = base64.b64encode(msg["audio_bytes"]).decode()
+                chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{audio_base64}' type='audio/mp3'></audio>"
+    chat_html += "</div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+# ----------------------------
+# Chat Input Form
+# ----------------------------
+st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
+col1, col2 = st.columns([7,1])
+
+with st.form("chat_input_form", clear_on_submit=True):
+    with col1:
+        user_input = st.text_input("", placeholder="Type your message...")
+    with col2:
+        submitted = st.form_submit_button("📩")
+
+# Clear button outside the form
+if st.button("🗑 Clear Chat"):
+    st.session_state.chat_history = []
+
+# ----------------------------
+# Handle AI response
+# ----------------------------
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    prompt_text = f"""
+Sales Call Flow Stage: {call_stage}
+Language: {language}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Brand: {brand}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+HCP Thinking Style: {thinking}
+AI Tone: {tone}
+Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
+User Input: {user_input}
+
+➡️ Structure response following this flow:
+1. Prepare the Call
+2. Engage
+3. Create Opportunities
+4. Influence
+5. Impact GSO (Good Sell Outcome)
+6. Closing with Commitment
+7. Post-Call Analysis
+
+Use APACT only when handling objections and highlight each step.
+"""
+    ai_text = ask_ai(prompt_text)
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
+
+display_chat()
+
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response",0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io.BytesIO()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# ----------------------------
+# Brand Leaflet
+# ----------------------------
+st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
