@@ -59,7 +59,7 @@ def ask_ai(prompt):
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow and APACT technique. Bold-label APACT steps and Sales Call Flow stages. Always reference uploaded medical/product docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Only apply APACT technique when handling objections. Bold-label objection steps if relevant. Reference uploaded medical/product docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -69,7 +69,7 @@ def ask_ai(prompt):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow and APACT technique. Bold-label APACT steps and Sales Call Flow stages. Always reference uploaded medical/product docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Only apply APACT technique when handling objections. Bold-label objection steps if relevant. Reference uploaded medical/product docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -83,18 +83,36 @@ def ask_ai(prompt):
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = ""
+    st.session_state.uploaded_docs = []
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
 
 # ----------------------------
-# Language Selection
+# Dark / Light Mode Toggle
 # ----------------------------
-language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
-voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
+st.sidebar.header("Display Options")
+dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=False)
+st.session_state.dark_mode = dark_mode
+
+bg_color = "#1E1E1E" if dark_mode else "#F8F9FA"
+text_color = "#FFFFFF" if dark_mode else "#000000"
+bubble_user = "#2E8B57" if dark_mode else "#dcf8c6"
+bubble_ai = "#333333" if dark_mode else "#f0f2f6"
+
+st.markdown(f"""
+<style>
+body {{background-color:{bg_color}; color:{text_color};}}
+.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
+.user-bubble {{ text-align:right; background:{bubble_user}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.2); color:{text_color};}}
+.ai-bubble {{ text-align:left; background:{bubble_ai}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.2); color:{text_color};}}
+.prompt-container {{ position:fixed; bottom:10px; width:95%; background:{bg_color}; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
+</style>
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Header + Disclaimer
 # ----------------------------
-st.markdown("""
+st.markdown(f"""
 <div style='text-align:center; padding:15px; background:linear-gradient(90deg,#0056A6,#007ACC); 
             color:white; border-radius:12px; margin-bottom:10px;'>
     <h2 style='margin:0;'>💡 AI Sales Call Assistant</h2>
@@ -102,8 +120,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div style='padding:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px;'>
+st.markdown(f"""
+<div style='padding:10px; background:{bg_color}; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:{text_color}'>
 ⚠️ <b>Disclaimer:</b> The main objective of this AI tool is to equip the sales representative 
 with the right tools to handle different HCP concerns. It is not a substitute for official product 
 information or medical advice.
@@ -208,18 +226,15 @@ call_flow = [
 call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 
 # ----------------------------
-# Chat CSS
+# Chat Placeholder
 # ----------------------------
-st.markdown("""
-<style>
-.chat-container { max-height:65vh; overflow-y:auto; padding-bottom:70px; }
-.user-bubble { text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
-.ai-bubble { text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
-.prompt-container { position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}
-</style>
-""", unsafe_allow_html=True)
-
 chat_placeholder = st.empty()
+
+# ----------------------------
+# Clear Chat Button
+# ----------------------------
+if st.button("🗑️ Clear Chat History"):
+    st.session_state.chat_history = []
 
 # ----------------------------
 # Display Chat Function
@@ -232,6 +247,8 @@ def display_chat():
         if msg["role"]=="user":
             chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
         else:
+            # Show user's prompt above AI response
+            chat_html += f"<div class='user-bubble'>Prompt: {msg.get('prompt','')}</div>"
             chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
             if "audio_bytes" in msg:
                 audio_base64 = base64.b64encode(msg["audio_bytes"]).decode()
@@ -253,8 +270,8 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
-    prompt = f"""
-Sales Call Flow Stage: **{call_stage}**
+    prompt_text = f"""
+Sales Call Flow Stage: {call_stage}
 Language: {language}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
@@ -266,21 +283,10 @@ HCP Thinking Style: {thinking}
 AI Tone: {tone}
 Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
 User Input: {user_input}
-
-➡️ Please provide a structured response following **Sales Call Flow stages**:
-**1. Prepare the Call**
-**2. Engage**
-**3. Create Opportunities**
-**4. Influence**
-**5. Impact GSO (Good Sell Outcome)**
-**6. Closing with Commitment**
-**7. Post-Call Analysis**
-
-Use **APACT technique** when handling objections and integrate uploaded docs if relevant.
 """
-    ai_text = ask_ai(prompt)
-    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
+    ai_text = ask_ai(prompt_text)
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"))
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes,"prompt":user_input})
 
 display_chat()
 
