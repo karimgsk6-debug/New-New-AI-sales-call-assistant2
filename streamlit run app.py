@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # ----------------------------
-# External Background Image (Blurred)
+# External Background Image (Full & Blurred)
 # ----------------------------
 background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
@@ -32,7 +32,8 @@ st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
     background: url("{background_url}") no-repeat center center fixed;
-    background-size: cover;
+    background-size: contain;
+    background-color: #000; /* fill background behind image */
 }}
 [data-testid="stAppViewContainer"]::before {{
     content: "";
@@ -42,8 +43,8 @@ st.markdown(f"""
     width: 100%;
     height: 100%;
     background: url("{background_url}") no-repeat center center fixed;
-    background-size: cover;
-    filter: blur(8px) brightness(0.85);
+    background-size: contain;
+    filter: blur(10px) brightness(0.7);
     z-index: -1;
 }}
 </style>
@@ -89,6 +90,57 @@ uploaded_files = st.sidebar.file_uploader(
 )
 
 # ----------------------------
+# Process Uploaded Files
+# ----------------------------
+def extract_text_from_file(file):
+    text = ""
+    if file.name.endswith(".docx"):
+        doc = Document(file)
+        for p in doc.paragraphs:
+            text += p.text + "\n"
+    elif file.name.endswith(".pdf"):
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+    elif file.name.endswith(".pptx"):
+        prs = Presentation(file)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    text += shape.text + "\n"
+    return text
+
+uploaded_text = ""
+if uploaded_files:
+    for f in uploaded_files:
+        uploaded_text += extract_text_from_file(f) + "\n"
+
+# ----------------------------
+# Initialize Groq Client
+# ----------------------------
+groq_api_key = os.getenv("GROQ_API_KEY")
+groq_client = None
+if groq_api_key:
+    groq_client = Groq(api_key=groq_api_key)
+
+async def generate_tts(text, filename="response.mp3"):
+    communicate = edge_tts.Communicate(text, "en-US-JennyNeural")
+    await communicate.save(filename)
+    return filename
+
+def generate_ai_response(prompt):
+    if not groq_client:
+        return "⚠️ Groq API key not found. Please set GROQ_API_KEY."
+    chat_completion = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {"role": "system", "content": "You are a helpful sales assistant using APCT objection handling."},
+            {"role": "user", "content": prompt},
+        ]
+    )
+    return chat_completion.choices[0].message.content
+
+# ----------------------------
 # Chat Section (Prompt Box like ChatGPT)
 # ----------------------------
 st.markdown(
@@ -119,6 +171,18 @@ st.markdown(
         cursor: pointer;
         font-size: 18px;
     }
+    .user-bubble {{
+        background: #f1f1f1;
+        padding: 8px 12px;
+        margin: 8px 0;
+        border-radius: 12px;
+    }}
+    .ai-bubble {{
+        background: #FFEBE0;
+        padding: 8px 12px;
+        margin: 8px 0;
+        border-radius: 12px;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -129,9 +193,16 @@ user_prompt = st.text_input("💬 Ask something:", placeholder="Type your questi
 if st.button("▶️ Send"):
     if user_prompt:
         st.markdown(f"<div class='user-bubble'>🧑 You: {user_prompt}</div>", unsafe_allow_html=True)
-        # Dummy AI response (can be replaced with Groq/LLM output)
-        ai_response = "🤖 AI: Let's apply APCT — *Acknowledge, Probe, Clarify, Tailor*."
-        st.markdown(f"<div class='ai-bubble'>{ai_response}</div>", unsafe_allow_html=True)
+        ai_response = generate_ai_response(user_prompt + "\n\n" + uploaded_text)
+        st.markdown(f"<div class='ai-bubble'>🤖 {ai_response}</div>", unsafe_allow_html=True)
+
+        # Generate TTS
+        try:
+            filename = asyncio.run(generate_tts(ai_response))
+            audio_file = open(filename, "rb")
+            st.audio(audio_file.read(), format="audio/mp3")
+        except Exception as e:
+            st.error(f"TTS Error: {e}")
 
 # ----------------------------
 # APCT Highlights
