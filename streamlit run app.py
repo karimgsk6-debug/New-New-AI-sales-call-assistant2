@@ -112,7 +112,7 @@ voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-Jenny
 st.markdown(f"""
     <style>
     body {{
-        background-image: url("https://YOUR_IMAGE_URL_HERE");
+        background-image: url("https://chatgpt.com/s/m_68d3ef736284819180077846df81f0aa");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
