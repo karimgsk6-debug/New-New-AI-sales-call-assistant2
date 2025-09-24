@@ -27,8 +27,11 @@ st.set_page_config(
 # ----------------------------
 # Constants
 # ----------------------------
+# Background image external link
 BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+# Insert your Groq API key here
+GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
 
 # ----------------------------
 # Helper functions
@@ -183,11 +186,7 @@ st.markdown(f"""
     background-image: url("{BACKGROUND_URL}");
     background-repeat: no-repeat;
     background-position: center top;
-    background-size: contain;
-    height: 100vh;
-    width: 100%;
-    position: fixed;
-    z-index: -1;
+    background-size: cover;
 }}
 
 /* Chat overlay */
