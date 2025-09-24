@@ -110,7 +110,7 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (ROBUST FIX)
+# Home Page Background (ROBUST)
 # ----------------------------
 background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
 st.markdown(f"""
@@ -145,7 +145,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# (Rest of your code remains unchanged)
+# The rest of your code (logo, sidebar filters, chat, uploads, TTS, word download) 
+# can remain exactly as in the previous full code provided, 
+# just ensure the background CSS above replaces the old background code.
 # ----------------------------
-# Include: Logo, sidebar filters, brand image, uploads, chat CSS, chat display, input form, AI response, Word download, Brand leaflet
-# Use previous full code, replacing only the background CSS part with the robust fix above
