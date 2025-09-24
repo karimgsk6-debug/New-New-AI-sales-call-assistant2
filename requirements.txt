@@ -1,10 +1,10 @@
-streamlit
+streamlit>=1.18
 requests
 Pillow
 python-docx
 pdfplumber
-PyMuPDF
 python-pptx
-gTTS
-edge-tts
 groq
+asyncio
+edge-tts
+base64
