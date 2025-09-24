@@ -329,3 +329,56 @@ if st.session_state.chat_history:
 # Brand Leaflet
 # ----------------------------
 st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
+# ----------------------------
+# Chat Input Form (ChatGPT style)
+# ----------------------------
+with st.form("chat_form", clear_on_submit=True):
+    st.markdown("""
+    <style>
+    .chat-input-container {
+        position: fixed;
+        bottom: 10px;
+        width: 95%;
+        max-width: 900px;
+        display: flex;
+        gap: 5px;
+        background-color: #f0f2f6;
+        padding: 8px 10px;
+        border-radius: 25px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        z-index: 999;
+    }
+    .chat-input-container input {
+        flex: 1;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 25px;
+        outline: none;
+        font-size: 14px;
+        background-color: white;
+        color: #000;
+    }
+    .chat-input-container button {
+        background-color: #007ACC;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 50%;
+        cursor: pointer;
+        color: white;
+        font-size: 16px;
+    }
+    .chat-input-container button:hover {
+        background-color: #0056A6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<div class='chat-input-container'>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([8,1,1])
+    with col1:
+        user_input = st.text_input("", placeholder="Type your message...")
+    with col2:
+        submitted = st.form_submit_button("▶️")
+    with col3:
+        clear_history = st.form_submit_button("🗑")
+    st.markdown("</div>", unsafe_allow_html=True)
