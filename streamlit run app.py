@@ -268,7 +268,8 @@ body {{ background-color: {bg_color}; color:{text_color}; }}
 .ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
 .prompt-container {{ position:fixed; bottom:10px; width:95%; background:{input_bg_color}; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
-input[type="text"]::placeholder {{ color:{placeholder_color}; }}
+.prompt-container input {{ color:{input_text_color}; background:{input_bg_color}; }}
+.prompt-container ::placeholder {{ color:{placeholder_color}; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -296,25 +297,23 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form
+# Chat Input Form (FIXED)
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
-col1, col2 = st.columns([7,1])
-
 with st.form("chat_input_form", clear_on_submit=True):
+    col1, col2 = st.columns([7,1])
     with col1:
         user_input = st.text_input("", placeholder="Type your message...")
     with col2:
         submitted = st.form_submit_button("📩")
-
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Clear button outside the form
+# Clear chat button
 if st.button("🗑 Clear Chat"):
     st.session_state.chat_history = []
 
 # ----------------------------
-# Handle AI response
+# Handle AI Response
 # ----------------------------
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
