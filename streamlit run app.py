@@ -183,10 +183,9 @@ st.markdown(f"""
     background-image: url("{BACKGROUND_URL}");
     background-repeat: no-repeat;
     background-position: center top;
-    background-size: cover;
+    background-size: contain;
     height: 100vh;
     width: 100%;
-    filter: blur(3px);
     position: fixed;
     z-index: -1;
 }}
