@@ -27,7 +27,7 @@ st.set_page_config(
 # ----------------------------
 # Constants
 # ----------------------------
-BACKGROUND_URL = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
+BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ----------------------------
