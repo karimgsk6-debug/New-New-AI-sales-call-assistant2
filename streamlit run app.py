@@ -60,7 +60,7 @@ def ask_ai(prompt):
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections. Reference uploaded docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections and highlight each step. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -70,7 +70,7 @@ def ask_ai(prompt):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections. Reference uploaded docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections and highlight each step. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -119,8 +119,9 @@ st.markdown(f"""
 
 st.markdown(f"""
     <div style='padding:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:{text_color};'>
-        ⚠️ <b>Disclaimer:</b> This AI tool is designed to equip the sales rep 
-        with the tools to handle different HCP concerns. Not a substitute for official product info.
+        ⚠️ <b>Disclaimer:</b> The main objective of this AI tool is to equip the sales representative 
+        with the right tools to handle different HCP concerns. It is not a substitute for official product 
+        information or medical advice.
     </div>
 """, unsafe_allow_html=True)
 
@@ -143,8 +144,6 @@ with col2:
 # Sidebar Filters
 # ----------------------------
 st.sidebar.header("Filters & Options")
-
-# Brand & Product
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
     "Trelegy": "https://example.com/trelegy-leaflet",
@@ -156,8 +155,6 @@ gsk_brands_images = {
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 brand = st.sidebar.selectbox("💊 Select Brand", options=list(gsk_brands.keys()))
-
-# RACE Segment
 race_segments = [
     "R – Reach: Did not start to prescribe yet",
     "A – Acquisition: Prescribe to patient who initiate discussion",
@@ -165,8 +162,6 @@ race_segments = [
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
 segment = st.sidebar.selectbox("👥 RACE Segment", race_segments)
-
-# Doctor Barriers
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -175,8 +170,6 @@ doctor_barriers = [
     "Accessibility issues"
 ]
 barrier = st.sidebar.multiselect("🚧 Doctor Barrier", options=doctor_barriers, default=[])
-
-# Objectives, Specialty, Persona, Tone, Thinking
 objective = st.sidebar.selectbox("🎯 Objective", options=["Awareness", "Adoption", "Retention"])
 specialty = st.sidebar.selectbox("🩺 Doctor Specialty", options=["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist"])
 persona = st.sidebar.selectbox("🧑‍⚕️ HCP Persona", options=["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"])
@@ -184,7 +177,7 @@ tone = st.sidebar.selectbox("🎤 AI Tone", options=["Formal","Casual","Friendly
 thinking = st.sidebar.selectbox("💡 HCP Thinking Style", options=["Analytical","Skeptic","Emotional","Pragmatic"])
 
 # ----------------------------
-# Display Brand Image
+# Brand Image
 # ----------------------------
 image_path = gsk_brands_images.get(brand)
 try:
@@ -236,8 +229,9 @@ st.markdown(f"""
 <style>
 body {{ background-color: {bg_color}; color:{text_color}; }}
 .chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
-.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}}
-.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}}
+.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
 .prompt-container {{ position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
 </style>
 """, unsafe_allow_html=True)
@@ -251,6 +245,12 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
+        # Highlight APACT steps
+        content = content.replace("Acknowledge","<span class='apact-step'>Acknowledge</span>")
+        content = content.replace("Probing","<span class='apact-step'>Probing</span>")
+        content = content.replace("Action","<span class='apact-step'>Action</span>")
+        content = content.replace("Confirm","<span class='apact-step'>Confirm</span>")
+        content = content.replace("Transition","<span class='apact-step'>Transition</span>")
         time = msg.get("time","")
         if msg["role"]=="user":
             chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
@@ -304,7 +304,7 @@ User Input: {user_input}
 6. Closing with Commitment
 7. Post-Call Analysis
 
-Use APACT only when handling objections.
+Use APACT only when handling objections and highlight each step.
 """
     ai_text = ask_ai(prompt_text)
     audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
