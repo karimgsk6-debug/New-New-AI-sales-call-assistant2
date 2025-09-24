@@ -110,33 +110,29 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (ROBUST + FROSTED EFFECT)
+# Home Page Background (LOCAL IMAGE)
 # ----------------------------
-# Direct Unsplash image of a girl using iPad
-background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
+local_bg_path = "young-arab-girl-using-ipad-260nw-2616487693.webp"
+if os.path.exists(local_bg_path):
+    background_path = local_bg_path
+else:
+    background_path = "https://via.placeholder.com/1500x800.png?text=Background+Missing"
 
 st.markdown(f"""
 <style>
-/* Main app background */
 [data-testid="stAppViewContainer"] {{
-    background-image: url("{background_url}");
+    background-image: url("{background_path}");
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
 }}
-
-/* Make main content container transparent so background shows */
 [data-testid="stAppViewContainer"] .css-18e3th9 {{
     background-color: rgba(0,0,0,0.0);
 }}
-
-/* Chat boxes with frosted glass effect */
 .user-bubble, .ai-bubble {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
 }}
-
-/* Prompt container frosted effect */
 .prompt-container {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
@@ -269,7 +265,6 @@ body {{ background-color: {bg_color}; color:{text_color}; }}
 .ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
 .prompt-container {{ position:fixed; bottom:10px; width:95%; background:{input_bg_color}; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
-
 .prompt-container input {{ color:{input_text_color}; background:{input_bg_color}; }}
 .prompt-container ::placeholder {{ color:{placeholder_color}; }}
 </style>
@@ -299,7 +294,7 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form (FIXED)
+# Chat Input Form (ChatGPT Style)
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
