@@ -28,7 +28,6 @@ st.set_page_config(
 # Constants
 # ----------------------------
 BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
-# Insert your Groq API key here
 GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
 
 # ----------------------------
@@ -117,7 +116,6 @@ st.markdown(f"""
 # Sidebar: filters
 # ----------------------------
 st.sidebar.header("⚙️ Settings & Filters")
-
 theme_choice = st.sidebar.radio("Theme", options=["Dark Mode", "Light Mode"], index=0)
 
 # Brands
@@ -169,7 +167,7 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 ])
 
 # ----------------------------
-# Colors & Bubbles
+# Colors & chat bubbles
 # ----------------------------
 font_color = "white"
 bubble_user_bg = "rgba(255,255,255,0.14)"
