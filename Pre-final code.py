@@ -3,7 +3,6 @@ import os
 import io
 import base64
 import requests
-from pathlib import Path
 from datetime import datetime
 import asyncio
 
@@ -19,13 +18,17 @@ import edge_tts
 # ----------------------------
 # App configuration
 # ----------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="AI Sales Call Assistant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # ----------------------------
 # Constants
 # ----------------------------
 BACKGROUND_URL = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ----------------------------
 # Helper functions
@@ -50,6 +53,9 @@ def extract_text_from_pptx(file):
                 text_runs.append(shape.text)
     return "\n".join(text_runs)
 
+# ----------------------------
+# TTS functions
+# ----------------------------
 async def generate_tts_edge_async(text, voice="en-US-JennyNeural", filename=None):
     if filename is None:
         filename = f"ai_tts_{datetime.now().strftime('%Y%m%d_%H%M%S%f')}.mp3"
@@ -57,9 +63,12 @@ async def generate_tts_edge_async(text, voice="en-US-JennyNeural", filename=None
     await communicate.save(filename)
     return filename
 
-def generate_tts_edge(text, voice="en-US-JennyNeural", filename=None):
-    return asyncio.run(generate_tts_edge_async(text, voice=voice, filename=filename))
+def generate_tts_edge(text, voice="en-US-JennyNeural"):
+    return asyncio.run(generate_tts_edge_async(text, voice=voice))
 
+# ----------------------------
+# Groq AI
+# ----------------------------
 def safe_groq_client():
     if GROQ_API_KEY:
         try:
@@ -98,7 +107,7 @@ st.markdown(f"""
     <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
 </div>
 
-<div style='padding:10px; background:#ffffff; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:#000000;'>
+<div style='padding:10px; border-radius:10px; margin-bottom:20px; font-size:13px; color:white;'>
     ⚠️ <b>Disclaimer:</b> This AI tool is to equip sales reps and is not a substitute for official product info or medical advice.
 </div>
 """, unsafe_allow_html=True)
@@ -108,10 +117,9 @@ st.markdown(f"""
 # ----------------------------
 st.sidebar.header("⚙️ Settings & Filters")
 
-# Theme toggle
-theme_choice = st.sidebar.radio("Theme", options=["Dark Mode", "Light Mode"], index=1)
+theme_choice = st.sidebar.radio("Theme", options=["Dark Mode", "Light Mode"], index=0)
 
-# Brand selection
+# Brands
 st.sidebar.subheader("Brand & Segmentation")
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
@@ -120,14 +128,13 @@ gsk_brands = {
 }
 brand = st.sidebar.selectbox("💊 Select Brand", options=list(gsk_brands.keys()))
 
-# HCP Segmentation
-st.sidebar.subheader("HCP Segmentation")
+# RACE HCP Segments
+st.sidebar.subheader("HCP Segmentation (RACE)")
 hcp_segments = [
-    "Unaware: HCP has no knowledge of disease/product",
-    "Apathetic: Aware but not engaged",
-    "Neutral: Aware, waiting for more evidence",
-    "Supportive: Positive but not proactive",
-    "Advocate: Actively prescribes and promotes",
+    "R – Reach: Did not start to prescribe yet",
+    "A – Acquisition: Prescribe to patient who initiate discussion",
+    "C – Conversion: Proactively initiate discussion with specific patient profile",
+    "E – Engagement: Proactively prescribe to different patient profiles"
 ]
 segment = st.sidebar.selectbox("👥 Segment", hcp_segments)
 
@@ -149,7 +156,7 @@ st.sidebar.subheader("Doctor / HCP Attributes")
 specialty = st.sidebar.selectbox("🩺 Specialty", options=["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Immunologist"])
 persona = st.sidebar.selectbox("🧑‍⚕️ Persona", options=["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"])
 
-# Updated tone & mindset filters
+# Tone & Mindset
 response_tone = st.sidebar.selectbox("🎤 Response Tone", options=["Formal","Empathetic","Confident","Concise","Persuasive"])
 hcp_mindset = st.sidebar.selectbox("💡 HCP Mindset", options=["Analytical","Practical","Risk-Averse","Innovative","Skeptical","Patient-Centered"])
 
@@ -161,37 +168,34 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 ])
 
 # ----------------------------
-# Adaptive colors
+# Colors & Bubbles
 # ----------------------------
 is_light = theme_choice == "Light Mode"
-font_color = "black" if is_light else "white"
-bubble_user_bg = "rgba(255,255,255,0.85)" if is_light else "rgba(255,255,255,0.14)"
-bubble_ai_bg = "rgba(255,255,255,0.65)" if is_light else "rgba(0,0,0,0.35)"
+font_color = "white"
+bubble_user_bg = "rgba(255,255,255,0.14)"
+bubble_ai_bg = "rgba(0,0,0,0.35)"
 
 # ----------------------------
-# Full-page blurred background
+# Background & styling
 # ----------------------------
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-    position: relative;
     background-image: url("{BACKGROUND_URL}");
     background-repeat: no-repeat;
     background-position: center top;
     background-size: cover;
-    filter: blur(3px);
     height: 100vh;
     width: 100%;
-    z-index: -1;
+    filter: blur(3px);
     position: fixed;
+    z-index: -1;
 }}
 
-/* Chat container and inputs overlay */
-.chat-container, .stTextInput, .stTextArea {{
-    background: rgba(0,0,0,0.5) !important;
+/* Chat overlay */
+.chat-container {{
     color: {font_color} !important;
-    border-radius: 12px;
-    padding: 10px;
+    padding:10px;
 }}
 .user-bubble {{
     text-align:right;
@@ -243,7 +247,7 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Input
+# Input & AI response
 # ----------------------------
 user_input = st.text_input("💬 Type your message:", "")
 
@@ -266,5 +270,20 @@ Input: {user_input}
 """
     groq_client = safe_groq_client()
     ai_text = ask_ai_via_groq(prompt, groq_client)
+    
+    # Append AI response
     st.session_state.chat_history.append({"role":"ai","content":ai_text})
     display_chat()
+    
+    # Generate and play TTS
+    audio_file = generate_tts_edge(ai_text)
+    audio_bytes = open(audio_file, "rb").read()
+    st.audio(audio_bytes, format="audio/mp3")
+    
+    # Download as Word
+    doc = Document()
+    doc.add_heading("AI Sales Call Response", 0)
+    doc.add_paragraph(ai_text)
+    word_buffer = io.BytesIO()
+    doc.save(word_buffer)
+    st.download_button("📥 Download AI Response as Word", word_buffer.getvalue(), file_name="AI_Response.docx")
