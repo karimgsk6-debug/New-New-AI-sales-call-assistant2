@@ -110,13 +110,12 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (Fixed)
+# Home Page Background (WORKING)
 # ----------------------------
 background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
 st.markdown(
     f"""
     <style>
-    /* Main container */
     div[data-testid="stAppViewContainer"] > .main {{
         background-image: url("{background_url}");
         background-size: cover;
@@ -125,7 +124,8 @@ st.markdown(
     }}
     </style>
     """,
-    unsafe_allow_html=True)
+    unsafe_allow_html=True
+)
 
 # ----------------------------
 # Header + Disclaimer
@@ -290,7 +290,7 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form (WhatsApp style)
+# Chat Input Form
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
