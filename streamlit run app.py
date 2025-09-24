@@ -31,7 +31,7 @@ st.set_page_config(
 BACKGROUND_URL = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
 
 # Insert your Groq API key here
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
 
 # ----------------------------
 # Helper functions
@@ -90,7 +90,7 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API not c
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT steps (Acknowledge, Probing, Action, Confirm, Transition to next step) only when handling objections and highlight each step. Reference uploaded docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT steps (Acknowledge, Probing, Action, Confirm, Transition to next step) only when handling objections and highlight each step in bold yellow. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6,
@@ -104,7 +104,7 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API not c
 # HEADER: Page title + disclaimer
 # ----------------------------
 st.markdown(f"""
-<div style='text-align:center; padding:15px; background:linear-gradient(90deg,#ff8c00,#ffb347); 
+<div style='position:relative; z-index:1; text-align:center; padding:15px; background:linear-gradient(90deg,#ff8c00,#ffb347); 
             color:white; border-radius:12px; margin-bottom:10px;'>
     <h2 style='margin:0;'>💡 AI Sales Call Assistant</h2>
     <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
