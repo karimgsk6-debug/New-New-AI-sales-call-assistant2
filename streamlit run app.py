@@ -27,7 +27,10 @@ st.set_page_config(
 # ----------------------------
 # Constants
 # ----------------------------
+# Background image external link
 BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
+
+# Insert your Groq API key here
 GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
 
 # ----------------------------
@@ -87,7 +90,7 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API not c
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT steps (Acknowledge, Probing, Action, Confirm, Transition to next step) only when handling objections and highlight each step. Reference uploaded docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections and highlight each step. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6,
@@ -107,7 +110,7 @@ st.markdown(f"""
     <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
 </div>
 
-<div style='padding:10px; border-radius:10px; margin-bottom:20px; font-size:13px; color:black;'>
+<div style='padding:10px; border-radius:10px; margin-bottom:20px; font-size:13px; color:white;'>
     ⚠️ <b>Disclaimer:</b> This AI tool is to equip sales reps and is not a substitute for official product info or medical advice.
 </div>
 """, unsafe_allow_html=True)
@@ -116,6 +119,7 @@ st.markdown(f"""
 # Sidebar: filters
 # ----------------------------
 st.sidebar.header("⚙️ Settings & Filters")
+
 theme_choice = st.sidebar.radio("Theme", options=["Dark Mode", "Light Mode"], index=0)
 
 # Brands
@@ -167,7 +171,7 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 ])
 
 # ----------------------------
-# Colors & chat bubbles
+# Colors & Bubbles
 # ----------------------------
 font_color = "white"
 bubble_user_bg = "rgba(255,255,255,0.14)"
@@ -183,11 +187,6 @@ st.markdown(f"""
     background-repeat: no-repeat;
     background-position: center top;
     background-size: cover;
-    height: 100vh;
-    width: 100%;
-    filter: blur(2px);
-    position: fixed;
-    z-index: -1;
 }}
 
 /* Chat overlay */
@@ -264,7 +263,7 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        for step in ["Acknowledge","Probing","Action","Confirm","Transition to next step"]:
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             content = content.replace(step, f"<span class='apact-step'>{step}</span>")
         if msg["role"] == "user":
             chat_html += f"<div class='user-bubble'>{content}</div>"
