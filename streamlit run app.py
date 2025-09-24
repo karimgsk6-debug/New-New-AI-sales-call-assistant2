@@ -23,7 +23,13 @@ st.set_page_config(
 )
 
 # ----------------------------
-# External Background Image (Cropped + Overlay)
+# Sidebar: Blur Control
+# ----------------------------
+st.sidebar.header("🎨 UI Settings")
+blur_intensity = st.sidebar.slider("Background Blur", 0, 10, 3)
+
+# ----------------------------
+# External Background Image (Girl with iPad, Cropped + Overlay)
 # ----------------------------
 background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
@@ -32,6 +38,7 @@ st.markdown(f"""
 [data-testid="stAppViewContainer"] {{
     background: url("{background_url}") no-repeat top center fixed;
     background-size: cover;
+    filter: blur({blur_intensity}px);
 }}
 [data-testid="stAppViewContainer"]::before {{
     content: "";
@@ -151,18 +158,18 @@ def generate_ai_response(prompt):
 st.markdown(
     """
     <style>
-    .user-bubble {{
+    .user-bubble {
         background: rgba(255,255,255,0.1);
         padding: 10px 14px;
         margin: 8px 0;
         border-radius: 12px;
-    }}
-    .ai-bubble {{
+    }
+    .ai-bubble {
         background: rgba(255,98,0,0.2);
         padding: 10px 14px;
         margin: 8px 0;
         border-radius: 12px;
-    }}
+    }
     </style>
     """,
     unsafe_allow_html=True,
