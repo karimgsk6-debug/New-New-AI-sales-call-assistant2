@@ -110,19 +110,35 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (ROBUST)
+# Home Page Background (ROBUST + FROSTED EFFECT)
 # ----------------------------
 background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
+
 st.markdown(f"""
 <style>
+/* Main app background */
 [data-testid="stAppViewContainer"] {{
     background-image: url("{background_url}");
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
 }}
+
+/* Make main content container transparent so background shows */
 [data-testid="stAppViewContainer"] .css-18e3th9 {{
     background-color: rgba(0,0,0,0.0);
+}}
+
+/* Chat boxes with frosted glass effect */
+.user-bubble, .ai-bubble {{
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}}
+
+/* Prompt container frosted effect */
+.prompt-container {{
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -284,11 +300,13 @@ def display_chat():
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 col1, col2 = st.columns([7,1])
+
 with st.form("chat_input_form", clear_on_submit=True):
     with col1:
         user_input = st.text_input("", placeholder="Type your message...")
     with col2:
         submitted = st.form_submit_button("📩")
+
 st.markdown("</div>", unsafe_allow_html=True)
 
 # Clear button outside the form
