@@ -25,7 +25,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 # Constants
 # ----------------------------
 BACKGROUND_URL = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 
 # ----------------------------
 # Helper functions
