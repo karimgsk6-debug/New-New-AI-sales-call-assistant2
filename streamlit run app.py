@@ -110,28 +110,39 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (Blurred & Dark Overlay)
+# Home Page Background (Blurred Only for Image)
 # ----------------------------
 background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
 st.markdown(f"""
 <style>
-[data-testid="stAppViewContainer"] {{
+/* Blurred background only */
+[data-testid="stAppViewContainer"]::before {{
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background-image: url("{background_url}");
     background-size: cover;
     background-position: center;
-    background-attachment: fixed;
-    filter: blur(6px);
-    -webkit-filter: blur(6px);
-    transform: scale(1.05);
+    filter: blur(8px) brightness(0.5);
+    z-index: -1;
 }}
+
+/* Make main content transparent so background shows */
 [data-testid="stAppViewContainer"] .css-18e3th9 {{
-    background-color: rgba(0,0,0,0.35); /* dark overlay for readability */
+    background-color: rgba(0,0,0,0.0);
 }}
+
+/* Chat boxes with frosted glass effect */
 .user-bubble, .ai-bubble {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
 }}
+
+/* Prompt container frosted effect */
 .prompt-container {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
@@ -249,7 +260,7 @@ call_flow = [
 call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 
 # ----------------------------
-# Chat CSS
+# Chat and Prompt CSS
 # ----------------------------
 st.markdown(f"""
 <style>
@@ -288,7 +299,7 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form (FIXED)
+# Chat Input Form
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
