@@ -110,32 +110,28 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (ROBUST + FROSTED EFFECT)
+# Home Page Background (FIXED)
 # ----------------------------
-background_url = "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.shutterstock.com%2Fsearch%2Fgirl-using-ipad&psig=AOvVaw3Ewkory8cwnlIZZFGuAdqr&ust=1758808629129000&source=images&cd=vfe&opi=89978449&ved=0CBYQjRxqFwoTCMD0j_LG8Y8DFQAAAAAdAAAAABAV"
-
+background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
 st.markdown(f"""
 <style>
-/* Main app background */
-[data-testid="stAppViewContainer"] {{
+/* Main background */
+[data-testid="stAppViewContainer"], .css-18e3th9 {{
     background-image: url("{background_url}");
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
 }}
-
-/* Make main content container transparent so background shows */
+/* Make content background transparent */
 [data-testid="stAppViewContainer"] .css-18e3th9 {{
-    background-color: rgba(0,0,0,0.0);
+    background-color: rgba(0,0,0,0);
 }}
-
-/* Chat boxes with frosted glass effect */
+/* Chat boxes frosted */
 .user-bubble, .ai-bubble {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
 }}
-
-/* Prompt container frosted effect */
+/* Prompt box frosted */
 .prompt-container {{
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
@@ -262,7 +258,6 @@ call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 # ----------------------------
 st.markdown(f"""
 <style>
-body {{ background-color: {bg_color}; color:{text_color}; }}
 .chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
 .user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
@@ -282,7 +277,6 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        # Highlight APACT steps
         for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             content = content.replace(step,f"<span class='apact-step'>{step}</span>")
         time = msg.get("time","")
@@ -297,7 +291,7 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form (FIXED)
+# Chat Input Form
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
