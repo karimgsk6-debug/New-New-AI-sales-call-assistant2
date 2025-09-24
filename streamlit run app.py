@@ -112,7 +112,7 @@ voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-Jenny
 # ----------------------------
 # Home Page Background (ROBUST + FROSTED EFFECT)
 # ----------------------------
-background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
+background_url = "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.shutterstock.com%2Fsearch%2Fgirl-using-ipad&psig=AOvVaw3Ewkory8cwnlIZZFGuAdqr&ust=1758808629129000&source=images&cd=vfe&opi=89978449&ved=0CBYQjRxqFwoTCMD0j_LG8Y8DFQAAAAAdAAAAABAV"
 
 st.markdown(f"""
 <style>
