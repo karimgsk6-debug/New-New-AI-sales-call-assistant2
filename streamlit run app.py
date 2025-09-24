@@ -99,6 +99,9 @@ bg_color = "#1b1b1b" if dark_mode_toggle else "#ffffff"
 text_color = "#ffffff" if dark_mode_toggle else "#000000"
 user_bubble_color = "#004aad" if dark_mode_toggle else "#dcf8c6"
 ai_bubble_color = "#ff8c00" if dark_mode_toggle else "#f0f2f6"
+input_bg_color = "#333333" if dark_mode_toggle else "#ffffff"
+input_text_color = "#ffffff" if dark_mode_toggle else "#000000"
+placeholder_color = "#bbbbbb" if dark_mode_toggle else "#999999"
 
 # ----------------------------
 # Language Selection
@@ -242,11 +245,21 @@ call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 st.markdown(f"""
 <style>
 body {{ background-color: {bg_color}; color:{text_color}; }}
-.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
+.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:100px; }}
 .user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
-.prompt-container {{ position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
+.prompt-container {{
+    position:fixed; bottom:10px; width:95%; background:{input_bg_color}; padding:10px; z-index:999; 
+    box-shadow:0 0 5px rgba(0,0,0,0.3); border-radius:10px; display:flex; align-items:center; gap:5px;
+}}
+.prompt-container input[type="text"] {{
+    width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; background:{input_bg_color}; color:{input_text_color};
+}}
+.prompt-container input::placeholder {{ color:{placeholder_color}; }}
+.prompt-container button {{
+    background:#ff8c00; color:white; border:none; border-radius:50%; width:45px; height:45px; font-size:20px; cursor:pointer;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,11 +273,8 @@ def display_chat():
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
         # Highlight APACT steps
-        content = content.replace("Acknowledge","<span class='apact-step'>Acknowledge</span>")
-        content = content.replace("Probing","<span class='apact-step'>Probing</span>")
-        content = content.replace("Action","<span class='apact-step'>Action</span>")
-        content = content.replace("Confirm","<span class='apact-step'>Confirm</span>")
-        content = content.replace("Transition","<span class='apact-step'>Transition</span>")
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+            content = content.replace(step,f"<span class='apact-step'>{step}</span>")
         time = msg.get("time","")
         if msg["role"]=="user":
             chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
@@ -277,18 +287,15 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form
+# Chat Input Form (WhatsApp style)
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
-col1, col2 = st.columns([7,1])
-
 with st.form("chat_input_form", clear_on_submit=True):
-    with col1:
-        user_input = st.text_input("", placeholder="Type your message...")
-    with col2:
-        submitted = st.form_submit_button("📩")
+    user_input = st.text_input("", placeholder="Type your message...")
+    submitted = st.form_submit_button("📩")
+st.markdown("</div>", unsafe_allow_html=True)
 
-# Clear button outside the form
+# Clear chat button
 if st.button("🗑 Clear Chat"):
     st.session_state.chat_history = []
 
@@ -296,7 +303,9 @@ if st.button("🗑 Clear Chat"):
 # Handle AI response
 # ----------------------------
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({
+        "role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")
+    })
     prompt_text = f"""
 Sales Call Flow Stage: {call_stage}
 Language: {language}
@@ -324,7 +333,9 @@ Use APACT only when handling objections and highlight each step.
 """
     ai_text = ask_ai(prompt_text)
     audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
+    st.session_state.chat_history.append({
+        "role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes
+    })
 
 display_chat()
 
