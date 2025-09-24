@@ -12,6 +12,8 @@ from PIL import Image
 from docx import Document
 import pdfplumber
 from pptx import Presentation
+
+# optional LLM + TTS libraries
 from groq import Groq
 import edge_tts
 
@@ -21,13 +23,11 @@ import edge_tts
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # ----------------------------
-# Settings / constants
+# Constants & defaults
 # ----------------------------
-# External background image (girl with iPad) - we crop from the top and blur only the background layer
 BACKGROUND_URL = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
-
-# Default Groq key fallback (if you previously used a literal key, you can re-add it here or set env var)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")  # recommended: set as environment variable for security
+DEFAULT_BLUR = 4
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ----------------------------
 # Helper functions
@@ -67,11 +67,11 @@ def safe_groq_client():
         try:
             return Groq(api_key=GROQ_API_KEY)
         except Exception as e:
-            st.warning(f"Could not init Groq client: {e}")
+            st.warning(f"Could not initialize Groq client: {e}")
             return None
     return None
 
-def ask_ai_via_groq(prompt, client=None, fallback_message="Groq API key missing or request failed."):
+def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API key missing or request failed."):
     if client is None:
         client = safe_groq_client()
     if client is None:
@@ -91,17 +91,17 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="Groq API key missing 
         return f"{fallback_message} Error: {e}"
 
 # ----------------------------
-# UI: Sidebar controls (blur slider, theme, settings)
+# Sidebar UI: theme, blur, segmentation & filters
 # ----------------------------
 st.sidebar.header("⚙️ Settings & Filters")
 
-# Blur intensity slider (applies to background only)
-blur_intensity = st.sidebar.slider("Background blur (px)", min_value=0, max_value=12, value=4)
+# Theme toggle visible and selectable
+theme_choice = st.sidebar.radio("Theme", options=["Dark (white text)", "Light (black text)"], index=0)
 
-# Theme toggle - we still force white font by default; selecting Light flips text to black
-theme_mode = st.sidebar.radio("Theme", options=["Dark (white text)", "Light (black text)"], index=0)
+# Background blur slider
+blur_intensity = st.sidebar.slider("Background blur (px)", min_value=0, max_value=12, value=DEFAULT_BLUR)
 
-# ----- Brand/Segmentation inputs (fully expanded) -----
+# Brands & segmentation fully expanded
 st.sidebar.subheader("Brand & Segmentation")
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
@@ -114,7 +114,6 @@ gsk_brands_images = {
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 brand = st.sidebar.selectbox("💊 Select Brand", options=list(gsk_brands.keys()))
-st.sidebar.markdown("---")
 
 st.sidebar.subheader("RACE Segmentation")
 race_segments = [
@@ -133,7 +132,7 @@ doctor_barriers = [
     "Not convinced HZ Vx effective",
     "Accessibility issues",
     "Regulatory concerns",
-    "Patient hesitancy"
+    "Patient hesitancy",
 ]
 barrier = st.sidebar.multiselect("🚧 Doctor Barrier", options=doctor_barriers, default=[])
 
@@ -144,7 +143,6 @@ tone = st.sidebar.selectbox("🎤 AI Tone", options=["Formal","Casual","Friendly
 thinking = st.sidebar.selectbox("💡 HCP Thinking Style", options=["Analytical","Skeptic","Emotional","Pragmatic"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Other")
 call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
     "Prepare the Call","Engage","Create Opportunities","Influence","Impact GSO (Good Sell Outcome)",
     "Closing with Commitment","Post-Call Analysis"
@@ -152,23 +150,31 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 st.sidebar.markdown("---")
 
 # ----------------------------
-# Background CSS (blur only on background, dark overlay, crop top)
+# Theme colors derived from selection
 # ----------------------------
-# Force default white fonts unless Light theme selected
-font_color = "black" if theme_mode.startswith("Light") else "white"
+is_light = theme_choice.startswith("Light")
+font_color = "black" if is_light else "white"
+bubble_user_bg = "rgba(255,255,255,0.14)" if is_light else "rgba(0,0,0,0.35)"
+bubble_ai_bg = "rgba(0,0,0,0.06)" if is_light else "rgba(255,98,0,0.12)"
+input_bg = "rgba(255,255,255,0.9)" if is_light else "rgba(0,0,0,0.45)"
+input_color = "black" if is_light else "white"
+overlay_alpha = 0.35 if not is_light else 0.15
 
+# ----------------------------
+# Background CSS: blurred layer only, top crop, dark overlay
+# ----------------------------
 st.markdown(f"""
 <style>
-/* Base background image (top-cropped, covers width) */
+/* Main container background (top-centered crop of girl image) */
 [data-testid="stAppViewContainer"] {{
     position: relative;
     background-image: url("{BACKGROUND_URL}");
     background-repeat: no-repeat;
-    background-position: top center;   /* crop from top to remove footer */
+    background-position: top center;
     background-size: cover;
 }}
 
-/* Pseudo-element: blurred background layer only (keeps content sharp) */
+/* blurred background pseudo-element (keeps content sharp) */
 [data-testid="stAppViewContainer"]::before {{
     content: "";
     position: fixed;
@@ -181,11 +187,10 @@ st.markdown(f"""
     background-position: top center;
     background-size: cover;
     filter: blur({blur_intensity}px) brightness(0.65);
-    z-index: -1;
-    transform: translateZ(0);
+    z-index: -2;
 }}
 
-/* Dark overlay on top of blurred image to improve readability */
+/* overlay for better readability */
 [data-testid="stAppViewContainer"]::after {{
     content: "";
     position: fixed;
@@ -193,66 +198,103 @@ st.markdown(f"""
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,{overlay_alpha});
     z-index: -1;
 }}
 
-/* Force font color across the app */
+/* force adaptive font color */
 * {{
     color: {font_color} !important;
 }}
 
-/* Style tweaks for inputs & prompt */
+/* Inputs styling */
 .stTextInput > div > input, .stTextArea > div > textarea {{
-    background: rgba(255,255,255,0.06) !important;
-    color: {font_color} !important;
+    background: {input_bg} !important;
+    color: {input_color} !important;
     border-radius: 8px;
     padding: 8px;
-    border: 1px solid rgba(255,255,255,0.12) !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
 }}
+
+/* Buttons style */
 .stButton>button {{
     background: #FF6200 !important;
     color: white !important;
     border: none !important;
 }}
+
+/* Chat and prompt styling (position fixed prompt) */
+.chat-container {{ max-height:60vh; overflow-y:auto; padding-bottom:90px; }}
+.user-bubble {{ text-align:right; background:{bubble_user_bg}; padding:10px; border-radius:15px 15px 0 15px; margin:6px; display:inline-block; max-width:80%; color:{font_color}; }}
+.ai-bubble {{ text-align:left; background:{bubble_ai_bg}; padding:10px; border-radius:15px 15px 15px 0; margin:6px; display:inline-block; max-width:80%; color:{font_color}; }}
+.apact-step {{ background:#ffd700; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; }}
+
+.prompt-container {{
+    position: fixed;
+    bottom: 14px;
+    left: 2.5%;
+    width: 95%;
+    background: rgba(0,0,0,0.38);
+    padding: 10px 12px;
+    z-index: 9999;
+    border-radius: 12px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+}}
+.prompt-input {{
+    flex:1;
+    background: transparent;
+    border:none;
+    outline:none;
+    color: {font_color} !important;
+    font-size:16px;
+}}
+.send-btn {{
+    background: #FF6200;
+    color:white;
+    border:none;
+    border-radius:8px;
+    padding:8px 12px;
+    cursor:pointer;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Header / disclaimer section (top)
+# Header + disclaimer
 # ----------------------------
 st.markdown(f"""
-<div style='text-align:center; padding:12px; margin-bottom:6px;'>
+<div style='text-align:center; padding:10px; margin-bottom:8px;'>
   <h2 style='margin:0; color:#FF9C3C;'>💡 AI Sales Call Assistant</h2>
-  <div style='color:{font_color};'>Powered to support sales reps for smarter HCP conversations — APCT objection handling highlighted</div>
+  <div style='color:{font_color};'>Supports sales reps with APCT objection-handling & call flow guidance</div>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown(f"""
-<div style='padding:10px; background: rgba(0,0,0,0.3); border-radius:10px; margin-bottom:15px;'>
-  <strong>⚠️ Disclaimer:</strong> This AI tool is for sales-support purposes only and is not a substitute for official medical advice or product documentation.
+<div style='padding:10px; background: rgba(0,0,0,0.28); border-radius:10px; margin-bottom:12px; color:{font_color};'>
+  <strong>⚠️ Disclaimer:</strong> This AI tool is for sales-support only and is not a substitute for official medical advice or product documentation.
 </div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Top area: GSK logo + title
+# Top area: logo + title
 # ----------------------------
-col1, col2 = st.columns([1, 5])
+col1, col2 = st.columns([1,5])
 with col1:
-    # try to show local logo first, fallback to remote
     logo_local = Path("images/gsk_logo.png")
     try:
         if logo_local.is_file():
-            st.image(str(logo_local), width=110)
+            st.image(str(logo_local), width=100)
         else:
-            st.image("https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png", width=110)
+            st.image("https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png", width=100)
     except Exception:
-        st.image("https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png", width=110)
+        st.image("https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png", width=100)
 with col2:
     st.title("🧠 AI Sales Call Assistant")
 
 # ----------------------------
-# Brand image display (below header)
+# Brand image preview (optional)
 # ----------------------------
 try:
     brand_image_url = gsk_brands_images.get(brand)
@@ -261,16 +303,15 @@ try:
         img = Image.open(io.BytesIO(resp.content))
         st.image(img, width=200)
     else:
-        # local file or missing
         st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 except Exception:
     st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # ----------------------------
-# Upload supporting documents section
+# Upload supporting docs
 # ----------------------------
 st.subheader("📤 Upload Supporting Documents")
-uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio (mp3/wav/m4a)", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio (mp3/wav/m4a)", type=["pdf","docx","pptx","mp3","wav","m4a"])
 if uploaded_file:
     ext = uploaded_file.name.split(".")[-1].lower()
     if ext == "pdf":
@@ -285,7 +326,7 @@ if uploaded_file:
     st.write(st.session_state.uploaded_docs[:2000] + ("..." if len(st.session_state.uploaded_docs) > 2000 else ""))
 
 # ----------------------------
-# Session state / chat history init
+# Initialize session state for chat history
 # ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -293,31 +334,25 @@ if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
 # ----------------------------
-# Chat CSS: chat bubbles, prompt position, APACT highlight
+# Chat CSS + display
 # ----------------------------
 st.markdown(f"""
 <style>
-.chat-container {{ max-height:60vh; overflow-y:auto; padding-bottom:90px; }}
-.user-bubble {{ text-align:right; background: rgba(0,0,0,0.35); padding:10px; border-radius:15px 15px 0 15px; margin:6px; display:inline-block; max-width:80%; color:{font_color}; }}
-.ai-bubble {{ text-align:left; background: rgba(255,98,0,0.12); padding:10px; border-radius:15px 15px 15px 0; margin:6px; display:inline-block; max-width:80%; color:{font_color}; }}
-.apact-step {{ background: #ffd700; color: #000; font-weight:bold; padding:2px 6px; border-radius:4px; }}
-.prompt-container {{ position:fixed; bottom:12px; left:2.5%; width:95%; background: rgba(0,0,0,0.45); padding:10px 12px; z-index:9999; border-radius:12px; }}
-.prompt-input {{ width:100%; background:transparent; border: none; outline:none; color:{font_color}; font-size:16px; }}
-.send-button {{ background:#FF6200; color:white; border:none; padding:8px 12px; border-radius:8px; }}
+/* ensure chat area doesn't overlap with fixed prompt on small screens */
+@media (max-width: 600px) {{
+  .chat-container {{ max-height:50vh; }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------
-# Display chat container
-# ----------------------------
 chat_placeholder = st.empty()
 
 def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n", "<br>")
-        # Highlight APACT steps (Acknowledge, Probing, Action, Confirm, Transition)
-        for step in ["Acknowledge","Probing","Action","Confirm","Transition","APACT","Acknowledge,","Probing,"]:
+        content = msg["content"].replace("\n","<br>")
+        # APACT highlight mapping (common variants)
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition","APACT","Probing:","Acknowledge:"]:
             content = content.replace(step, f"<span class='apact-step'>{step}</span>")
         time = msg.get("time","")
         if msg["role"] == "user":
@@ -333,13 +368,13 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Chat input (fixed bottom area) - ChatGPT style prompt box
+# Chat Input (fixed prompt at bottom)
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
     cols = st.columns([12,1])
     with cols[0]:
-        user_input = st.text_input("", placeholder="Type your message...", key="prompt_input")
+        user_input = st.text_input("", placeholder="Type your message...", key="prompt_input", label_visibility="collapsed")
     with cols[1]:
         submitted = st.form_submit_button("📩")
 st.markdown("</div>", unsafe_allow_html=True)
@@ -352,24 +387,20 @@ if st.button("🗑 Clear Chat History"):
     st.experimental_rerun()
 
 # ----------------------------
-# Handle input submission: build prompt and call LLM + TTS
+# Handle message submission: call LLM + TTS
 # ----------------------------
 if submitted and user_input and user_input.strip():
-    # Append user message to history
+    # Save user message
     st.session_state.chat_history.append({
-        "role":"user",
-        "content":user_input,
-        "time": datetime.now().strftime("%H:%M")
+        "role":"user", "content": user_input, "time": datetime.now().strftime("%H:%M")
     })
     display_chat()
 
     # Build prompt with context
     prompt_text = f"""
 Sales Call Flow Stage: {call_stage}
-Language: {"Arabic" if 'العربية' in st.session_state.get('language','English') else 'English'}
 RACE Segment: {segment}
 Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
-Objective: (not selected)
 Brand: {brand}
 Doctor Specialty: {specialty}
 HCP Persona: {persona}
@@ -389,68 +420,60 @@ User Input: {user_input}
 
 Use APACT only when handling objections and highlight each step.
 """
-    # Call Groq AI (or fallback)
+
+    # Call Groq
     groq_client = safe_groq_client()
     ai_text = ask_ai_via_groq(prompt_text, client=groq_client, fallback_message="⚠️ Groq API not configured or request failed.")
-    # Attempt to generate TTS (if edge_tts available)
+
+    # Try generate TTS
     audio_bytes = None
     try:
-        tts_filename = generate_tts_edge(ai_text, voice="en-US-JennyNeural")
-        with open(tts_filename, "rb") as f:
+        tts_file = generate_tts_edge(ai_text, voice="en-US-JennyNeural")
+        with open(tts_file, "rb") as f:
             audio_bytes = f.read()
     except Exception as e:
-        # TTS failure is non-fatal; show text and continue
         st.warning(f"TTS generation issue: {e}")
 
-    # Append AI message to history (with audio if available)
+    # Append AI response (with audio if available)
     entry = {"role":"ai", "content": ai_text, "time": datetime.now().strftime("%H:%M")}
     if audio_bytes:
         entry["audio_bytes"] = audio_bytes
     st.session_state.chat_history.append(entry)
-
-    # Show updated chat
     display_chat()
 
 # ----------------------------
-# Word download of latest AI response
+# Download Word (latest AI)
 # ----------------------------
-if any(msg["role"] == "ai" for msg in st.session_state.chat_history):
-    latest_ai_msgs = [m for m in st.session_state.chat_history if m["role"]=="ai"]
-    if latest_ai_msgs:
-        latest_text = latest_ai_msgs[-1]["content"]
-        # create a Word (.docx) in memory
-        try:
-            from docx import Document as DocxDoc
-            doc = DocxDoc()
-            doc.add_heading("AI Sales Call Assistant - Latest Response", level=1)
-            doc.add_paragraph(latest_text)
-            buffer = io.BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            st.download_button("📥 Download latest AI response (.docx)", buffer.getvalue(), file_name="AI_Response.docx")
-        except Exception:
-            # fallback to plain txt
-            st.download_button("📥 Download latest AI response (.txt)", latest_text, file_name="AI_Response.txt")
+latest_ai = [m for m in st.session_state.chat_history if m["role"]=="ai"]
+if latest_ai:
+    latest_text = latest_ai[-1]["content"]
+    try:
+        from docx import Document as DocxDoc
+        doc = DocxDoc()
+        doc.add_heading("AI Sales Call Assistant - Latest Response", level=1)
+        doc.add_paragraph(latest_text)
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        st.download_button("📥 Download latest AI response (.docx)", buffer.getvalue(), file_name="AI_Response.docx")
+    except Exception:
+        st.download_button("📥 Download latest AI response (.txt)", latest_text, file_name="AI_Response.txt")
 
 # ----------------------------
-# APCT framework expand
+# APCT expandable guidance
 # ----------------------------
-with st.expander("📌 APACT / APCT Objection Handling (click to expand)"):
+with st.expander("📌 APCT / AP A C T Objection Handling Framework"):
     st.markdown("""
-    **APACT / APCT steps** (highlighted automatically in AI responses when used):
-    - **Acknowledge** — Validate the HCP concern (e.g. "I understand time is limited...")
-    - **Probe / Probing** — Ask targeted questions to uncover the real barrier.
-    - **Action / Clarify** — Share brief, evidence-based answers addressing concerns.
-    - **Confirm** — Check they accept the answer/next steps.
-    - **Transition** — Move to next phase of call or commitment.
+    **APACT / APCT steps** — AI will highlight these when used in objection handling:
+    - **Acknowledge**: Recognize the HCP's concern.
+    - **Probing**: Ask targeted clarifying questions.
+    - **Action / Clarify**: Provide evidence-based info concisely.
+    - **Confirm**: Check for acceptance/understanding.
+    - **Transition**: Move to next step/closing.
     """, unsafe_allow_html=True)
 
 # ----------------------------
-# Brand leaflet link
+# Brand leaflet link + footer note
 # ----------------------------
 st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
-
-# ----------------------------
-# Footer small note
-# ----------------------------
-st.markdown("<div style='font-size:12px; margin-top:14px; color: rgba(255,255,255,0.7)'>Built for internal sales support • Not for external distribution</div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size:12px; margin-top:12px; color:rgba(255,255,255,0.75)'>Built for internal sales support • Not for external distribution</div>", unsafe_allow_html=True)
