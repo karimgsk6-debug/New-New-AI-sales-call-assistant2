@@ -28,7 +28,7 @@ st.set_page_config(
 # Constants
 # ----------------------------
 # Background image external link
-BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
+BACKGROUND_URL = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
 
 # Insert your Groq API key here
 GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
