@@ -245,7 +245,6 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        # Highlight APACT steps
         content = content.replace("Acknowledge","<span class='apact-step'>Acknowledge</span>")
         content = content.replace("Probing","<span class='apact-step'>Probing</span>")
         content = content.replace("Action","<span class='apact-step'>Action</span>")
@@ -263,24 +262,39 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form + Clear
+# Chat Input Form (Fixed)
 # ----------------------------
-with st.form("chat_form", clear_on_submit=True):
+chat_col = st.empty()
+with chat_col.container():
     st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([7,1,1])
-    with col1:
-        user_input = st.text_input("", placeholder="Type your message...")
-    with col2:
-        submitted = st.form_submit_button("📩")
-    with col3:
-        clear_history = st.form_submit_button("🗑 Clear")
+
+    # Input Form
+    with st.form("chat_input_form", clear_on_submit=True):
+        with col1:
+            user_input = st.text_input("", placeholder="Type your message...")
+        with col2:
+            submitted = st.form_submit_button("📩")
+
+    # Clear Form
+    with st.form("chat_clear_form"):
+        with col3:
+            clear_history = st.form_submit_button("🗑 Clear")
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ----------------------------
+# Handle Chat Logic
+# ----------------------------
 if clear_history:
     st.session_state.chat_history = []
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    st.session_state.chat_history.append({
+        "role":"user",
+        "content":user_input,
+        "time":datetime.now().strftime("%H:%M")
+    })
+
     prompt_text = f"""
 Sales Call Flow Stage: {call_stage}
 Language: {language}
@@ -308,7 +322,12 @@ Use APACT only when handling objections and highlight each step.
 """
     ai_text = ask_ai(prompt_text)
     audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
+    st.session_state.chat_history.append({
+        "role":"ai",
+        "content":ai_text,
+        "time":datetime.now().strftime("%H:%M"),
+        "audio_bytes":audio_bytes
+    })
 
 display_chat()
 
@@ -329,62 +348,3 @@ if st.session_state.chat_history:
 # Brand Leaflet
 # ----------------------------
 st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
-# ----------------------------
-# Chat CSS (update for ChatGPT style input)
-# ----------------------------
-st.markdown(f"""
-<style>
-body {{ background-color: {bg_color}; color:{text_color}; }}
-.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:100px; }}
-.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:12px; border-radius:18px 18px 0px 18px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
-.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:12px; border-radius:18px 18px 18px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
-.apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
-.prompt-container {{
-    position:fixed;
-    bottom:10px;
-    left:50%;
-    transform:translateX(-50%);
-    width:90%;
-    max-width:900px;
-    background:{bg_color};
-    padding:10px 15px;
-    z-index:999;
-    box-shadow:0 4px 12px rgba(0,0,0,0.15);
-    border-radius:15px;
-    display:flex;
-    gap:10px;
-    align-items:center;
-}}
-.prompt-container input[type="text"] {{
-    flex:1;
-    padding:12px 15px;
-    border-radius:10px;
-    border:1px solid #ccc;
-    font-size:15px;
-    color:{text_color};
-    background:{bg_color};
-}}
-.prompt-container button {{
-    padding:10px 16px;
-    border:none;
-    border-radius:10px;
-    background:#ff8c00;
-    color:white;
-    font-size:18px;
-    cursor:pointer;
-}}
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------------------
-# Chat Input Form (ChatGPT style)
-# ----------------------------
-with st.form("chat_form", clear_on_submit=True):
-    st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
-    user_input = st.text_input("", placeholder="Type your message...", key="user_input")
-    col1, col2 = st.columns([1,1])
-    with col1:
-        submitted = st.form_submit_button("▶️")
-    with col2:
-        clear_history = st.form_submit_button("🗑")
-    st.markdown("</div>", unsafe_allow_html=True)
