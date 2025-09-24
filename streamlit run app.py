@@ -52,14 +52,15 @@ async def generate_tts_edge(text, lang="en-US-JennyNeural"):
     communicate = edge_tts.Communicate(text_clean, voice=lang)
     await communicate.save(filename)
     with open(filename, "rb") as f:
-        return f.read()
+        audio_bytes = f.read()
+    return audio_bytes
 
 def ask_ai(prompt):
     try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Only apply APACT technique when handling objections. Bold-label objection steps if relevant. Reference uploaded medical/product docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -69,7 +70,7 @@ def ask_ai(prompt):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Only apply APACT technique when handling objections. Bold-label objection steps if relevant. Reference uploaded medical/product docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -83,49 +84,44 @@ def ask_ai(prompt):
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = []
+    st.session_state.uploaded_docs = ""
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
 # ----------------------------
-# Dark / Light Mode Toggle
+# Theme Toggle
 # ----------------------------
-st.sidebar.header("Display Options")
-dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=False)
-st.session_state.dark_mode = dark_mode
+st.sidebar.header("⚙️ Settings")
+dark_mode_toggle = st.sidebar.checkbox("🌙 Dark Mode", value=False)
+st.session_state.dark_mode = dark_mode_toggle
 
-bg_color = "#1E1E1E" if dark_mode else "#F8F9FA"
-text_color = "#FFFFFF" if dark_mode else "#000000"
-bubble_user = "#2E8B57" if dark_mode else "#dcf8c6"
-bubble_ai = "#333333" if dark_mode else "#f0f2f6"
+bg_color = "#1b1b1b" if dark_mode_toggle else "#ffffff"
+text_color = "#ffffff" if dark_mode_toggle else "#000000"
+user_bubble_color = "#004aad" if dark_mode_toggle else "#dcf8c6"
+ai_bubble_color = "#ff8c00" if dark_mode_toggle else "#f0f2f6"
 
-st.markdown(f"""
-<style>
-body {{background-color:{bg_color}; color:{text_color};}}
-.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
-.user-bubble {{ text-align:right; background:{bubble_user}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.2); color:{text_color};}}
-.ai-bubble {{ text-align:left; background:{bubble_ai}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.2); color:{text_color};}}
-.prompt-container {{ position:fixed; bottom:10px; width:95%; background:{bg_color}; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
-</style>
-""", unsafe_allow_html=True)
+# ----------------------------
+# Language Selection
+# ----------------------------
+language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
 # Header + Disclaimer
 # ----------------------------
 st.markdown(f"""
-<div style='text-align:center; padding:15px; background:linear-gradient(90deg,#0056A6,#007ACC); 
-            color:white; border-radius:12px; margin-bottom:10px;'>
-    <h2 style='margin:0;'>💡 AI Sales Call Assistant</h2>
-    <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
-</div>
+    <div style='text-align:center; padding:15px; background:linear-gradient(90deg,#ff8c00,#ffb347); 
+                color:white; border-radius:12px; margin-bottom:10px;'>
+        <h2 style='margin:0;'>💡 AI Sales Call Assistant</h2>
+        <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
+    </div>
 """, unsafe_allow_html=True)
 
 st.markdown(f"""
-<div style='padding:10px; background:{bg_color}; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:{text_color}'>
-⚠️ <b>Disclaimer:</b> The main objective of this AI tool is to equip the sales representative 
-with the right tools to handle different HCP concerns. It is not a substitute for official product 
-information or medical advice.
-</div>
+    <div style='padding:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:{text_color};'>
+        ⚠️ <b>Disclaimer:</b> This AI tool is designed to equip the sales rep 
+        with the tools to handle different HCP concerns. Not a substitute for official product info.
+    </div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -147,6 +143,8 @@ with col2:
 # Sidebar Filters
 # ----------------------------
 st.sidebar.header("Filters & Options")
+
+# Brand & Product
 gsk_brands = {
     "Shingrix": "https://example.com/shingrix-leaflet",
     "Trelegy": "https://example.com/trelegy-leaflet",
@@ -158,6 +156,8 @@ gsk_brands_images = {
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
 brand = st.sidebar.selectbox("💊 Select Brand", options=list(gsk_brands.keys()))
+
+# RACE Segment
 race_segments = [
     "R – Reach: Did not start to prescribe yet",
     "A – Acquisition: Prescribe to patient who initiate discussion",
@@ -165,6 +165,8 @@ race_segments = [
     "E – Engagement: Proactively prescribe to different patient profiles"
 ]
 segment = st.sidebar.selectbox("👥 RACE Segment", race_segments)
+
+# Doctor Barriers
 doctor_barriers = [
     "HCP does not consider HZ as risk",
     "No time to discuss preventive measures",
@@ -173,6 +175,8 @@ doctor_barriers = [
     "Accessibility issues"
 ]
 barrier = st.sidebar.multiselect("🚧 Doctor Barrier", options=doctor_barriers, default=[])
+
+# Objectives, Specialty, Persona, Tone, Thinking
 objective = st.sidebar.selectbox("🎯 Objective", options=["Awareness", "Adoption", "Retention"])
 specialty = st.sidebar.selectbox("🩺 Doctor Specialty", options=["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist"])
 persona = st.sidebar.selectbox("🧑‍⚕️ HCP Persona", options=["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"])
@@ -226,15 +230,19 @@ call_flow = [
 call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 
 # ----------------------------
-# Chat Placeholder
+# Chat CSS
 # ----------------------------
-chat_placeholder = st.empty()
+st.markdown(f"""
+<style>
+body {{ background-color: {bg_color}; color:{text_color}; }}
+.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
+.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}}
+.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1);}}
+.prompt-container {{ position:fixed; bottom:10px; width:95%; background:#fff; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
+</style>
+""", unsafe_allow_html=True)
 
-# ----------------------------
-# Clear Chat Button
-# ----------------------------
-if st.button("🗑️ Clear Chat History"):
-    st.session_state.chat_history = []
+chat_placeholder = st.empty()
 
 # ----------------------------
 # Display Chat Function
@@ -247,8 +255,6 @@ def display_chat():
         if msg["role"]=="user":
             chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
         else:
-            # Show user's prompt above AI response
-            chat_html += f"<div class='user-bubble'>Prompt: {msg.get('prompt','')}</div>"
             chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
             if "audio_bytes" in msg:
                 audio_base64 = base64.b64encode(msg["audio_bytes"]).decode()
@@ -257,16 +263,21 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form
+# Chat Input Form + Clear
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
-    col1, col2 = st.columns([8,1])
+    col1, col2, col3 = st.columns([7,1,1])
     with col1:
         user_input = st.text_input("", placeholder="Type your message...")
     with col2:
         submitted = st.form_submit_button("📩")
+    with col3:
+        clear_history = st.form_submit_button("🗑 Clear")
     st.markdown("</div>", unsafe_allow_html=True)
+
+if clear_history:
+    st.session_state.chat_history = []
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
@@ -283,10 +294,21 @@ HCP Thinking Style: {thinking}
 AI Tone: {tone}
 Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
 User Input: {user_input}
+
+➡️ Structure response following this flow:
+1. Prepare the Call
+2. Engage
+3. Create Opportunities
+4. Influence
+5. Impact GSO (Good Sell Outcome)
+6. Closing with Commitment
+7. Post-Call Analysis
+
+Use APACT only when handling objections.
 """
     ai_text = ask_ai(prompt_text)
-    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang="ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"))
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes,"prompt":user_input})
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
 
 display_chat()
 
