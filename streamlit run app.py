@@ -69,7 +69,7 @@ def safe_groq_client():
             return None
     return None
 
-def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API key missing or request failed."):
+def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API not configured or request failed."):
     if client is None:
         client = safe_groq_client()
     if client is None:
@@ -87,6 +87,21 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API key m
         return resp.choices[0].message.content
     except Exception as e:
         return f"{fallback_message} Error: {e}"
+
+# ----------------------------
+# HEADER: Page title + disclaimer
+# ----------------------------
+st.markdown(f"""
+<div style='text-align:center; padding:15px; background:linear-gradient(90deg,#ff8c00,#ffb347); 
+            color:white; border-radius:12px; margin-bottom:10px;'>
+    <h2 style='margin:0;'>💡 AI Sales Call Assistant</h2>
+    <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
+</div>
+
+<div style='padding:10px; background:#ffffff; border:1px solid #ddd; border-radius:10px; margin-bottom:20px; font-size:13px; color:#000000;'>
+    ⚠️ <b>Disclaimer:</b> This AI tool is to equip sales reps and is not a substitute for official product info or medical advice.
+</div>
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Sidebar: filters
@@ -146,7 +161,7 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 ])
 
 # ----------------------------
-# Adaptive colors (font & bubble styling)
+# Adaptive colors
 # ----------------------------
 is_light = theme_choice == "Light Mode"
 font_color = "black" if is_light else "white"
@@ -154,7 +169,7 @@ bubble_user_bg = "rgba(255,255,255,0.85)" if is_light else "rgba(255,255,255,0.1
 bubble_ai_bg = "rgba(255,255,255,0.65)" if is_light else "rgba(0,0,0,0.35)"
 
 # ----------------------------
-# Background with contain (always full girl visible)
+# Background with contain (full girl visible)
 # ----------------------------
 st.markdown(f"""
 <style>
@@ -209,7 +224,6 @@ if "chat_history" not in st.session_state:
 if "uploaded_docs" not in st.session_state:
     st.session_state.uploaded_docs = ""
 
-# Display chat
 chat_placeholder = st.empty()
 def display_chat():
     chat_html = "<div class='chat-container'>"
