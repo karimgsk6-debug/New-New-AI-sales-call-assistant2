@@ -112,7 +112,7 @@ voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-Jenny
 # ----------------------------
 # Home Page Background (LOCAL IMAGE)
 # ----------------------------
-background_local_path = "images/background.jpg"
+background_local_path = "young-arab-girl-using-ipad-260nw-2616487693.webp"
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"], .css-18e3th9 {{
