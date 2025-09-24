@@ -113,16 +113,19 @@ voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-Jenny
 # Home Page Background (Fixed)
 # ----------------------------
 background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
-st.markdown(f"""
+st.markdown(
+    f"""
     <style>
-    .stApp {{
+    /* Main container */
+    div[data-testid="stAppViewContainer"] > .main {{
         background-image: url("{background_url}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True)
 
 # ----------------------------
 # Header + Disclaimer
