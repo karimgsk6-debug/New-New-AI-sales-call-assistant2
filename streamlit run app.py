@@ -11,6 +11,7 @@ from groq import Groq
 import asyncio
 import edge_tts
 import base64
+from pathlib import Path
 
 # ----------------------------
 # App Configuration
@@ -110,18 +111,19 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (LOCAL IMAGE)
+# Home Page Background (BASE64 IMAGE)
 # ----------------------------
-local_bg_path = "young-arab-girl-using-ipad-260nw-2616487693.webp"
-if os.path.exists(local_bg_path):
-    background_path = local_bg_path
-else:
-    background_path = "https://via.placeholder.com/1500x800.png?text=Background+Missing"
+def get_base64_of_image(image_path):
+    with open(image_path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+image_path = Path("young-arab-girl-using-ipad-260nw-2616487693.webp")
+img_base64 = get_base64_of_image(image_path)
 
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-    background-image: url("{background_path}");
+    background-image: url("data:image/webp;base64,{img_base64}");
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
@@ -279,7 +281,6 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        # Highlight APACT steps
         for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             content = content.replace(step,f"<span class='apact-step'>{step}</span>")
         time = msg.get("time","")
@@ -294,7 +295,7 @@ def display_chat():
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 # ----------------------------
-# Chat Input Form (ChatGPT Style)
+# Chat Input Form
 # ----------------------------
 st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
 with st.form("chat_input_form", clear_on_submit=True):
