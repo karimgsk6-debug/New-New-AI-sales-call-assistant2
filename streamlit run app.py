@@ -28,7 +28,7 @@ st.set_page_config(
 # Constants
 # ----------------------------
 # Background image external link
-BACKGROUND_URL = "https://static.vecteezy.com/system/resources/thumbnails/036/075/050/small_2x/ai-generated-a-happy-woman-with-laptop-on-pastel-background-generative-ai-photo.jpg"
+BACKGROUND_URL = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
 
 # Insert your Groq API key here
 GROQ_API_KEY = "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"
