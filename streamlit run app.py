@@ -110,7 +110,7 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (External URL)
+# Home Page Background (Blurred & Dark Overlay)
 # ----------------------------
 background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
@@ -121,9 +121,12 @@ st.markdown(f"""
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
+    filter: blur(6px);
+    -webkit-filter: blur(6px);
+    transform: scale(1.05);
 }}
 [data-testid="stAppViewContainer"] .css-18e3th9 {{
-    background-color: rgba(0,0,0,0.0);
+    background-color: rgba(0,0,0,0.35); /* dark overlay for readability */
 }}
 .user-bubble, .ai-bubble {{
     backdrop-filter: blur(5px);
@@ -200,6 +203,156 @@ tone = st.sidebar.selectbox("🎤 AI Tone", options=["Formal","Casual","Friendly
 thinking = st.sidebar.selectbox("💡 HCP Thinking Style", options=["Analytical","Skeptic","Emotional","Pragmatic"])
 
 # ----------------------------
-# The rest of your app continues (brand image display, upload docs, chat, TTS, APCT, download, leaflet)...
-# Copy your existing implementation here
+# Brand Image Display
 # ----------------------------
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(io.BytesIO(response.content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+
+# ----------------------------
+# Upload Documents
+# ----------------------------
+st.subheader("📤 Upload Supporting Documents")
+uploaded_file = st.file_uploader("Upload PDF, DOCX, PPTX, or Audio", type=["pdf", "docx", "pptx", "mp3", "wav", "m4a"])
+if uploaded_file:
+    ext = uploaded_file.name.split(".")[-1].lower()
+    if ext=="pdf":
+        st.session_state.uploaded_docs = extract_text_from_pdf(uploaded_file)
+    elif ext=="docx":
+        st.session_state.uploaded_docs = extract_text_from_docx(uploaded_file)
+    elif ext=="pptx":
+        st.session_state.uploaded_docs = extract_text_from_pptx(uploaded_file)
+    else:
+        st.session_state.uploaded_docs = f"Audio uploaded: {uploaded_file.name} (transcription not implemented)"
+    st.write(st.session_state.uploaded_docs[:2000]+"..." if len(st.session_state.uploaded_docs)>2000 else st.session_state.uploaded_docs)
+
+# ----------------------------
+# Sales Call Flow
+# ----------------------------
+call_flow = [
+    "Prepare the Call",
+    "Engage",
+    "Create Opportunities",
+    "Influence",
+    "Impact GSO (Good Sell Outcome)",
+    "Closing with Commitment",
+    "Post-Call Analysis"
+]
+call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
+
+# ----------------------------
+# Chat CSS
+# ----------------------------
+st.markdown(f"""
+<style>
+body {{ background-color: {bg_color}; color:{text_color}; }}
+.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:70px; }}
+.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
+.prompt-container {{ position:fixed; bottom:10px; width:95%; background:{input_bg_color}; padding:5px 10px; z-index:999; box-shadow:0 0 5px rgba(0,0,0,0.1); border-radius:10px;}}
+.prompt-container input {{ color:{input_text_color}; background:{input_bg_color}; }}
+.prompt-container ::placeholder {{ color:{placeholder_color}; }}
+</style>
+""", unsafe_allow_html=True)
+
+chat_placeholder = st.empty()
+
+# ----------------------------
+# Display Chat Function
+# ----------------------------
+def display_chat():
+    chat_html = "<div class='chat-container'>"
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n","<br>")
+        # Highlight APACT steps
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+            content = content.replace(step,f"<span class='apact-step'>{step}</span>")
+        time = msg.get("time","")
+        if msg["role"]=="user":
+            chat_html += f"<div class='user-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time} &#10148;&#10148;</span></div>"
+        else:
+            chat_html += f"<div class='ai-bubble'>{content}<br><span style='font-size:10px;color:gray;'>{time}</span></div>"
+            if "audio_bytes" in msg:
+                audio_base64 = base64.b64encode(msg["audio_bytes"]).decode()
+                chat_html += f"<audio controls style='margin:5px 0;'><source src='data:audio/mp3;base64,{audio_base64}' type='audio/mp3'></audio>"
+    chat_html += "</div>"
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
+# ----------------------------
+# Chat Input Form (FIXED)
+# ----------------------------
+st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
+with st.form("chat_input_form", clear_on_submit=True):
+    col1, col2 = st.columns([7,1])
+    with col1:
+        user_input = st.text_input("", placeholder="Type your message...")
+    with col2:
+        submitted = st.form_submit_button("📩")
+st.markdown("</div>", unsafe_allow_html=True)
+
+# Clear chat button
+if st.button("🗑 Clear Chat"):
+    st.session_state.chat_history = []
+
+# ----------------------------
+# Handle AI Response
+# ----------------------------
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    prompt_text = f"""
+Sales Call Flow Stage: {call_stage}
+Language: {language}
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Brand: {brand}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+HCP Thinking Style: {thinking}
+AI Tone: {tone}
+Uploaded Docs Context: {st.session_state.uploaded_docs[:2000]}
+User Input: {user_input}
+
+➡️ Structure response following this flow:
+1. Prepare the Call
+2. Engage
+3. Create Opportunities
+4. Influence
+5. Impact GSO (Good Sell Outcome)
+6. Closing with Commitment
+7. Post-Call Analysis
+
+Use APACT only when handling objections and highlight each step.
+"""
+    ai_text = ask_ai(prompt_text)
+    audio_bytes = asyncio.run(generate_tts_edge(ai_text, lang=voice_lang))
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"time":datetime.now().strftime("%H:%M"),"audio_bytes":audio_bytes})
+
+display_chat()
+
+# ----------------------------
+# Word Download
+# ----------------------------
+if st.session_state.chat_history:
+    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response",0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io.BytesIO()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# ----------------------------
+# Brand Leaflet
+# ----------------------------
+st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
