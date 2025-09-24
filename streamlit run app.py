@@ -330,55 +330,61 @@ if st.session_state.chat_history:
 # ----------------------------
 st.markdown(f"[📑 Brand Leaflet]({gsk_brands.get(brand)})")
 # ----------------------------
+# Chat CSS (update for ChatGPT style input)
+# ----------------------------
+st.markdown(f"""
+<style>
+body {{ background-color: {bg_color}; color:{text_color}; }}
+.chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:100px; }}
+.user-bubble {{ text-align:right; background:{user_bubble_color}; padding:12px; border-radius:18px 18px 0px 18px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:12px; border-radius:18px 18px 18px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
+.apact-step {{ background:#ffd700; font-weight:bold; padding:2px 4px; border-radius:4px; }}
+.prompt-container {{
+    position:fixed;
+    bottom:10px;
+    left:50%;
+    transform:translateX(-50%);
+    width:90%;
+    max-width:900px;
+    background:{bg_color};
+    padding:10px 15px;
+    z-index:999;
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+    border-radius:15px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+}}
+.prompt-container input[type="text"] {{
+    flex:1;
+    padding:12px 15px;
+    border-radius:10px;
+    border:1px solid #ccc;
+    font-size:15px;
+    color:{text_color};
+    background:{bg_color};
+}}
+.prompt-container button {{
+    padding:10px 16px;
+    border:none;
+    border-radius:10px;
+    background:#ff8c00;
+    color:white;
+    font-size:18px;
+    cursor:pointer;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------------
 # Chat Input Form (ChatGPT style)
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
-    st.markdown("""
-    <style>
-    .chat-input-container {
-        position: fixed;
-        bottom: 10px;
-        width: 95%;
-        max-width: 900px;
-        display: flex;
-        gap: 5px;
-        background-color: #f0f2f6;
-        padding: 8px 10px;
-        border-radius: 25px;
-        box-shadow: 0 0 5px rgba(0,0,0,0.1);
-        z-index: 999;
-    }
-    .chat-input-container input {
-        flex: 1;
-        padding: 10px 15px;
-        border: none;
-        border-radius: 25px;
-        outline: none;
-        font-size: 14px;
-        background-color: white;
-        color: #000;
-    }
-    .chat-input-container button {
-        background-color: #007ACC;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 50%;
-        cursor: pointer;
-        color: white;
-        font-size: 16px;
-    }
-    .chat-input-container button:hover {
-        background-color: #0056A6;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("<div class='chat-input-container'>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([8,1,1])
+    st.markdown("<div class='prompt-container'>", unsafe_allow_html=True)
+    user_input = st.text_input("", placeholder="Type your message...", key="user_input")
+    col1, col2 = st.columns([1,1])
     with col1:
-        user_input = st.text_input("", placeholder="Type your message...")
-    with col2:
         submitted = st.form_submit_button("▶️")
-    with col3:
+    with col2:
         clear_history = st.form_submit_button("🗑")
     st.markdown("</div>", unsafe_allow_html=True)
