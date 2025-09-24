@@ -170,7 +170,6 @@ call_stage = st.sidebar.selectbox("📞 Call Stage", options=[
 # ----------------------------
 # Colors & Bubbles
 # ----------------------------
-is_light = theme_choice == "Light Mode"
 font_color = "white"
 bubble_user_bg = "rgba(255,255,255,0.14)"
 bubble_ai_bg = "rgba(0,0,0,0.35)"
@@ -196,6 +195,7 @@ st.markdown(f"""
 .chat-container {{
     color: {font_color} !important;
     padding:10px;
+    background: transparent !important;
 }}
 .user-bubble {{
     text-align:right;
@@ -219,6 +219,35 @@ st.markdown(f"""
 }}
 .apact-step {{
     background:#ffd700; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px;
+}}
+
+/* Floating input box */
+.chat-input-container {{
+    position: fixed;
+    bottom: 10px;
+    width: 90%;
+    left: 5%;
+    display:flex;
+}}
+.chat-input-container input {{
+    flex:1;
+    padding:10px;
+    border-radius:20px;
+    border:none;
+    outline:none;
+    background: rgba(0,0,0,0.3);
+    color:white;
+}}
+.chat-input-container button {{
+    margin-left:5px;
+    border:none;
+    border-radius:50%;
+    background:#ff8c00;
+    color:white;
+    font-weight:bold;
+    width:45px;
+    height:45px;
+    cursor:pointer;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -247,10 +276,18 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Input & AI response
+# Chat input
 # ----------------------------
-user_input = st.text_input("💬 Type your message:", "")
+st.markdown("""
+<div class="chat-input-container">
+<form id="chat-form">
+<input id="user-input" type="text" placeholder="Type your message...">
+<button type="submit">📩</button>
+</form>
+</div>
+""", unsafe_allow_html=True)
 
+user_input = st.text_input("", key="chat_input")
 if st.button("📩 Send") and user_input:
     st.session_state.chat_history.append({"role":"user","content":user_input})
     display_chat()
@@ -275,7 +312,7 @@ Input: {user_input}
     st.session_state.chat_history.append({"role":"ai","content":ai_text})
     display_chat()
     
-    # Generate and play TTS
+    # Generate TTS
     audio_file = generate_tts_edge(ai_text)
     audio_bytes = open(audio_file, "rb").read()
     st.audio(audio_bytes, format="audio/mp3")
