@@ -110,12 +110,13 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background
+# Home Page Background (Fixed)
 # ----------------------------
+background_url = "https://images.unsplash.com/photo-1682686581986-78d030d5c1d1?auto=format&fit=crop&w=1470&q=80"
 st.markdown(f"""
     <style>
-    body {{
-        background-image: url("https://chatgpt.com/s/m_68d3ef736284819180077846df81f0aa");
+    .stApp {{
+        background-image: url("{background_url}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -244,7 +245,7 @@ call_stage = st.selectbox("📞 Select Call Stage", options=call_flow)
 # ----------------------------
 st.markdown(f"""
 <style>
-body {{ background-color: {bg_color}; color:{text_color}; }}
+body, .stApp {{ background-color: {bg_color}; color:{text_color}; }}
 .chat-container {{ max-height:65vh; overflow-y:auto; padding-bottom:100px; }}
 .user-bubble {{ text-align:right; background:{user_bubble_color}; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
 .ai-bubble {{ text-align:left; background:{ai_bubble_color}; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:{text_color};}}
@@ -272,7 +273,6 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        # Highlight APACT steps
         for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             content = content.replace(step,f"<span class='apact-step'>{step}</span>")
         time = msg.get("time","")
