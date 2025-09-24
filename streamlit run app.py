@@ -90,7 +90,7 @@ def ask_ai_via_groq(prompt, client=None, fallback_message="⚠️ Groq API not c
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT only when handling objections and highlight each step. Reference uploaded docs if available."},
+                {"role": "system", "content": "You are a helpful AI medical sales assistant. Structure responses according to the pharma sales call flow. Use APACT steps (Acknowledge, Probing, Action, Confirm, Transition to next step) only when handling objections and highlight each step. Reference uploaded docs if available."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6,
@@ -110,7 +110,7 @@ st.markdown(f"""
     <p style='margin:0;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
 </div>
 
-<div style='padding:10px; border-radius:10px; margin-bottom:20px; font-size:13px; color:white;'>
+<div style='padding:10px; border-radius:10px; margin-bottom:20px; font-size:13px; color:black;'>
     ⚠️ <b>Disclaimer:</b> This AI tool is to equip sales reps and is not a substitute for official product info or medical advice.
 </div>
 """, unsafe_allow_html=True)
@@ -263,7 +263,7 @@ def display_chat():
     chat_html = "<div class='chat-container'>"
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
-        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition to next step"]:
             content = content.replace(step, f"<span class='apact-step'>{step}</span>")
         if msg["role"] == "user":
             chat_html += f"<div class='user-bubble'>{content}</div>"
