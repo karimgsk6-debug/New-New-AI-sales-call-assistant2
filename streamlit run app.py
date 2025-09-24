@@ -11,7 +11,6 @@ from groq import Groq
 import asyncio
 import edge_tts
 import base64
-from pathlib import Path
 
 # ----------------------------
 # App Configuration
@@ -111,40 +110,31 @@ language = st.radio("Select Language / اختر اللغة", options=["English",
 voice_lang = "ar-SA-HamedNeural" if language=="العربية" else "en-US-JennyNeural"
 
 # ----------------------------
-# Home Page Background (ROBUST BASE64)
+# Home Page Background (External URL)
 # ----------------------------
-BASE_DIR = Path(__file__).parent
-image_path = BASE_DIR / "young-arab-girl-using-ipad-260nw-2616487693.webp"
+background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
-if not image_path.is_file():
-    st.error(f"Background image not found: {image_path}")
-    img_base64 = ""
-else:
-    with open(image_path, "rb") as f:
-        img_base64 = base64.b64encode(f.read()).decode()
-
-if img_base64:
-    st.markdown(f"""
-    <style>
-    [data-testid="stAppViewContainer"] {{
-        background-image: url("data:image/webp;base64,{img_base64}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-    [data-testid="stAppViewContainer"] .css-18e3th9 {{
-        background-color: rgba(0,0,0,0.0);
-    }}
-    .user-bubble, .ai-bubble {{
-        backdrop-filter: blur(5px);
-        -webkit-backdrop-filter: blur(5px);
-    }}
-    .prompt-container {{
-        backdrop-filter: blur(5px);
-        -webkit-backdrop-filter: blur(5px);
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown(f"""
+<style>
+[data-testid="stAppViewContainer"] {{
+    background-image: url("{background_url}");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}}
+[data-testid="stAppViewContainer"] .css-18e3th9 {{
+    background-color: rgba(0,0,0,0.0);
+}}
+.user-bubble, .ai-bubble {{
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}}
+.prompt-container {{
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}}
+</style>
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Header + Disclaimer
@@ -166,15 +156,10 @@ st.markdown(f"""
 # ----------------------------
 # GSK Logo
 # ----------------------------
-logo_local_path = BASE_DIR / "images/gsk_logo.png"
-logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
 with col1:
-    try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
-    except:
-        st.image(logo_fallback_url, width=120)
+    st.image(logo_url, width=120)
 with col2:
     st.title("🧠 AI Sales Call Assistant")
 
@@ -215,5 +200,6 @@ tone = st.sidebar.selectbox("🎤 AI Tone", options=["Formal","Casual","Friendly
 thinking = st.sidebar.selectbox("💡 HCP Thinking Style", options=["Analytical","Skeptic","Emotional","Pragmatic"])
 
 # ----------------------------
-# The rest of your app (brand image, uploads, chat, TTS, etc.) continues exactly as before...
+# The rest of your app continues (brand image display, upload docs, chat, TTS, APCT, download, leaflet)...
+# Copy your existing implementation here
 # ----------------------------
