@@ -1,6 +1,7 @@
 import os
 import io
 import base64
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -23,22 +24,16 @@ st.set_page_config(
 )
 
 # ----------------------------
-# Sidebar: Blur Control
-# ----------------------------
-st.sidebar.header("🎨 UI Settings")
-blur_intensity = st.sidebar.slider("Background Blur", 0, 10, 3)
-
-# ----------------------------
-# External Background Image (Girl with iPad, Cropped + Overlay)
+# External Background Image (Full & Blurred)
 # ----------------------------
 background_url = "https://image.shutterstock.com/image-photo/young-arab-girl-using-ipad-260nw-2616487693.jpg"
 
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-    background: url("{background_url}") no-repeat top center fixed;
-    background-size: cover;
-    filter: blur({blur_intensity}px);
+    background: url("{background_url}") no-repeat center center fixed;
+    background-size: contain;
+    background-color: #000; /* fill background behind image */
 }}
 [data-testid="stAppViewContainer"]::before {{
     content: "";
@@ -47,17 +42,10 @@ st.markdown(f"""
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.45); /* dark overlay */
+    background: url("{background_url}") no-repeat center center fixed;
+    background-size: contain;
+    filter: blur(10px) brightness(0.7);
     z-index: -1;
-}}
-body, [data-testid="stAppViewContainer"], .stMarkdown, .stTextInput, .stTextArea, .stButton button {{
-    color: white !important;
-}}
-.stTextInput input, .stTextArea textarea {{
-    background-color: rgba(255,255,255,0.1) !important;
-    color: white !important;
-    border-radius: 8px;
-    border: 1px solid #aaa;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -78,15 +66,15 @@ st.markdown(
 # Dark/Light Mode Toggle
 # ----------------------------
 mode = st.sidebar.radio("🌗 Theme", ["Light", "Dark"])
-if mode == "Light":
+if mode == "Dark":
     st.markdown("""
     <style>
-    body, [data-testid="stAppViewContainer"], .stMarkdown {{
-        color: black !important;
+    body, [data-testid="stAppViewContainer"] {{
+        color: white !important;
     }}
     .stTextInput input, .stTextArea textarea {{
-        background-color: white !important;
-        color: black !important;
+        background-color: #222 !important;
+        color: white !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -158,18 +146,43 @@ def generate_ai_response(prompt):
 st.markdown(
     """
     <style>
-    .user-bubble {
-        background: rgba(255,255,255,0.1);
+    .prompt-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid #ccc;
+        background: white;
+        margin-top: 15px;
+    }
+    .prompt-box input {
+        flex-grow: 1;
+        border: none;
+        outline: none;
+        font-size: 16px;
+    }
+    .send-btn {
+        background: #FF6200;
+        color: white;
+        border: none;
+        border-radius: 50%;
         padding: 10px 14px;
+        cursor: pointer;
+        font-size: 18px;
+    }
+    .user-bubble {{
+        background: #f1f1f1;
+        padding: 8px 12px;
         margin: 8px 0;
         border-radius: 12px;
-    }
-    .ai-bubble {
-        background: rgba(255,98,0,0.2);
-        padding: 10px 14px;
+    }}
+    .ai-bubble {{
+        background: #FFEBE0;
+        padding: 8px 12px;
         margin: 8px 0;
         border-radius: 12px;
-    }
+    }}
     </style>
     """,
     unsafe_allow_html=True,
