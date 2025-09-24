@@ -31,7 +31,7 @@ st.set_page_config(
 BACKGROUND_URL = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
 
 # Insert your Groq API key here
-GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
+GROQ_API_KEY = "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"
 
 # ----------------------------
 # Helper functions
