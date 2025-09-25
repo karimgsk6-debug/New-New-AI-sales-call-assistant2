@@ -20,7 +20,7 @@ client = Groq(api_key="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"
 
 # --- Background image ---
 
-bg_url = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
+bg_url = "https://www.shutterstock.com/shutterstock/photos/2080080004/display_1500/stock-photo-profile-side-view-portrait-of-attractive-cheerful-girl-demonstrating-copy-space-ad-new-isolated-2080080004.jpg"
 st.markdown(
     f"""
     <style>
