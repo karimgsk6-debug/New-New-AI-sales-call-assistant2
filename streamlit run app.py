@@ -133,7 +133,7 @@ st.markdown(f"""
 # ----------------------------
 # Title & disclaimer
 # ----------------------------
-logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+logo_url = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
 col1, col2 = st.columns([1,5])
 with col1:
     st.image(logo_url, width=120)
