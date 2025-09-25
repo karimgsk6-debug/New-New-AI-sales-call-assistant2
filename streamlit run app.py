@@ -83,8 +83,8 @@ st.markdown(f"""
 
 /* enlarged, weighted title box centered */
 .title-box {{
-    background: rgba(255,255,255,0.90);
-    padding: 35px;
+    background: rgba(255,255,255,0.70);
+    padding: 30px;
     border-radius: 18px;
     text-align: center;
     max-width: 80%;
@@ -93,7 +93,7 @@ st.markdown(f"""
 .title-box h1 {{
     margin: 0;
     font-size: 42px;
-    font-weight: 800;
+    font-weight: 700;
 }}
 .title-box p {{
     margin: 8px 0 0 0;
@@ -118,7 +118,7 @@ st.markdown(f"""
     border-radius: 15px 15px 0px 15px;
     margin: 6px;
     display: inline-block;
-    max-width: 80%;
+    max-width: 70%;
     color: {text_color};
 }}
 .chat-bubble-ai {{
@@ -128,7 +128,7 @@ st.markdown(f"""
     border-radius: 15px 15px 15px 0px;
     margin: 6px;
     display: inline-block;
-    max-width: 80%;
+    max-width: 70%;
     color: {text_color};
 }}
 .highlight {{
