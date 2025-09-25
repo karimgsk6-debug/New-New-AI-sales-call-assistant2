@@ -129,7 +129,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Top section: logo pinned left + centered title box
+# Top section: logo pinned left + right title box
 # ----------------------------
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
