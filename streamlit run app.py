@@ -39,15 +39,14 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 BACKGROUND_URL = "https://sdmntpreastus.oaiusercontent.com/files/00000000-82b4-61f9-8d36-a8e803b687c1/raw?se=2025-09-25T14%3A54%3A59Z&sp=r&sv=2024-08-04&sr=b&scid=35782cae-8bf5-544a-a2c0-4af84f3b9054&skoid=0da8417a-a4c3-4a19-9b05-b82cee9d8868&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-24T17%3A20%3A35Z&ske=2025-09-25T17%3A20%3A35Z&sks=b&skv=2024-08-04&sig=afnC0cUoNgeK1hbYvVq6UYPyo6cML6VbSxyGuvMARfk%3D"
 
-# Get average brightness for text/button color adjustment
 def get_brightness(url):
     try:
         response = requests.get(url)
-        img = Image.open(BytesIO(response.content)).convert("L")  # grayscale
+        img = Image.open(BytesIO(response.content)).convert("L")
         stat = ImageStat.Stat(img)
         return stat.mean[0]
     except:
-        return 255  # default bright
+        return 255
 
 brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
@@ -56,8 +55,7 @@ button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 st.markdown(f"""
 <style>
 .stApp {{
-    background: url("{BACKGROUND_URL}") no-repeat center top fixed;
-    background-size: cover;
+    background: none;  /* we move the image to right-end container below */
 }}
 .title-box {{
     background: rgba(250,250,250,0.2);
@@ -126,7 +124,19 @@ st.markdown(f"""
     background-color: {button_bg};
     color: white;
 }}
+.bg-right {{
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 40%;
+    height: 100%;
+    background: url("{BACKGROUND_URL}") no-repeat center top;
+    background-size: cover;
+    opacity: 0.3;
+    z-index: -1;
+}}
 </style>
+<div class="bg-right"></div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -173,10 +183,16 @@ if uploaded_pdf:
         for page in pdf.pages:
             pdf_text += page.extract_text() or ""
     if not show_more_toggle:
-        st.session_state.uploaded_pdf_text = pdf_text[:1000]+"..."  # truncate
+        st.session_state.uploaded_pdf_text = pdf_text[:1000]+"..."
     else:
         st.session_state.uploaded_pdf_text = pdf_text
     st.markdown(f"**PDF Preview:** {st.session_state.uploaded_pdf_text}")
+
+# ----------------------------
+# Clear chat button
+# ----------------------------
+if st.button("🗑️ Clear Chat History"):
+    st.session_state.chat_history = []
 
 # ----------------------------
 # Chat display
@@ -203,7 +219,7 @@ display_chat()
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("▶️")  # ChatGPT-style send
+    submitted = st.form_submit_button("▶️")
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({
