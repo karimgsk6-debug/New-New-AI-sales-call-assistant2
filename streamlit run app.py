@@ -37,7 +37,7 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-8c24-6246-b947-3ef1cee0e808/raw?se=2025-09-25T15%3A07%3A54Z&sp=r&sv=2024-08-04&sr=b&scid=45678bf3-7869-5a07-a75f-2c6cea419aa8&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T04%3A24%3A32Z&ske=2025-09-26T04%3A24%3A32Z&sks=b&skv=2024-08-04&sig=wTpFKb2Ti3tky9B/xG4K4jSa/71Vyg9oK6DUxqYs25o%3D"
+BACKGROUND_URL = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A15%3A06Z&sp=r&sv=2024-08-04&sr=b&scid=6870570a-c416-5cac-816d-8f43608d4723&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T03%3A34%3A38Z&ske=2025-09-26T03%3A34%3A38Z&sks=b&skv=2024-08-04&sig=zeUa/UVyTIdgz6/Qm5s/D47aOZrYQj/LJX9T60q%2BXBw%3D"
 
 # Get average brightness for text/button color adjustment
 def get_brightness(url):
