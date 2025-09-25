@@ -177,7 +177,7 @@ st.markdown(f"""
 # ----------------------------
 # Top fixed GSK logo (image)
 # ----------------------------
-GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+GSK_LOGO_URL = "https://brandhub.gsk.com/Assets/V2/0RkI7iixFpZfehmXOXZ@vFGXi50h26jUwugXqnFoVFE@nDoAcb0pq5Jm7M6aP1Thdfzk6ddVqkgPhpuDt7T7senskDQAlsMapd0e4gAAsDQxAzbXyAUnLIZXeR_NBb5f/uXj@Oe985SbwrULT/ilpuTX5fcBxj2rjA/G011AOY.jpg"
 st.markdown(f"""
 <div class="gsk-logo">
     <img src="{GSK_LOGO_URL}" width="140" style="display:block;">
