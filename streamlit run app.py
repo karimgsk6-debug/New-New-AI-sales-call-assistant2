@@ -18,7 +18,7 @@ except ImportError:
 if "GROQ_API_KEY" not in st.secrets:
     st.error("⚠️ Please add your GROQ_API_KEY in Streamlit secrets.")
 else:
-    client = Groq(api_key=st.secrets["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"])
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # --- Background image ---
 bg_url = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
