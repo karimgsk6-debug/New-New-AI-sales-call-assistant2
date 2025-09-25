@@ -31,7 +31,7 @@ st.set_page_config(
 BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
 
 # Insert your Groq API key here
-GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
+GROQ_API_KEY = "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"
 
 # ----------------------------
 # Helper functions
