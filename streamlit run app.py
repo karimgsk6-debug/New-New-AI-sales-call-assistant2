@@ -76,7 +76,7 @@ st.markdown(f"""
 }}
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(250,250,250,0.5);
+    background: rgba(200,200,200,0.2);
     padding: 10px;
     border-radius: 15px 15px 0px 15px;
     margin: 5px;
