@@ -1,12 +1,10 @@
-import streamlit as st 
+import streamlit as st
 from PIL import Image
 import requests
-from io import BytesIO, BytesIO as io_bytes
+from io import BytesIO
 import base64
-import groq
-from groq import Groq
 from datetime import datetime
-import pdfplumber
+from groq import Groq
 
 # --- Optional dependency for Word download ---
 try:
@@ -17,7 +15,10 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # 🔑 Insert your Groq API key here
+if "GROQ_API_KEY" not in st.secrets:
+    st.error("⚠️ Please add your GROQ_API_KEY in Streamlit secrets.")
+else:
+    client = Groq(api_key=st.secrets["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"])
 
 # --- Background image ---
 bg_url = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
@@ -26,12 +27,11 @@ st.markdown(
     <style>
     .stApp {{
         background: url("{bg_url}") no-repeat center center fixed;
-        background-size: contain; /* show full image */
-        background-color: black; /* fill empty space */
+        background-size: cover;
         color: white;
     }}
     .title-box {{
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.5);
         padding: 15px;
         border-radius: 12px;
         margin-bottom: 15px;
@@ -39,7 +39,7 @@ st.markdown(
     .disclaimer {{
         font-size: 12px;
         color: black;
-        background: rgba(255,255,255,0.8);
+        background: rgba(255,255,255,0.7);
         padding: 6px;
         border-radius: 6px;
     }}
@@ -70,6 +70,14 @@ st.markdown(
         padding: 2px 4px;
         border-radius: 4px;
     }}
+    .send-btn {{
+        background-color: #FF6600;
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+        padding: 8px 16px;
+        border: none;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -78,20 +86,17 @@ st.markdown(
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "pdf_summary" not in st.session_state:
+    st.session_state.pdf_summary = None
 
 # --- Language ---
 language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# --- GSK Logo & Title ---
-logo_local_path = "images/gsk_logo.png"
-logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+# --- Header ---
+logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1, 5])
 with col1:
-    try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
-    except:
-        st.image(logo_fallback_url, width=120)
+    st.image(logo_url, width=120)
 with col2:
     st.markdown(
         "<div class='title-box'><h2>💡 AI Sales Call Assistant</h2>"
@@ -100,28 +105,16 @@ with col2:
     )
     st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
 
-# --- Brand & product data ---
-gsk_brands = {
-    "Shingrix": "https://example.com/shingrix-leaflet",
-    "Trelegy": "https://example.com/trelegy-leaflet",
-    "Zejula": "https://example.com/zejula-leaflet",
-}
-gsk_brands_images = {
-    "Trelegy": "https://www.example.com/trelegy.png",
-    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
-}
-
-# --- Filters & options ---
+# --- Filters ---
 race_segments = [
-    "R – Reach: Did not start to prescribe yet and Don't believe vaccination is their responsibility.",
-    "A – Acquisition: Prescribes when patient asks, but needs more conviction.",
-    "C – Conversion: Proactively initiates discussion with some patients.",
+    "R – Reach: Did not start prescribing yet, doesn't see responsibility.",
+    "A – Acquisition: Prescribes if patient asks, needs more conviction.",
+    "C – Conversion: Initiates discussion with some patients.",
     "E – Engagement: Proactively prescribes across patient profiles."
 ]
 doctor_barriers = [
     "HCP does not consider HZ as risk",
-    "No time to discuss preventive measures",
+    "No time to discuss prevention",
     "Cost considerations",
     "Not convinced HZ Vx effective",
     "Accessibility issues"
@@ -129,61 +122,47 @@ doctor_barriers = [
 objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
-gsk_approaches = ["Use data-driven evidence", "Focus on patient outcomes", "Leverage storytelling techniques"]
-sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
 
-# --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand", options=list(gsk_brands.keys()))
 segment = st.sidebar.selectbox("Select RACE Segment", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier", options=doctor_barriers, default=[])
-objective = st.sidebar.selectbox("Select Objective", options=objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty", options=specialties)
-persona = st.sidebar.selectbox("Select HCP Persona", options=personas)
-response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
+barrier = st.sidebar.multiselect("Select Doctor Barrier", doctor_barriers, default=[])
+objective = st.sidebar.selectbox("Select Objective", objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty", specialties)
+persona = st.sidebar.selectbox("Select HCP Persona", personas)
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-interface_mode = st.sidebar.radio("Interface Mode", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- PDF Summarization ---
-st.sidebar.subheader("📑 Summarize Medical PDF")
-uploaded_pdf = st.sidebar.file_uploader("Upload PDF", type="pdf")
+# --- PDF Upload & Summarize (in main UI) ---
+st.subheader("📄 Upload PDF for Summarization")
+uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+if uploaded_file is not None:
+    import pdfplumber
+    with pdfplumber.open(uploaded_file) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
 
-if uploaded_pdf is not None:
-    with pdfplumber.open(uploaded_pdf) as pdf:
-        text = ""
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    st.sidebar.success("PDF uploaded. Click to generate summary.")
-    if st.sidebar.button("Summarize PDF"):
-        summary_prompt = f"Summarize the following medical document in {language}:\n\n{text[:5000]}"
-        response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[{"role": "system", "content": "You are a medical summarizer."},
-                      {"role": "user", "content": summary_prompt}],
-            temperature=0.5
-        )
-        summary = response.choices[0].message.content
-        st.sidebar.write("### 📝 PDF Summary")
-        st.sidebar.write(summary)
+    preview = text[:1500] + ("..." if len(text) > 1500 else "")
+    with st.expander("📖 PDF Preview (click to expand)"):
+        st.text(preview)
 
-# --- Display brand image ---
-image_path = gsk_brands_images.get(brand)
-try:
-    if image_path.startswith("http"):
-        response = requests.get(image_path)
-        img = Image.open(BytesIO(response.content))
-    else:
-        img = Image.open(image_path)
-    st.image(img, width=200)
-except:
-    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+    # Generate summary
+    if st.button("Summarize PDF"):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": "You summarize PDFs for pharma sales training."},
+                    {"role": "user", "content": f"Summarize this PDF:\n{text[:4000]}"}
+                ]
+            )
+            st.session_state.pdf_summary = response.choices[0].message.content
+            st.success("✅ PDF summary generated.")
+        except Exception as e:
+            st.error(f"Error summarizing PDF: {e}")
 
-# --- Clear chat ---
-if st.button("🗑️ Clear Chat"):
-    st.session_state.chat_history = []
+if st.session_state.pdf_summary:
+    st.markdown("### 📌 PDF Summary")
+    st.write(st.session_state.pdf_summary)
 
-# --- Chat history display ---
+# --- Chat history ---
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
 
@@ -191,93 +170,72 @@ def display_chat():
     chat_html = ""
     for msg in st.session_state.chat_history:
         time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
-
-        # Highlight APACT steps
-        apact_steps = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
-        for step in apact_steps:
+        content = msg["content"].replace("\n", "<br>")
+        for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
             content = content.replace(step, f"<span class='highlight'>{step}</span>")
-
         if msg["role"] == "user":
             chat_html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
-            chat_html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span>"
-            if "audio" in msg and msg["audio"]:
-                chat_html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-            chat_html += "</div>"
-
+            chat_html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
 
 display_chat()
 
-# --- Chat input form ---
+# --- Chat input ---
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+    submitted = st.form_submit_button("➤", help="Send", use_container_width=True)
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-    
-    # --- AI prompt ---
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": user_input,
+        "time": datetime.now().strftime("%H:%M")
+    })
+
+    pdf_context = f"\nRelevant PDF summary:\n{st.session_state.pdf_summary}" if st.session_state.pdf_summary else ""
+
     prompt = f"""
 Language: {language}
-User input: {user_input}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+User: {user_input}
+Segment: {segment}
+Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-Sales Call Flow: {' → '.join(sales_call_flow)}
-Use APACT (Acknowledge → Probing → Action → Confirm → Transition) technique.
-Response Length: {response_length}
-Response Tone: {response_tone}
-Provide actionable suggestions tailored to this persona in a professional manner.
+Specialty: {specialty}
+Persona: {persona}
+Use APACT steps (Acknowledge → Probing → Action → Confirm → Transition).
+Tone: {response_tone}
+{pdf_context}
 """
 
-    # --- Groq API call ---
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {"role": "system", "content": f"You are a helpful AI sales assistant that responds in {language}."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7
-    )
-    ai_output = response.choices[0].message.content
-
-    # --- Voice synthesis ---
     try:
-        tts_response = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice="alloy",
-            input=ai_output
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": f"You are a helpful AI sales assistant in {language}."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.6
         )
-        audio_bytes = b"".join(tts_response.iter_bytes())
-        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+        ai_output = response.choices[0].message.content
     except Exception as e:
-        audio_base64 = None
-        st.error(f"⚠️ Voice synthesis failed: {e}")
+        ai_output = f"⚠️ Error from Groq API: {e}"
 
     st.session_state.chat_history.append({
         "role": "ai",
         "content": ai_output,
-        "time": datetime.now().strftime("%H:%M"),
-        "audio": audio_base64
+        "time": datetime.now().strftime("%H:%M")
     })
-
     display_chat()
 
-# --- Word download ---
+# --- Download Word ---
 if DOCX_AVAILABLE and st.session_state.chat_history:
+    from io import BytesIO
     latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
     if latest_ai:
         doc = Document()
         doc.add_heading("AI Sales Call Response", 0)
         doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
-
-# --- Brand leaflet ---
-st.markdown(f"[📑 Brand Leaflet - {brand}]({gsk_brands[brand]})")
+        buf = BytesIO()
+        doc.save(buf)
+        st.download_button("📥 Download AI Response (.docx)", buf.getvalue(), "AI_Response.docx")
