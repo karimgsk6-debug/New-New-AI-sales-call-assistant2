@@ -60,7 +60,7 @@ st.markdown(f"""
     background-size: cover;
 }}
 .title-box {{
-    background: rgba(240,240,240,0.2);
+    background: rgba(255,255,255,0.2);
     backdrop-filter: blur(10px);
     padding: 15px;
     border-radius: 12px;
