@@ -24,7 +24,7 @@ except ImportError:
 # ----------------------------
 # GROQ client
 # ----------------------------
-client = Groq(api_key="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")
+client = Groq(api_key="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")
 
 # ----------------------------
 # Session state
@@ -61,24 +61,22 @@ st.markdown(f"""
     background-size: cover;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.7);
-    backdrop-filter: blur(1px);
-    padding: 15px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    color: black;
+    background: rgba(255,255,255,0.8);
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 20px;
 }}
 .disclaimer {{
-    font-size: 12px;
+    font-size: 14px;
     color: black;
     background: rgba(255,255,255,0.7);
-    padding: 6px;
-    border-radius: 6px;
+    padding: 8px;
+    border-radius: 8px;
 }}
 .chat-bubble-user {{
     text-align: right;
     background: rgba(220,248,198,0.85);
-    padding: 10px;
+    padding: 12px;
     border-radius: 15px 15px 0px 15px;
     margin: 5px;
     display: inline-block;
@@ -88,7 +86,7 @@ st.markdown(f"""
 .chat-bubble-ai {{
     text-align: left;
     background: rgba(240,242,246,0.7);
-    padding: 10px;
+    padding: 12px;
     border-radius: 15px 15px 15px 0px;
     margin: 5px;
     display: inline-block;
@@ -108,7 +106,7 @@ st.markdown(f"""
 }}
 .chat-input-container input {{
     flex:1;
-    padding:10px;
+    padding:12px;
     border-radius:20px;
     border:none;
     outline:none;
@@ -131,19 +129,24 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Title & disclaimer
+# Top section: title + logo right
 # ----------------------------
-logo_url = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
-col1, col2 = st.columns([1,5])
-with col1:
-    st.image(logo_url, width=120)
-with col2:
-    st.markdown(
-        "<div class='title-box'><h2>💡 AI Sales Call Assistant</h2>"
-        "<p>Powered by AI to equip sales reps for smarter HCP conversations</p></div>",
-        unsafe_allow_html=True
-    )
-    st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
+logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+st.markdown(f"""
+<div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div style="flex:1;">
+        <div class='title-box'>
+            <h1 style='margin:0; font-size:32px;'>💡 AI Sales Call Assistant</h1>
+            <p style='margin:5px 0 0 0; font-size:18px;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
+        </div>
+    </div>
+    <div style="flex-shrink:0;">
+        <img src="{logo_url}" width="160" style="border-radius:8px;">
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
 
 # ----------------------------
 # Brand & filters
@@ -177,51 +180,17 @@ gsk_approaches = ["Use data-driven evidence","Focus on patient outcomes","Levera
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Influence","Drive Impact","Post Call Analysis"]
 
 # ----------------------------
-# Sidebar filters
+# Sidebar filters in expander with bold header
 # ----------------------------
-st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", list(gsk_brands.keys()))
-segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", doctor_barriers)
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", specialties)
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", personas)
-response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short","Medium","Long"])
-response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal","Casual","Friendly","Persuasive"])
-interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot","Card Dashboard","Flow Visualization"])
-
-# ----------------------------
-# PDF upload & reference
-# ----------------------------
-uploaded_pdf = st.file_uploader("Upload PDF for AI reference / تحميل PDF للرجوع إليه", type="pdf")
-show_more_toggle = st.checkbox("Show full PDF text / عرض النص الكامل للـ PDF", value=False)
-if uploaded_pdf:
-    pdf_text=""
-    with pdfplumber.open(uploaded_pdf) as pdf:
-        for page in pdf.pages:
-            pdf_text += page.extract_text() or ""
-    st.session_state.uploaded_pdf_text = pdf_text if show_more_toggle else pdf_text[:1000]+"..."
-    matches = re.findall(r"(?:CDC|FDA|Guideline|Study|202\d)[^.\n]*", pdf_text, flags=re.I)
-    st.session_state.extracted_medical_ref = ", ".join(matches) if matches else ""
-    st.markdown(f"**PDF Preview:** {st.session_state.uploaded_pdf_text}")
-    if st.session_state.extracted_medical_ref:
-        st.info(f"📄 Extracted Medical Reference(s): {st.session_state.extracted_medical_ref}")
-
-# ----------------------------
-# Brand image
-# ----------------------------
-try:
-    img_url = gsk_brands_images.get(brand)
-    if img_url.startswith("http"):
-        img = Image.open(BytesIO(requests.get(img_url).content))
-        st.image(img,width=200)
-except:
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image",width=200)
-
-# ----------------------------
-# Clear chat
-# ----------------------------
-if st.button("🗑️ Clear Chat / مسح المحادثة"):
-    st.session_state.chat_history=[]
-
-# ----------------
+with st.sidebar.expander("Filters & Options", expanded=True):
+    st.markdown("<div style='background: rgba(255,255,255,0.85); font-weight:bold; padding:10px; border-radius:8px; margin-bottom:10px;'>Select your filters below</div>", unsafe_allow_html=True)
+    
+    brand = st.selectbox("Select Brand / اختر العلامة التجارية", list(gsk_brands.keys()))
+    segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+    barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", doctor_barriers)
+    objective = st.selectbox("Select Objective / اختر الهدف", objectives)
+    specialty = st.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", specialties)
+    persona = st.selectbox("Select HCP Persona / اختر شخصية الطبيب", personas)
+    response_length = st.selectbox("Response Length / اختر طول الرد", ["Short","Medium","Long"])
+    response_tone = st.selectbox("Response Tone / اختر نبرة الرد", ["Formal","Casual","Friendly","Persuasive"])
+    interface_mode = st.radio("Interface Mode / اختر واجهة", ["Chatbot","Card Dashboard","Flow Visualization"])
