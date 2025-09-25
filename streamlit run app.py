@@ -129,21 +129,21 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Top section: logo pinned left + right title box
+# Top-right GSK logo (fixed position)
 # ----------------------------
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 st.markdown(f"""
-<div style="display:flex; justify-content: flex-start; align-items: center; margin-bottom: 20px;">
-    <div style="flex-shrink:0; margin-right:20px;">
-        <img src="{logo_url}" width="140" style="border-radius:8px;">
-    </div>
-    <div style="flex:1; text-align:center;">
-        <div class='title-box'>
-            <h1 style='margin:0; font-size:36px;'>💡 AI Sales Call Assistant</h1>
-            <p style='margin:5px 0 0 0; font-size:18px;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
-        </div>
-    </div>
+<style>
+.gsk-logo {{
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    z-index: 1000;
+}}
+</style>
+<div class="gsk-logo">
+    <img src="{logo_url}" width="140">
 </div>
 """, unsafe_allow_html=True)
 
