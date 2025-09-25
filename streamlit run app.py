@@ -62,10 +62,10 @@ st.markdown(f"""
 .title-box {{
     background: rgba(255,255,250,0.2);
     backdrop-filter: blur(5px);
-    padding: 15px;
+    padding: 25px;
     border-radius: 12px;
     margin-bottom: 15px;
-    color: black;
+    color: Orange;
 }}
 .disclaimer {{
     font-size: 12px;
