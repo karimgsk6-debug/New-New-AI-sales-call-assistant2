@@ -33,7 +33,7 @@ if "groq_api_key" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
+BACKGROUND_URL = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
 
 st.markdown(f"""
 <style>
