@@ -25,7 +25,7 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # --- Background Image (CSS injection) ---
-background_url = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-121033.jpg?semt=ais_incoming&w=740&q=80"
+background_url = https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
 page_bg_css = f"""
 <style>
 .stApp {{
