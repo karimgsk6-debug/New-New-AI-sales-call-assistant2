@@ -129,49 +129,58 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# GSK logo (top-right) + Title box shifted down
+# GSK logo (top-right, shifted down) + Bigger Title & Disclaimer
 # ----------------------------
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 st.markdown(f"""
 <style>
-.top-container {{
-    margin-top: 60px;  /* shift down ~3 cm */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}}
 .gsk-logo {{
-    position: absolute;
-    top: 0;
+    position: fixed;
+    top: 60px;   /* ~3 cm below Streamlit bar */
     right: 20px;
+    z-index: 1000;
 }}
 .title-box {{
     background: rgba(255,255,255,0.85);
-    padding: 25px;
-    border-radius: 15px;
+    padding: 35px;              /* bigger padding */
+    border-radius: 18px;
     text-align: center;
-    max-width: 70%;
+    max-width: 75%;
+    margin: 20px auto;
+}}
+.title-box h1 {{
+    margin: 0;
+    font-size: 42px;            /* bigger title */
+    font-weight: 700;
+}}
+.title-box p {{
+    margin: 8px 0 0 0;
+    font-size: 22px;            /* bigger subtitle */
+}}
+.disclaimer {{
+    text-align: center;
+    padding: 14px;
+    font-size: 16px;            /* slightly bigger disclaimer */
+    font-weight: 500;
 }}
 </style>
 
-<div class="top-container">
-    <div class="title-box">
-        <h1 style='margin:0; font-size:36px;'>💡 AI Sales Call Assistant</h1>
-        <p style='margin:5px 0 0 0; font-size:18px;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
-    </div>
-    <div class="gsk-logo">
-        <img src="{logo_url}" width="140">
-    </div>
+<!-- GSK Logo -->
+<div class="gsk-logo">
+    <img src="{logo_url}" width="140">
 </div>
+
+<!-- Title -->
+<div class="title-box">
+    <h1>💡 AI Sales Call Assistant</h1>
+    <p>Powered by AI to equip sales reps for smarter HCP conversations</p>
+</div>
+
+<!-- Disclaimer -->
+<p class="disclaimer">⚠️ Disclaimer: For training and educational purposes only.</p>
 """, unsafe_allow_html=True)
 
-# Disclaimer stays centered below
-st.markdown(
-    "<p class='disclaimer' style='text-align:center; padding:10px; font-size:14px;'>⚠️ Disclaimer: For training and educational purposes only.</p>",
-    unsafe_allow_html=True
-)
 
 # ----------------------------
 # Brand & filters
