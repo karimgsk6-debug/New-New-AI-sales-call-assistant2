@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageStat
+from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
 import base64
@@ -21,14 +21,18 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # ----------------------------
+# Insert your GROQ API key here
+# ----------------------------
+GROQ_API_KEY = "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"
+client = Groq(api_key=GROQ_API_KEY)
+
+# ----------------------------
 # Session state
 # ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
-if "groq_api_key" not in st.session_state:
-    st.session_state.groq_api_key = ""
 
 # ----------------------------
 # Background image
@@ -124,13 +128,6 @@ with col2:
     st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
 
 # ----------------------------
-# GROQ API Key input
-# ----------------------------
-st.text_input("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", type="password", key="groq_api_key")
-GROQ_API_KEY = st.session_state.groq_api_key.strip()
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-# ----------------------------
 # Sidebar - Filters
 # ----------------------------
 st.sidebar.header("Filters & Options")
@@ -180,6 +177,7 @@ def display_chat():
             html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span></div>"
         else:
             html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span>"
+            # display AI text first, then voice
             if "audio" in msg and msg["audio"]:
                 html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
             html += "</div>"
@@ -215,19 +213,16 @@ Response Tone: {response_tone}, Length: {response_length}.
 """
 
     # Generate AI response
-    if client:
-        try:
-            resp = client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[{"role":"system","content":"You are a helpful AI sales assistant."},
-                          {"role":"user","content":prompt}],
-                temperature=0.7
-            )
-            ai_output = resp.choices[0].message.content
-        except Exception as e:
-            ai_output = f"⚠️ Error generating response: {e}"
-    else:
-        ai_output = "⚠️ GROQ API key not provided."
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{"role":"system","content":"You are a helpful AI sales assistant."},
+                      {"role":"user","content":prompt}],
+            temperature=0.7
+        )
+        ai_output = resp.choices[0].message.content
+    except Exception as e:
+        ai_output = f"⚠️ Error generating response: {e}"
 
     # Voice support
     try:
