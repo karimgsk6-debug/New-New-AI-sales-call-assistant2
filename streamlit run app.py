@@ -19,7 +19,8 @@ except ImportError:
 client = Groq(api_key="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")  # 🔑 Insert your Groq API key here
 
 # --- Background image ---
-bg_url = "https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80"
+https://img.freepik.com/free-photo/excited-smiling-woman-holding-digital-tablet-staring-amazed-camera-after-seeing-cool-offer-online_1258-118808.jpg?semt=ais_hybrid&w=740&q=80
+bg_url = "https://png.pngtree.com/png-vector/20240403/ourmid/pngtree-professional-woman-working-on-laptop-at-desk-in-business-attire-png-image_12256815.png"
 st.markdown(
     f"""
     <style>
