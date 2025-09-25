@@ -61,7 +61,7 @@ st.markdown(f"""
 }}
 .title-box {{
     background: rgba(255,255,255,0.7);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(1px);
     padding: 15px;
     border-radius: 12px;
     margin-bottom: 15px;
