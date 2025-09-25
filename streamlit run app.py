@@ -81,6 +81,8 @@ st.markdown(f"""
     display: inline-block;
     max-width: 80%;
     color: {text_color};
+    opacity:0;
+    animation: fadeIn 1s forwards;
 }}
 .chat-bubble-ai {{
     text-align: left;
@@ -91,6 +93,11 @@ st.markdown(f"""
     display: inline-block;
     max-width: 80%;
     color: {text_color};
+    opacity:0;
+    animation: fadeIn 1s forwards;
+}}
+@keyframes fadeIn {{
+    to {{ opacity: 1; }}
 }}
 .highlight {{
     font-weight: bold;
@@ -134,6 +141,7 @@ st.markdown(f"""
     background-size: cover;
     opacity: 0.3;
     z-index: -1;
+    transition: transform 0.5s ease-in-out;
 }}
 </style>
 <div class="bg-right"></div>
@@ -213,71 +221,3 @@ def display_chat():
             html += "</div>"
     chat_placeholder.markdown(html, unsafe_allow_html=True)
 display_chat()
-
-# ----------------------------
-# Chat input
-# ----------------------------
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("▶️")
-
-if submitted and user_input.strip():
-    st.session_state.chat_history.append({
-        "role":"user","content":user_input,
-        "time": datetime.now().strftime("%H:%M")
-    })
-
-    pdf_context = st.session_state.uploaded_pdf_text or "No PDF uploaded."
-    prompt = f"""
-User input: {user_input}
-Brand: {brand}
-Segment: {segment}
-Barriers: {', '.join(barrier) if barrier else 'None'}
-Specialty: {specialty}
-Persona: {persona}
-PDF Reference: {pdf_context}
-Use APACT (Acknowledge → Probing → Action → Confirm → Transition) for handling objections.
-Response Tone: {response_tone}, Length: {response_length}.
-"""
-
-    # AI Response
-    try:
-        resp = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[{"role":"system","content":"You are a helpful AI sales assistant."},
-                      {"role":"user","content":prompt}],
-            temperature=0.7
-        )
-        ai_output = resp.choices[0].message.content
-    except Exception as e:
-        ai_output = f"⚠️ Error generating response: {e}"
-
-    # Voice support
-    try:
-        tts = edge_tts.Communicate(ai_output, voice="en-US-JennyNeural")
-        filename = f"tts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
-        asyncio.run(tts.save(filename))
-        audio_bytes = open(filename,"rb").read()
-        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-    except Exception:
-        audio_base64 = None
-
-    st.session_state.chat_history.append({
-        "role":"ai","content":ai_output,
-        "time": datetime.now().strftime("%H:%M"),
-        "audio": audio_base64
-    })
-    display_chat()
-
-# ----------------------------
-# Word download
-# ----------------------------
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
