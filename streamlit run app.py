@@ -37,16 +37,17 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://sdmntpreastus.oaiusercontent.com/files/00000000-82b4-61f9-8d36-a8e803b687c1/raw?se=2025-09-25T14%3A54%3A59Z&sp=r&sv=2024-08-04&sr=b&scid=35782cae-8bf5-544a-a2c0-4af84f3b9054&skoid=0da8417a-a4c3-4a19-9b05-b82cee9d8868&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-24T17%3A20%3A35Z&ske=2025-09-25T17%3A20%3A35Z&sks=b&skv=2024-08-04&sig=afnC0cUoNgeK1hbYvVq6UYPyo6cML6VbSxyGuvMARfk%3D"
+BACKGROUND_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-8c24-6246-b947-3ef1cee0e808/raw?se=2025-09-25T15%3A07%3A54Z&sp=r&sv=2024-08-04&sr=b&scid=45678bf3-7869-5a07-a75f-2c6cea419aa8&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T04%3A24%3A32Z&ske=2025-09-26T04%3A24%3A32Z&sks=b&skv=2024-08-04&sig=wTpFKb2Ti3tky9B/xG4K4jSa/71Vyg9oK6DUxqYs25o%3D"
 
+# Get average brightness for text/button color adjustment
 def get_brightness(url):
     try:
         response = requests.get(url)
-        img = Image.open(BytesIO(response.content)).convert("L")
+        img = Image.open(BytesIO(response.content)).convert("L")  # grayscale
         stat = ImageStat.Stat(img)
         return stat.mean[0]
     except:
-        return 255
+        return 255  # default bright
 
 brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
@@ -55,49 +56,43 @@ button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 st.markdown(f"""
 <style>
 .stApp {{
-    background: none;  /* we move the image to right-end container below */
+    background: url("{BACKGROUND_URL}") no-repeat center right fixed;
+    background-size: cover;
 }}
 .title-box {{
-    background: rgba(250,250,250,0.2);
-    backdrop-filter: blur(5px);
-    padding: 10px;
+    background: rgba(255,255,255,0.4);
+    backdrop-filter: blur(8px);
+    padding: 15px;
     border-radius: 12px;
     margin-bottom: 15px;
-    color: White;
+    color: black;
 }}
 .disclaimer {{
-    font-size: 15px;
+    font-size: 12px;
     color: black;
-    background: rgba(250,250,250,0.2);
-    padding: 5px;
+    background: rgba(255,255,255,0.7);
+    padding: 6px;
     border-radius: 6px;
 }}
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(200,200,200,0.2);
+    background: rgba(220,248,198,0.85);
     padding: 10px;
     border-radius: 15px 15px 0px 15px;
     margin: 5px;
     display: inline-block;
     max-width: 80%;
     color: {text_color};
-    opacity:0;
-    animation: fadeIn 1s forwards;
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(250,250,250,0.5);
+    background: rgba(240,242,246,0.7);
     padding: 10px;
     border-radius: 15px 15px 15px 0px;
     margin: 5px;
     display: inline-block;
     max-width: 80%;
     color: {text_color};
-    opacity:0;
-    animation: fadeIn 1s forwards;
-}}
-@keyframes fadeIn {{
-    to {{ opacity: 1; }}
 }}
 .highlight {{
     font-weight: bold;
@@ -131,20 +126,7 @@ st.markdown(f"""
     background-color: {button_bg};
     color: white;
 }}
-.bg-right {{
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 40%;
-    height: 100%;
-    background: url("{BACKGROUND_URL}") no-repeat center top;
-    background-size: cover;
-    opacity: 0.3;
-    z-index: -1;
-    transition: transform 0.5s ease-in-out;
-}}
 </style>
-<div class="bg-right"></div>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -160,7 +142,7 @@ with col2:
         "<p>Powered by AI to equip sales reps for smarter HCP conversations</p></div>",
         unsafe_allow_html=True
     )
-    st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='disclaimer'>⚠️ For training and educational purposes only.</p>", unsafe_allow_html=True)
 
 # ----------------------------
 # Sidebar - Filters
@@ -197,7 +179,7 @@ if uploaded_pdf:
     st.markdown(f"**PDF Preview:** {st.session_state.uploaded_pdf_text}")
 
 # ----------------------------
-# Clear chat button
+# Clear Chat History
 # ----------------------------
 if st.button("🗑️ Clear Chat History"):
     st.session_state.chat_history = []
@@ -221,3 +203,72 @@ def display_chat():
             html += "</div>"
     chat_placeholder.markdown(html, unsafe_allow_html=True)
 display_chat()
+
+# ----------------------------
+# Chat input and AI Response
+# ----------------------------
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message...", key="user_input_box")
+    submitted = st.form_submit_button("▶️")  # ChatGPT-style send
+
+if submitted and user_input.strip():
+    st.session_state.chat_history.append({
+        "role":"user",
+        "content": user_input,
+        "time": datetime.now().strftime("%H:%M")
+    })
+
+    pdf_context = st.session_state.uploaded_pdf_text or "No PDF uploaded."
+    prompt = f"""
+User input: {user_input}
+Brand: {brand}
+Segment: {segment}
+Barriers: {', '.join(barrier) if barrier else 'None'}
+Specialty: {specialty}
+Persona: {persona}
+PDF Reference: {pdf_context}
+Use APACT (Acknowledge → Probing → Action → Confirm → Transition) for handling objections.
+Response Tone: {response_tone}, Length: {response_length}.
+"""
+
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{"role":"system","content":"You are a helpful AI sales assistant."},
+                      {"role":"user","content":prompt}],
+            temperature=0.7
+        )
+        ai_output = resp.choices[0].message.content
+    except Exception as e:
+        ai_output = f"⚠️ Error generating response: {e}"
+
+    # Voice support
+    try:
+        tts = edge_tts.Communicate(ai_output, voice="en-US-JennyNeural")
+        filename = f"tts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
+        asyncio.run(tts.save(filename))
+        audio_bytes = open(filename,"rb").read()
+        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+    except Exception:
+        audio_base64 = None
+
+    st.session_state.chat_history.append({
+        "role":"ai",
+        "content": ai_output,
+        "time": datetime.now().strftime("%H:%M"),
+        "audio": audio_base64
+    })
+    display_chat()
+
+# ----------------------------
+# Word download
+# ----------------------------
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response",0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io_bytes()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
