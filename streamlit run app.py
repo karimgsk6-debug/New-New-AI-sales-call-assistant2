@@ -65,7 +65,7 @@ st.markdown(f"""
     padding: 10px;
     border-radius: 12px;
     margin-bottom: 15px;
-    color: Dark blue;
+    color: White;
 }}
 .disclaimer {{
     font-size: 15px;
@@ -86,7 +86,7 @@ st.markdown(f"""
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(240,242,246,0.7);
+    background: rgba(250,250,250,0.5);
     padding: 10px;
     border-radius: 15px 15px 15px 0px;
     margin: 5px;
