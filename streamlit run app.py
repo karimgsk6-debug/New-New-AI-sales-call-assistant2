@@ -1,18 +1,16 @@
 import streamlit as st
-from PIL import Image, ImageStat
+from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
-import base64
-from datetime import datetime
 import groq
 from groq import Groq
+from datetime import datetime
+import pdfplumber
 import asyncio
 import edge_tts
-import pdfplumber
+import re
 
-# ----------------------------
-# Optional Word download
-# ----------------------------
+# --- Optional dependency for Word download ---
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -20,248 +18,176 @@ except ImportError:
     DOCX_AVAILABLE = False
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# ----------------------------
-# Insert your GROQ API key here
-# ----------------------------
-GROQ_API_KEY = "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"
-client = Groq(api_key=GROQ_API_KEY)
+# --- Initialize Groq client ---
+client = Groq(api_key="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")
 
-# ----------------------------
-# Session state
-# ----------------------------
+# --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
+if "extracted_medical_ref" not in st.session_state:
+    st.session_state.extracted_medical_ref = ""
 
-# ----------------------------
-# Background image
-# ----------------------------
-BACKGROUND_URL = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A15%3A06Z&sp=r&sv=2024-08-04&sr=b&scid=6870570a-c416-5cac-816d-8f43608d4723&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T03%3A34%3A38Z&ske=2025-09-26T03%3A34%3A38Z&sks=b&skv=2024-08-04&sig=zeUa/UVyTIdgz6/Qm5s/D47aOZrYQj/LJX9T60q%2BXBw%3D"
+# --- Language ---
+language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
 
-# Get average brightness for text/button color adjustment
-def get_brightness(url):
-    try:
-        response = requests.get(url)
-        img = Image.open(BytesIO(response.content)).convert("L")  # grayscale
-        stat = ImageStat.Stat(img)
-        return stat.mean[0]
-    except:
-        return 255  # default bright
-
-brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
-button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
-
-st.markdown(f"""
-<style>
-.stApp {{
-    background: url("{BACKGROUND_URL}") no-repeat center top fixed;
-    background-size: cover;
-}}
-.title-box {{
-    background: rgba(255,255,255,0.7);
-    backdrop-filter: blur(1px);
-    padding: 15px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    color: black;
-}}
-.disclaimer {{
-    font-size: 12px;
-    color: black;
-    background: rgba(255,255,255,0.7);
-    padding: 6px;
-    border-radius: 6px;
-}}
-.chat-bubble-user {{
-    text-align: right;
-    background: rgba(220,248,198,0.85);
-    padding: 10px;
-    border-radius: 15px 15px 0px 15px;
-    margin: 5px;
-    display: inline-block;
-    max-width: 80%;
-    color: {text_color};
-}}
-.chat-bubble-ai {{
-    text-align: left;
-    background: rgba(240,242,246,0.7);
-    padding: 10px;
-    border-radius: 15px 15px 15px 0px;
-    margin: 5px;
-    display: inline-block;
-    max-width: 80%;
-    color: {text_color};
-}}
-.highlight {{
-    font-weight: bold;
-    background-color: yellow;
-    color: black;
-    padding: 2px 4px;
-    border-radius: 4px;
-}}
-.chat-input-container {{
-    display: flex;
-    margin-top: 10px;
-}}
-.chat-input-container input {{
-    flex:1;
-    padding:10px;
-    border-radius:20px;
-    border:none;
-    outline:none;
-    backdrop-filter: blur(8px);
-    background-color: rgba(255,255,255,0.4);
-    color: {text_color};
-}}
-.chat-input-container button {{
-    margin-left:5px;
-    border:none;
-    border-radius:50%;
-    width:45px;
-    height:45px;
-    cursor:pointer;
-    font-weight:bold;
-    background-color: {button_bg};
-    color: white;
-}}
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------------------
-# Title & disclaimer
-# ----------------------------
-logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+# --- GSK Logo ---
+logo_local_path = "images/gsk_logo.png"
+logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 col1, col2 = st.columns([1,5])
 with col1:
-    st.image(logo_url, width=120)
+    try:
+        logo_img = Image.open(logo_local_path)
+        st.image(logo_img, width=120)
+    except:
+        st.image(logo_fallback_url, width=120)
 with col2:
-    st.markdown(
-        "<div class='title-box'><h2>💡 AI Sales Call Assistant</h2>"
-        "<p>Powered by AI to equip sales reps for smarter HCP conversations</p></div>",
-        unsafe_allow_html=True
-    )
-    st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
+    st.title("🧠 AI Sales Call Assistant")
 
-# ----------------------------
-# Sidebar - Filters
-# ----------------------------
+# --- Brand & product data ---
+gsk_brands = {
+    "Shingrix": "https://example.com/shingrix-leaflet",
+    "Trelegy": "https://example.com/trelegy-leaflet",
+    "Zejula": "https://example.com/zejula-leaflet",
+}
+gsk_brands_images = {
+    "Trelegy": "https://www.example.com/trelegy.png",
+    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
+}
+
+# --- Filters & options (updated HCP segments & barriers) ---
+race_segments = [
+    "R – Reach: Did not start to prescribe yet and don't believe vaccination is their responsibility.",
+    "A – Acquisition: Prescribe to patient who initiates discussion but convinced about data.",
+    "C – Conversion: Proactively initiate discussion with specific patient profile.",
+    "E – Engagement: Proactively prescribe to different patient profiles."
+]
+doctor_barriers = [
+    "HCP does not consider HZ as risk",
+    "No time for discussion",
+    "Cost concerns",
+    "Not convinced of efficacy",
+    "Accessibility/Logistics",
+    "Patient reluctance",
+    "Other clinical doubts"
+]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+personas = [
+    "Uncommitted Vaccinator",
+    "Reluctant Efficiency",
+    "Patient Influenced",
+    "Committed Vaccinator"
+]
+gsk_approaches = [
+    "Use data-driven evidence",
+    "Focus on patient outcomes",
+    "Leverage storytelling techniques"
+]
+sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
+
+# --- Sidebar filters ---
 st.sidebar.header("Filters & Options")
-brands = ["Shingrix","Trelegy","Zejula"]
-brand = st.sidebar.selectbox("Brand", brands)
-segments = ["R – Reach","A – Acquisition","C – Conversion","E – Engagement"]
-segment = st.sidebar.selectbox("RACE Segment", segments)
-barriers = ["HCP does not consider HZ as risk","No time","Cost","Not convinced","Accessibility"]
-barrier = st.sidebar.multiselect("Doctor Barrier", options=barriers)
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist"]
-specialty = st.sidebar.selectbox("Specialty", specialties)
-personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-persona = st.sidebar.selectbox("Persona", personas)
-response_tone = st.sidebar.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
-response_length = st.sidebar.selectbox("Response Length", ["Short","Medium","Long"])
+brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
+barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
+objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
+specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
+response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
+interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# ----------------------------
-# PDF Upload & Summarize
-# ----------------------------
-uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type="pdf")
-show_more_toggle = st.checkbox("Show full PDF text", value=False)
+# --- PDF Upload & automatic medical reference extraction ---
+uploaded_pdf = st.file_uploader("Upload PDF for AI reference / تحميل PDF للرجوع إليه", type="pdf")
+show_more_toggle = st.checkbox("Show full PDF text / عرض النص الكامل للـ PDF", value=False)
 
 if uploaded_pdf:
     pdf_text = ""
     with pdfplumber.open(uploaded_pdf) as pdf:
         for page in pdf.pages:
             pdf_text += page.extract_text() or ""
-    if not show_more_toggle:
-        st.session_state.uploaded_pdf_text = pdf_text[:1000]+"..."  # truncate
-    else:
-        st.session_state.uploaded_pdf_text = pdf_text
+    st.session_state.uploaded_pdf_text = pdf_text if show_more_toggle else pdf_text[:1000]+"..."
+    
+    # Extract medical references
+    matches = re.findall(r"(?:CDC|FDA|Guideline|Study|202\d)[^.\n]*", pdf_text, flags=re.I)
+    st.session_state.extracted_medical_ref = ", ".join(matches) if matches else ""
+    
     st.markdown(f"**PDF Preview:** {st.session_state.uploaded_pdf_text}")
+    if st.session_state.extracted_medical_ref:
+        st.info(f"📄 Extracted Medical Reference(s): {st.session_state.extracted_medical_ref}")
 
-# ----------------------------
-# Chat display
-# ----------------------------
+# --- Display brand image safely ---
+image_path = gsk_brands_images.get(brand)
+try:
+    if image_path.startswith("http"):
+        response = requests.get(image_path)
+        img = Image.open(BytesIO(response.content))
+    else:
+        img = Image.open(image_path)
+    st.image(img, width=200)
+except:
+    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
+    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+
+# --- Clear chat ---
+if st.button("🗑️ Clear Chat / مسح المحادثة"):
+    st.session_state.chat_history = []
+
+# --- Chat history display ---
+st.subheader("💬 Chatbot Interface / واجهة الدردشة")
 chat_placeholder = st.empty()
+
 def display_chat():
-    html = ""
+    chat_html = ""
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n","<br>")
-        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
-            content = content.replace(step, f"<span class='highlight'>{step}</span>")
-        if msg["role"]=="user":
-            html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span></div>"
+        time = msg.get("time", "")
+        content = msg["content"].replace('\n', '<br>')
+        apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
+        for step in apact_steps:
+            content = content.replace(step, f"<b>{step}</b><br>")
+
+        if msg["role"] == "user":
+            chat_html += f"""
+            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>
+                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
+            </div>
+            """
         else:
-            html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span>"
-            if "audio" in msg and msg["audio"]:
-                html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-            html += "</div>"
-    chat_placeholder.markdown(html, unsafe_allow_html=True)
+            audio_html = f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg.get('audio','')}' type='audio/mp3'></audio>" if msg.get('audio') else ""
+            chat_html += f"""
+            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>
+                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>{audio_html}
+            </div>
+            """
+    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+
 display_chat()
 
-# ----------------------------
-# Chat input
-# ----------------------------
+# --- Chat input using Streamlit form ---
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("▶️")  # ChatGPT-style send
+    user_input = st.text_input("Type your message / اكتب رسالتك هنا", key="user_input_box")
+    submitted = st.form_submit_button("➤")
+
+async def generate_tts(text, lang):
+    voice = "en-US-JennyNeural" if lang == "English" else "ar-EG-SalmaNeural"
+    tts = edge_tts.Communicate(text, voice=voice)
+    filename = f"tts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
+    await tts.save(filename)
+    audio_bytes = open(filename,"rb").read()
+    return base64.b64encode(audio_bytes).decode("utf-8")
 
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({
-        "role":"user","content":user_input,
-        "time": datetime.now().strftime("%H:%M")
-    })
+    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
+    
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    medical_ref_str = st.session_state.extracted_medical_ref or "None"
 
-    pdf_context = st.session_state.uploaded_pdf_text or "No PDF uploaded."
     prompt = f"""
+Language: {language}
 User input: {user_input}
-Brand: {brand}
-Segment: {segment}
-Barriers: {', '.join(barrier) if barrier else 'None'}
-Specialty: {specialty}
-Persona: {persona}
-PDF Reference: {pdf_context}
-Use APACT (Acknowledge → Probing → Action → Confirm → Transition) for handling objections.
-Response Tone: {response_tone}, Length: {response_length}.
-"""
-
-    # AI Response
-    try:
-        resp = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[{"role":"system","content":"You are a helpful AI sales assistant."},
-                      {"role":"user","content":prompt}],
-            temperature=0.7
-        )
-        ai_output = resp.choices[0].message.content
-    except Exception as e:
-        ai_output = f"⚠️ Error generating response: {e}"
-
-    # Voice support
-    try:
-        tts = edge_tts.Communicate(ai_output, voice="en-US-JennyNeural")
-        filename = f"tts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
-        asyncio.run(tts.save(filename))
-        audio_bytes = open(filename,"rb").read()
-        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-    except Exception:
-        audio_base64 = None
-
-    st.session_state.chat_history.append({
-        "role":"ai","content":ai_output,
-        "time": datetime.now().strftime("%H:%M"),
-        "audio": audio_base64
-    })
-    display_chat()
-
-# ----------------------------
-# Word download
-# ----------------------------
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
-    if latest_ai:
-        doc = Document()
-        doc.add_heading("AI Sales Call Response",0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+RACE Segment: {segment}
+Doctor Barrier: {', '.join(barrier) if barrier else 'None
