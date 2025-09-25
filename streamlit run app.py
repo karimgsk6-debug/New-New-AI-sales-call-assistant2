@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageStat
 import requests
 from io import BytesIO, BytesIO as io_bytes
 import base64
@@ -39,18 +39,33 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 BACKGROUND_URL = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
 
+# Get average brightness for text/button color adjustment
+def get_brightness(url):
+    try:
+        response = requests.get(url)
+        img = Image.open(BytesIO(response.content)).convert("L")  # grayscale
+        stat = ImageStat.Stat(img)
+        return stat.mean[0]
+    except:
+        return 255  # default bright
+
+brightness = get_brightness(BACKGROUND_URL)
+text_color = "black" if brightness > 130 else "white"
+button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
+
 st.markdown(f"""
 <style>
 .stApp {{
     background: url("{BACKGROUND_URL}") no-repeat center top fixed;
     background-size: cover;
-    color: black;
 }}
 .title-box {{
-    background: rgba(0,0,0,0.5);
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(10px);
     padding: 15px;
     border-radius: 12px;
     margin-bottom: 15px;
+    color: black;
 }}
 .disclaimer {{
     font-size: 12px;
@@ -67,7 +82,7 @@ st.markdown(f"""
     margin: 5px;
     display: inline-block;
     max-width: 80%;
-    color: black;
+    color: {text_color};
 }}
 .chat-bubble-ai {{
     text-align: left;
@@ -77,7 +92,7 @@ st.markdown(f"""
     margin: 5px;
     display: inline-block;
     max-width: 80%;
-    color: black;
+    color: {text_color};
 }}
 .highlight {{
     font-weight: bold;
@@ -98,7 +113,7 @@ st.markdown(f"""
     outline:none;
     backdrop-filter: blur(8px);
     background-color: rgba(255,255,255,0.4);
-    color: black;
+    color: {text_color};
 }}
 .chat-input-container button {{
     margin-left:5px;
@@ -108,6 +123,8 @@ st.markdown(f"""
     height:45px;
     cursor:pointer;
     font-weight:bold;
+    background-color: {button_bg};
+    color: white;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -165,24 +182,20 @@ if uploaded_pdf:
 # Chat display
 # ----------------------------
 chat_placeholder = st.empty()
-
 def display_chat():
     html = ""
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n","<br>")
         for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             content = content.replace(step, f"<span class='highlight'>{step}</span>")
-
         if msg["role"]=="user":
             html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span></div>"
         else:
             html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span>"
-            # display AI text first, then voice
             if "audio" in msg and msg["audio"]:
                 html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
             html += "</div>"
     chat_placeholder.markdown(html, unsafe_allow_html=True)
-
 display_chat()
 
 # ----------------------------
@@ -198,7 +211,6 @@ if submitted and user_input.strip():
         "time": datetime.now().strftime("%H:%M")
     })
 
-    # Prepare prompt with PDF context
     pdf_context = st.session_state.uploaded_pdf_text or "No PDF uploaded."
     prompt = f"""
 User input: {user_input}
@@ -212,7 +224,7 @@ Use APACT (Acknowledge → Probing → Action → Confirm → Transition) for ha
 Response Tone: {response_tone}, Length: {response_length}.
 """
 
-    # Generate AI response
+    # AI Response
     try:
         resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -239,7 +251,6 @@ Response Tone: {response_tone}, Length: {response_length}.
         "time": datetime.now().strftime("%H:%M"),
         "audio": audio_base64
     })
-
     display_chat()
 
 # ----------------------------
