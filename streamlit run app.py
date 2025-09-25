@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 from PIL import Image
 import requests
 from io import BytesIO, BytesIO as io_bytes
@@ -6,6 +6,7 @@ import base64
 import groq
 from groq import Groq
 from datetime import datetime
+import pdfplumber
 
 # --- Optional dependency for Word download ---
 try:
@@ -16,21 +17,21 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # 🔑 Insert your Groq API key here
+client = Groq(api_key="YOUR_GROQ_API_KEY")  # 🔑 Insert your Groq API key here
 
 # --- Background image ---
-
 bg_url = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
 st.markdown(
     f"""
     <style>
     .stApp {{
         background: url("{bg_url}") no-repeat center center fixed;
-        background-size: cover;
+        background-size: contain; /* show full image */
+        background-color: black; /* fill empty space */
         color: white;
     }}
     .title-box {{
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.6);
         padding: 15px;
         border-radius: 12px;
         margin-bottom: 15px;
@@ -38,7 +39,7 @@ st.markdown(
     .disclaimer {{
         font-size: 12px;
         color: black;
-        background: rgba(255,255,255,0.7);
+        background: rgba(255,255,255,0.8);
         padding: 6px;
         border-radius: 6px;
     }}
@@ -143,6 +144,28 @@ response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "L
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
 interface_mode = st.sidebar.radio("Interface Mode", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
+# --- PDF Summarization ---
+st.sidebar.subheader("📑 Summarize Medical PDF")
+uploaded_pdf = st.sidebar.file_uploader("Upload PDF", type="pdf")
+
+if uploaded_pdf is not None:
+    with pdfplumber.open(uploaded_pdf) as pdf:
+        text = ""
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+    st.sidebar.success("PDF uploaded. Click to generate summary.")
+    if st.sidebar.button("Summarize PDF"):
+        summary_prompt = f"Summarize the following medical document in {language}:\n\n{text[:5000]}"
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{"role": "system", "content": "You are a medical summarizer."},
+                      {"role": "user", "content": summary_prompt}],
+            temperature=0.5
+        )
+        summary = response.choices[0].message.content
+        st.sidebar.write("### 📝 PDF Summary")
+        st.sidebar.write(summary)
+
 # --- Display brand image ---
 image_path = gsk_brands_images.get(brand)
 try:
@@ -179,11 +202,8 @@ def display_chat():
             chat_html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span></div>"
         else:
             chat_html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px; color:gray;'>{time}</span>"
-
-            # Add voice playback for AI response
-            if "audio" in msg:
+            if "audio" in msg and msg["audio"]:
                 chat_html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-
             chat_html += "</div>"
 
     chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
@@ -233,10 +253,11 @@ Provide actionable suggestions tailored to this persona in a professional manner
             voice="alloy",
             input=ai_output
         )
-        audio_bytes = tts_response.read()
+        audio_bytes = b"".join(tts_response.iter_bytes())
         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-    except Exception:
+    except Exception as e:
         audio_base64 = None
+        st.error(f"⚠️ Voice synthesis failed: {e}")
 
     st.session_state.chat_history.append({
         "role": "ai",
