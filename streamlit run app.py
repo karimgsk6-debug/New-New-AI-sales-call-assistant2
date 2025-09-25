@@ -129,7 +129,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Top-right GSK logo (fixed position)
+# Top-right GSK logo + disclaimer shifted down
 # ----------------------------
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
@@ -137,17 +137,32 @@ st.markdown(f"""
 <style>
 .gsk-logo {{
     position: fixed;
-    top: 15px;
+    top: 60px;   /* ~3 cm down depending on screen resolution */
     right: 20px;
     z-index: 1000;
+    text-align: right;
+}}
+.gsk-disclaimer {{
+    position: fixed;
+    top: 210px;  /* push disclaimer below logo */
+    right: 20px;
+    z-index: 999;
+    background: rgba(255,255,255,0.85);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: black;
 }}
 </style>
+
 <div class="gsk-logo">
     <img src="{logo_url}" width="140">
 </div>
-""", unsafe_allow_html=True)
 
-st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
+<div class="gsk-disclaimer">
+    ⚠️ Disclaimer: For training and educational purposes only.
+</div>
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Brand & filters
