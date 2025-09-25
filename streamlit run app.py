@@ -37,7 +37,7 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
+BACKGROUND_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-8c24-6246-b947-3ef1cee0e808/raw?se=2025-09-25T15%3A07%3A54Z&sp=r&sv=2024-08-04&sr=b&scid=45678bf3-7869-5a07-a75f-2c6cea419aa8&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T04%3A24%3A32Z&ske=2025-09-26T04%3A24%3A32Z&sks=b&skv=2024-08-04&sig=wTpFKb2Ti3tky9B/xG4K4jSa/71Vyg9oK6DUxqYs25o%3D"
 
 # Get average brightness for text/button color adjustment
 def get_brightness(url):
