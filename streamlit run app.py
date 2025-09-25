@@ -37,7 +37,7 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-8c24-6246-b947-3ef1cee0e808/raw?se=2025-09-25T15%3A07%3A54Z&sp=r&sv=2024-08-04&sr=b&scid=45678bf3-7869-5a07-a75f-2c6cea419aa8&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T04%3A24%3A32Z&ske=2025-09-26T04%3A24%3A32Z&sks=b&skv=2024-08-04&sig=wTpFKb2Ti3tky9B/xG4K4jSa/71Vyg9oK6DUxqYs25o%3D"
+BACKGROUND_URL = "https://makemoneywithoutajob.com/wp-content/uploads/make-money-with-your-ipad-5.jpg"
 
 # Get average brightness for text/button color adjustment
 def get_brightness(url):
@@ -56,12 +56,12 @@ button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 st.markdown(f"""
 <style>
 .stApp {{
-    background: url("{BACKGROUND_URL}") no-repeat center right fixed;
+    background: url("{BACKGROUND_URL}") no-repeat center top fixed;
     background-size: cover;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.4);
-    backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(10px);
     padding: 15px;
     border-radius: 12px;
     margin-bottom: 15px;
@@ -142,7 +142,7 @@ with col2:
         "<p>Powered by AI to equip sales reps for smarter HCP conversations</p></div>",
         unsafe_allow_html=True
     )
-    st.markdown("<p class='disclaimer'>⚠️ For training and educational purposes only.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='disclaimer'>⚠️ Disclaimer: For training and educational purposes only.</p>", unsafe_allow_html=True)
 
 # ----------------------------
 # Sidebar - Filters
@@ -173,16 +173,10 @@ if uploaded_pdf:
         for page in pdf.pages:
             pdf_text += page.extract_text() or ""
     if not show_more_toggle:
-        st.session_state.uploaded_pdf_text = pdf_text[:1000]+"..."
+        st.session_state.uploaded_pdf_text = pdf_text[:1000]+"..."  # truncate
     else:
         st.session_state.uploaded_pdf_text = pdf_text
     st.markdown(f"**PDF Preview:** {st.session_state.uploaded_pdf_text}")
-
-# ----------------------------
-# Clear Chat History
-# ----------------------------
-if st.button("🗑️ Clear Chat History"):
-    st.session_state.chat_history = []
 
 # ----------------------------
 # Chat display
@@ -205,7 +199,7 @@ def display_chat():
 display_chat()
 
 # ----------------------------
-# Chat input and AI Response
+# Chat input
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
@@ -213,8 +207,7 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input.strip():
     st.session_state.chat_history.append({
-        "role":"user",
-        "content": user_input,
+        "role":"user","content":user_input,
         "time": datetime.now().strftime("%H:%M")
     })
 
@@ -231,6 +224,7 @@ Use APACT (Acknowledge → Probing → Action → Confirm → Transition) for ha
 Response Tone: {response_tone}, Length: {response_length}.
 """
 
+    # AI Response
     try:
         resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -253,8 +247,7 @@ Response Tone: {response_tone}, Length: {response_length}.
         audio_base64 = None
 
     st.session_state.chat_history.append({
-        "role":"ai",
-        "content": ai_output,
+        "role":"ai","content":ai_output,
         "time": datetime.now().strftime("%H:%M"),
         "audio": audio_base64
     })
