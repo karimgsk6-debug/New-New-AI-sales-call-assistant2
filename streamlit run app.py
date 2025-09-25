@@ -37,7 +37,7 @@ if "uploaded_pdf_text" not in st.session_state:
 # ----------------------------
 # Background image
 # ----------------------------
-BACKGROUND_URL = "https://share.google/images/6X0CjQngAcPI9vdm1"
+BACKGROUND_URL = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
 
 # Get average brightness for text/button color adjustment
 def get_brightness(url):
