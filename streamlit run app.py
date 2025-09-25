@@ -17,7 +17,7 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # 🔑 Insert your Groq API key here
+client = Groq(api_key="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")  # 🔑 Insert your Groq API key here
 
 # --- Background image ---
 bg_url = "https://img.freepik.com/premium-photo/black-woman-smiling-using-phone-with-yellow-background_176841-18605.jpg"
