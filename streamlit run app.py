@@ -129,40 +129,49 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Top-right GSK logo + disclaimer shifted down
+# GSK logo (top-right) + Title box shifted down
 # ----------------------------
 logo_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 st.markdown(f"""
 <style>
-.gsk-logo {{
-    position: fixed;
-    top: 60px;   /* ~3 cm down depending on screen resolution */
-    right: 20px;
-    z-index: 1000;
-    text-align: right;
+.top-container {{
+    margin-top: 60px;  /* shift down ~3 cm */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
 }}
-.gsk-disclaimer {{
-    position: fixed;
-    top: 210px;  /* push disclaimer below logo */
+.gsk-logo {{
+    position: absolute;
+    top: 0;
     right: 20px;
-    z-index: 999;
+}}
+.title-box {{
     background: rgba(255,255,255,0.85);
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    color: black;
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    max-width: 70%;
 }}
 </style>
 
-<div class="gsk-logo">
-    <img src="{logo_url}" width="140">
-</div>
-
-<div class="gsk-disclaimer">
-    ⚠️ Disclaimer: For training and educational purposes only.
+<div class="top-container">
+    <div class="title-box">
+        <h1 style='margin:0; font-size:36px;'>💡 AI Sales Call Assistant</h1>
+        <p style='margin:5px 0 0 0; font-size:18px;'>Powered by AI to equip sales reps for smarter HCP conversations</p>
+    </div>
+    <div class="gsk-logo">
+        <img src="{logo_url}" width="140">
+    </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Disclaimer stays centered below
+st.markdown(
+    "<p class='disclaimer' style='text-align:center; padding:10px; font-size:14px;'>⚠️ Disclaimer: For training and educational purposes only.</p>",
+    unsafe_allow_html=True
+)
 
 # ----------------------------
 # Brand & filters
