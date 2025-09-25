@@ -60,18 +60,18 @@ st.markdown(f"""
     background-size: cover;
 }}
 .title-box {{
-    background: rgba(255,255,250,0.2);
+    background: rgba(250,250,250,0.2);
     backdrop-filter: blur(5px);
-    padding: 25px;
+    padding: 10px;
     border-radius: 12px;
     margin-bottom: 15px;
-    color: Orange;
+    color: Dark blue;
 }}
 .disclaimer {{
-    font-size: 12px;
+    font-size: 15px;
     color: black;
-    background: rgba(255,255,255,0.7);
-    padding: 6px;
+    background: rgba(250,250,250,0.2);
+    padding: 5px;
     border-radius: 6px;
 }}
 .chat-bubble-user {{
