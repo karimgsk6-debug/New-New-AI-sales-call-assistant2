@@ -50,7 +50,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = ("https://sdmntpreastus.oaiusercontent.com/files/00000000-d8fc-61f9-a032-8b22cd0506d4/raw?se=2025-09-27T15%3A26%3A11Z&sp=r&sv=2024-08-04&sr=b&scid=94806956-ceed-5d91-8345-e5c58fe80700&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A00%3A28Z&ske=2025-09-27T17%3A00%3A28Z&sks=b&skv=2024-08-04&sig=H0sSlc9j5wxHuYfQPjkJwkd417JLlDNhIgpE9eK4xp4%3D")
+BACKGROUND_URL = ("https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T15%3A35%3A52Z&sp=r&sv=2024-08-04&sr=b&scid=134c6041-1913-5d1b-9974-a2aba92201a7&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T05%3A09%3A07Z&ske=2025-09-28T05%3A09%3A07Z&sks=b&skv=2024-08-04&sig=7aQFm5RhZ9epNykQFKn7PqPerMyorga4a47YrmyCvo8%3D")
 
 GSK_LOGO_URL = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
 
