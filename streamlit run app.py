@@ -50,9 +50,9 @@ if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 
 # ----------------------------
-# Assets & styling
+# Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = ("https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-09-27T20%3A50%3A12Z&sp=r&sv=2024-08-04&sr=b&scid=ecda9bff-da85-5e32-ac41-b08c14ba28cf&skoid=d9a3f0e9-8380-4267-a144-3f27388a5c5d&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T12%3A41%3A14Z&ske=2025-09-28T12%3A41%3A14Z&sks=b&skv=2024-08-04&sig=oXICxZIQ74jEr/fZxSZH/TmBnN8eb/3bsNRGRUHTsf0%3D")
+BACKGROUND_URL = ("https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D")
 GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 def get_brightness(url: str) -> int:
@@ -66,10 +66,9 @@ def get_brightness(url: str) -> int:
 
 brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
-button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 
 # ----------------------------
-# CSS (full-page background + plain chat)
+# CSS (responsive background + sidebar white + chat bubbles)
 # ----------------------------
 CSS = f"""
 <style>
@@ -78,10 +77,15 @@ CSS = f"""
     background-size: cover;
     background-attachment: fixed;
 }}
+
+/* Sidebar default white and padding */
 .stSidebar {{
-    background-color: rgba(255,255,255,0.9);
+    background-color: #fff;
     padding: 14px;
+    z-index:1000;
 }}
+
+/* Filters controls borders */
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
     border: 1px solid #ddd;
     border-radius: 10px;
@@ -89,6 +93,8 @@ CSS = f"""
     margin-bottom: 12px;
     background-color: #fff;
 }}
+
+/* Top-right logo */
 .gsk-logo {{
     position: fixed;
     top: 60px;
@@ -96,7 +102,7 @@ CSS = f"""
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.7);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
@@ -106,15 +112,31 @@ CSS = f"""
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
 .disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
-#chat-container {{
-    height:60vh;
-    overflow:auto;
-    padding:12px;
-    border-radius:8px;
-    background: rgba(255,255,255,0.6);
+
+/* Chat bubbles responsive */
+.chat-bubble-user, .chat-bubble-ai {{
+    display: inline-block;
+    padding: 12px;
+    margin: 6px;
+    border-radius: 15px;
+    max-width: 80%;
+    word-wrap: break-word;
     color: {text_color};
-    font-size: 16px;
-    line-height: 1.5;
+}}
+.chat-bubble-user {{
+    background: rgba(220,248,198,0.95);
+    text-align: right;
+}}
+.chat-bubble-ai {{
+    background: rgba(240,242,246,0.95);
+    text-align: left;
+}}
+.highlight {{
+    font-weight: bold;
+    background-color: yellow;
+    color: black;
+    padding: 2px 4px;
+    border-radius: 4px;
 }}
 .bottom-bar {{
     position: fixed;
@@ -146,21 +168,16 @@ st.markdown(CSS, unsafe_allow_html=True)
 SIDEBAR_JS = """
 <script>
 (function() {
-  const app = document.querySelector('.stApp');
-  const sidebar = document.querySelector('[data-testid="stSidebar"]');
-  if (!app || !sidebar) return;
-
-  function adjustBg() {
-    const expanded = sidebar.getAttribute('aria-expanded') === 'true';
-    app.style.backgroundSize = 'cover';
+  function setBgSize(expanded) {
+    const el = document.querySelector('.stApp');
+    if (!el) return;
+    el.style.backgroundSize = expanded ? 'cover' : 'cover';
   }
-
-  adjustBg();
-
-  const mo = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.attributeName === 'aria-expanded') adjustBg();
-    }
+  const sidebar = document.querySelector('[data-testid="stSidebar"]');
+  if (!sidebar) return;
+  setBgSize(sidebar.getAttribute('aria-expanded') === 'true');
+  const mo = new MutationObserver(() => {
+    setBgSize(sidebar.getAttribute('aria-expanded') === 'true');
   });
   mo.observe(sidebar, { attributes: true });
 })();
@@ -169,47 +186,26 @@ SIDEBAR_JS = """
 st.markdown(SIDEBAR_JS, unsafe_allow_html=True)
 
 # ----------------------------
-# Auto-scroll JS
-# ----------------------------
-SCROLL_JS = """
-<script>
-function scrollChat() {
-  const container = document.getElementById('chat-container');
-  if (container) container.scrollTop = container.scrollHeight;
-}
-setTimeout(scrollChat, 200);
-</script>
-"""
-
-# ----------------------------
 # Top-right logo + title + disclaimer
 # ----------------------------
 st.markdown(f'<div class="gsk-logo"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
-st.markdown(
-    """
-    <div class="title-box">
-      <h1>💡 AI Sales Call Assistant</h1>
-      <p>Powered by AI to equip sales reps for smarter HCP conversations</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<div class="title-box">
+  <h1>💡 AI Sales Call Assistant</h1>
+  <p>Powered by AI to equip sales reps for smarter HCP conversations</p>
+</div>
+""", unsafe_allow_html=True)
 st.markdown('<p class="disclaimer">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
 # ----------------------------
-# Top-left language selector
+# Language selector
 # ----------------------------
-st.markdown(
-    """
-    <div style="position:fixed; top:76px; left:18px; z-index:1000; background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:8px;">
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown('<div style="position:fixed; top:76px; left:18px; z-index:1000; background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:8px;">', unsafe_allow_html=True)
 language = st.radio("", options=["English", "العربية"], horizontal=True, label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------------------
-# Sidebar content (brands, filters)
+# Data definitions (brands, segments, APACT etc.)
 # ----------------------------
 gsk_brands = {
     "Shingrix": "https://www.shingrix.com/",
@@ -221,7 +217,6 @@ gsk_brands_images = {
     "Trelegy": "https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
     "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
 }
-
 race_segments = [
     "R – Reach: Not prescribing yet; doesn't see vaccination responsibility.",
     "A – Acquisition: Prescribes when patient asks; convinced by data.",
@@ -256,6 +251,9 @@ APACT_STEPS = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
 objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 
+# ----------------------------
+# Sidebar filters
+# ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     st.markdown('<div style="font-weight:800; margin-bottom:8px;">Filters & Options</div>', unsafe_allow_html=True)
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
@@ -267,7 +265,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
             st.image(img, width=200)
         except Exception:
             st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
-
     segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", options=race_segments)
     barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
     objective = st.selectbox("Select Objective / اختر الهدف", options=objectives)
@@ -278,7 +275,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     interface_mode = st.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # ----------------------------
-# PDF Upload
+# PDF upload
 # ----------------------------
 st.subheader("📄 Upload Medical Reference PDF")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -293,39 +290,81 @@ if uploaded_pdf:
         st.success("✅ PDF processed")
     except Exception as e:
         st.error(f"PDF error: {e}")
-
 st.markdown("### PDF Preview / Summary")
 st.write(st.session_state.uploaded_pdf_text or "No PDF uploaded.")
 
 # ----------------------------
-# Chat rendering (plain text)
+# Chat helper functions
 # ----------------------------
 def render_chat_html() -> str:
-    html = '<div id="chat-container">'
+    html = '<div id="chat-container" style="height:60vh; overflow:auto; padding:12px; border-radius:8px; background: rgba(255,255,255,0.6);">'
     for msg in st.session_state.chat_history:
         content = msg["content"].replace("\n", "<br>")
         for step in APACT_STEPS:
             content = content.replace(step, f"<span class='highlight'>{step}</span>")
-        html += f"{content}<br><span style='font-size:10px;color:gray'>{msg.get('time','')}</span><br><br>"
-    html += '</div>'
+        ts = msg.get("time", "")
+        if msg.get("role") == "user":
+            html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px;color:gray'>{ts}</span></div>"
+        else:
+            audio_html = ""
+            if msg.get("audio"):
+                audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
+            html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px;color:gray'>{ts}</span>{audio_html}</div>"
+    html += "</div>"
     return html
 
-st.subheader("💬 Chatbot Interface")
-st.markdown(render_chat_html(), unsafe_allow_html=True)
-st.markdown(SCROLL_JS, unsafe_allow_html=True)
+SCROLL_JS = """
+<script>
+function scrollChat() {
+  const container = document.getElementById('chat-container');
+  if (container) container.scrollTop = container.scrollHeight;
+}
+setTimeout(scrollChat, 200);
+</script>
+"""
 
 # ----------------------------
-# Chat input & handle submission
+# TTS: smart punctuation stripping
 # ----------------------------
+def synthesize_tts_base64(text: str, lang: str) -> Optional[str]:
+    text = (text or "").strip()
+    if not text:
+        return None
+    clean_text = re.sub(r'([;:{}\[\]\*\^<>@#\$%&\|~_=/\\\+])', '', text)
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    clean_text = clean_text.replace(',', '')  # remove commas for smoother speech
+    voice = "ar-EG-SalmaNeural" if lang == "العربية" else "en-US-JennyNeural"
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp_name = tmp.name
+    tmp.close()
+    try:
+        async def _save():
+            comm = edge_tts.Communicate(clean_text, voice=voice)
+            await comm.save(tmp_name)
+        asyncio.run(_save())
+        with open(tmp_name, "rb") as f:
+            b = f.read()
+        return base64.b64encode(b).decode("utf-8")
+    except Exception as e:
+        st.warning(f"⚠️ TTS failed: {e}")
+        return None
+    finally:
+        if os.path.exists(tmp_name):
+            os.remove(tmp_name)
+
+# ----------------------------
+# Bottom input bar
+# ----------------------------
+st.markdown('<div class="bottom-bar"></div>', unsafe_allow_html=True)
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message... / اكتب رسالتك هنا", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
+# ----------------------------
+# Handle chat submission
+# ----------------------------
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-    st.markdown(render_chat_html(), unsafe_allow_html=True)
-    st.markdown(SCROLL_JS, unsafe_allow_html=True)
-    # Build prompt and call Groq
     prompt_lines = [
         f"Language: {language}",
         f"User input: {user_input}",
@@ -336,48 +375,46 @@ if submitted and user_input.strip():
         f"Doctor Specialty: {specialty}",
         f"HCP Persona: {persona}",
         f"Medical Reference(s): {st.session_state.extracted_medical_ref or 'None'}",
-        f"Uploaded PDF (preview): {st.session_state.uploaded_pdf_text or 'No PDF uploaded.'}",
-        "Approved Sales Approaches:\n" + "\n".join(gsk_approaches),
-        "Sales Call Flow Steps:\n" + " → ".join(sales_call_flow),
-        "Use APACT technique for handling objections.",
+        "",
+        "Uploaded PDF (preview):",
+        st.session_state.uploaded_pdf_text or "No PDF uploaded.",
+        "",
+        "Approved Sales Approaches:",
+        "\n".join(gsk_approaches),
+        "",
+        "Sales Call Flow Steps:",
+        " → ".join(sales_call_flow),
+        "",
+        "Use APACT (Acknowledge → Probing → Action → Confirm → Transition) technique for handling objections.",
         f"Response Length: {response_length}",
         f"Response Tone: {response_tone}",
+        "Provide actionable sales-call suggestions and a short 3–6 line script."
     ]
     prompt = "\n".join(prompt_lines)
 
-    # Groq call with retry
-    def call_groq_with_retry(prompt: str, language: str, max_retries: int = 4, base_delay: int = 2) -> str:
-        models = ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-scout-13b-instruct"]
-        last_err = None
-        for model in models:
-            for attempt in range(1, max_retries + 1):
-                try:
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "system", "content": f"You are a helpful sales assistant that responds in {language}."},
-                                  {"role": "user", "content": prompt}],
-                        temperature=0.7,
-                    )
-                    return resp.choices[0].message.content
-                except Exception as e:
-                    last_err = e
-                    msg = str(e).lower()
-                    if "503" in msg or "over capacity" in msg or "internal_server_error" in msg:
-                        wait = base_delay * (2 ** (attempt - 1))
-                        st.warning(f"Model {model} busy. Retrying in {wait}s (attempt {attempt}/{max_retries})...")
-                        time.sleep(wait)
-                        continue
-                    else:
-                        return f"⚠️ Error generating response: {e}"
-        return f"⚠️ Failed to get response: {last_err}"
+    # Call Groq
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{"role": "system", "content": f"You are a helpful sales assistant that responds in {language}."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        ai_output = resp.choices[0].message.content
+    except Exception as e:
+        ai_output = f"⚠️ Error generating response: {e}"
 
-    ai_output = call_groq_with_retry(prompt, language)
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
-    st.markdown(render_chat_html(), unsafe_allow_html=True)
-    st.markdown(SCROLL_JS, unsafe_allow_html=True)
+    audio_b64 = synthesize_tts_base64(ai_output, language)
+    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M"), "audio": audio_b64})
 
 # ----------------------------
-# Bottom controls: Clear & Download
+# Render chat
+# ----------------------------
+st.markdown(render_chat_html(), unsafe_allow_html=True)
+st.markdown(SCROLL_JS, unsafe_allow_html=True)
+
+# ----------------------------
+# Clear & Download
 # ----------------------------
 cols = st.columns([1, 1])
 with cols[0]:
@@ -398,4 +435,9 @@ with cols[1]:
                 doc.add_paragraph(txt)
             word_buffer = io_bytes()
             doc.save(word_buffer)
-            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_responses.docx")
+            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Responses.docx")
+
+# ----------------------------
+# Brand leaflet link
+# ----------------------------
+st.markdown(f"[📄 Brand Leaflet - {brand}]({gsk_brands[brand]})")
