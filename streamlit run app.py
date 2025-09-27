@@ -52,7 +52,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D"
+BACKGROUND_URL = "https://sdmntprwestus2.oaiusercontent.com/files/00000000-8938-61f8-9ad4-67d8ede9c081/raw?se=2025-09-27T22%3A16%3A30Z&sp=r&sv=2024-08-04&sr=b&scid=0a78f1b4-0cf9-5f7d-a678-1ae2eeda8012&skoid=f05d6a75-3c59-41ae-be2c-51a75f29841e&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T05%3A28%3A39Z&ske=2025-09-28T05%3A28%3A39Z&sks=b&skv=2024-08-04&sig=Gvl5QQwvTZI0Qs0v7Sn0TgfX1O4ho395g/SXEsJEDoc%3D"
 GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 def get_brightness(url: str) -> int:
