@@ -88,13 +88,13 @@ CSS = f"""
 /* Filters controls borders */
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
     border: 1px solid #ddd;
-    border-radius: 10px;
+    border-radius: 15px;
     padding: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 15px;
     background-color: #fff;
 }}
 
-/* Top-right logo */
+/* Top-left logo */
 .gsk-logo {{
     position: fixed;
     top: 60px;
