@@ -104,7 +104,7 @@ CSS = f"""
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:20px; font-weight:500; }}
 .chat-bubble-user, .chat-bubble-ai {{
     padding: 12px;
     border-radius: 15px;
@@ -113,7 +113,7 @@ CSS = f"""
     max-width: 95%;
     word-wrap: break-word;
 }}
-.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); color:{text_color}; }}
+.chat-bubble-user {{ text-align:right; background: rgba(220,240,198,0.7); color:{text_color}; }}
 .chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); color:{text_color}; }}
 .highlight {{ font-weight: bold; background-color: black; color: black; padding: 2px 4px; border-radius: 4px; }}
 .bottom-bar {{
