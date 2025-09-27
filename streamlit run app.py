@@ -104,18 +104,18 @@ CSS = f"""
     padding: 35px;
     border-radius: 18px;
     text-align: center;
-    max-width: 90%;
+    max-width: 80%;
     margin: 12px auto;
 }}
 .title-box h1 {{
     margin: 0;
-    font-size: 80px;
-    font-weight: 900;
+    font-size: 60px;
+    font-weight: 800;
 }}
 .title-box p {{
     margin: 8px 0 0 0;
-    font-size: 30px;
-    font-weight: 500;
+    font-size: 20px;
+    font-weight: 900;
 }}
 .disclaimer {{
     text-align: center;
