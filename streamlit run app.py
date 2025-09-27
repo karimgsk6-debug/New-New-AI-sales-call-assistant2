@@ -355,3 +355,145 @@ def display_chat():
     chat_placeholder.markdown(html, unsafe_allow_html=True)
 
 display_chat()
+# ----------------------------
+# Chat input form (bottom of chat area)
+# ----------------------------
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message... / اكتب رسالتك هنا", key="user_input_box")
+    submitted = st.form_submit_button("➤")
+
+# ----------------------------
+# TTS: create mp3 with edge_tts and return base64 string
+# ----------------------------
+def synthesize_tts_base64(text, lang):
+    if not text or not text.strip():
+        return None
+    voice = "ar-EG-SalmaNeural" if lang == "العربية" else "en-US-JennyNeural"
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp_name = tmp.name
+    tmp.close()
+    try:
+        async def _save():
+            comm = edge_tts.Communicate(text, voice=voice)
+            await comm.save(tmp_name)
+        asyncio.run(_save())
+        with open(tmp_name, "rb") as f:
+            audio_bytes = f.read()
+        return base64.b64encode(audio_bytes).decode("utf-8")
+    except Exception as e:
+        st.warning(f"⚠️ TTS failed: {e}")
+        return None
+    finally:
+        try:
+            if os.path.exists(tmp_name):
+                os.remove(tmp_name)
+        except Exception:
+            pass
+
+# ----------------------------
+# AI call with exponential backoff retry
+# ----------------------------
+def call_groq_with_retry(prompt, language, max_retries=3, base_delay=2):
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[
+                    {"role":"system","content":f"You are a helpful sales assistant that responds in {language}."},
+                    {"role":"user","content":prompt}
+                ],
+                temperature=0.7
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            msg = str(e)
+            if "503" in msg or "over capacity" in msg.lower():
+                wait_time = base_delay * (2 ** (attempt - 1))
+                st.warning(f"⚠️ Model busy, retrying in {wait_time}s... (Attempt {attempt}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                return f"⚠️ Error generating response: {e}"
+    return "⚠️ Unable to generate response after multiple retries. Please try again later."
+
+# ----------------------------
+# Handle submitted input
+# ----------------------------
+if submitted and user_input.strip():
+    # append user message
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    display_chat()
+
+    # Build the prompt - include PDF summary / refs if available
+    approaches_str = "\n".join(gsk_approaches)
+    flow_str = " → ".join(sales_call_flow)
+    medical_ref_str = st.session_state.extracted_medical_ref or "None"
+    pdf_summary_text = st.session_state.pdf_summary or "None"
+    pdf_preview = st.session_state.uploaded_pdf_text or "No PDF uploaded."
+
+    prompt_lines = [
+        f"Language: {language}",
+        f"User input: {user_input}",
+        f"Brand: {brand}",
+        f"RACE Segment: {segment}",
+        f"Doctor Barrier(s): {', '.join(barrier) if barrier else 'None'}",
+        f"Objective: {objective}",
+        f"Doctor Specialty: {specialty}",
+        f"HCP Persona: {persona}",
+        f"Medical Reference(s): {medical_ref_str}",
+        "",
+        "Uploaded PDF (preview):",
+        pdf_preview,
+        "",
+        "PDF AI Summary (if available):",
+        pdf_summary_text,
+        "",
+        "Approved Sales Approaches:",
+        approaches_str,
+        "",
+        "Sales Call Flow Steps:",
+        flow_str,
+        "",
+        "Use APACT (Acknowledge → Probing → Action → Confirm → Transition) technique for handling objections.",
+        f"Response Length: {response_length}",
+        f"Response Tone: {response_tone}",
+        "Provide actionable sales-call suggestions, a concise summary of the PDF content (if present), and a short 3–6 line script the rep can say. Clearly label APACT steps in the script."
+    ]
+    prompt = "\n".join(prompt_lines)
+
+    # Call Groq AI with retry
+    ai_output = call_groq_with_retry(prompt, language)
+
+    # Synthesize TTS and embed audio
+    audio_b64 = synthesize_tts_base64(ai_output, language)
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M"), "audio": audio_b64})
+
+    display_chat()
+
+# ----------------------------
+# Clear Chat (fixed bottom-left)
+# ----------------------------
+clear_clicked = st.button("🗑️ Clear Chat / مسح المحادثة", key="clear_chat", help="Clear conversation history")
+if clear_clicked:
+    st.session_state.chat_history = []
+    st.session_state.uploaded_pdf_text = ""
+    st.session_state.extracted_medical_ref = ""
+    st.session_state.pdf_summary = ""
+    st.experimental_rerun()
+
+# ----------------------------
+# Word download (latest AI reply)
+# ----------------------------
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+    if latest_ai:
+        doc = Document()
+        doc.add_heading("AI Sales Call Response", 0)
+        doc.add_paragraph(latest_ai[-1])
+        word_buffer = io_bytes()
+        doc.save(word_buffer)
+        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+
+# ----------------------------
+# Brand leaflet link
+# ----------------------------
+st.markdown(f"[📄 Brand Leaflet - {brand}]({gsk_brands[brand]})")
