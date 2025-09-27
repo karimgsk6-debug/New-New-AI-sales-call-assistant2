@@ -32,7 +32,7 @@ except Exception:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # ----------------------------
-# GROQ client
+# GROQ client (replace with your key)
 # ----------------------------
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
@@ -65,27 +65,7 @@ def get_brightness(url: str) -> int:
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-
-# ----------------------------
-# Sidebar & Chat variables
-# ----------------------------
-text_color = "black"
-
-gsk_brands = {"Shingrix":"https://www.shingrix.com/", "Trelegy":"https://www.trelegy.com/", "Zejula":"https://www.zejula.com/"}
-gsk_brands_images = {
-    "Shingrix":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Trelegy":"https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
-    "Zejula":"https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"
-}
-
-race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"]
-personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-gsk_approaches = ["Use data-driven evidence (local + global studies)","Focus on patient outcomes & quality of life","Leverage brief storytelling and peer endorsement","Address practical barriers (access, scheduling, cost solutions)"]
-sales_call_flow = ["Prepare: Data & patient profiles","Engage: Opening question & rapport","Create Opportunities: Identify eligible patients","Influence: Present tailored evidence & handle objections","Drive Impact: Secure next steps","Post Call Analysis: Document & follow up"]
-APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
-objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologists","Pneumologist"]
+text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
 # CSS styling
@@ -106,16 +86,16 @@ CSS = f"""
     border-radius: 10px;
     padding: 8px;
     margin-bottom: 12px;
-    background-color: #dddd;
+    background-color: #fff;
 }}
 .gsk-logo {{
     position: flix;
     top: 80px;
-    left: 16px;
+    right: 16px;
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.6);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
@@ -124,7 +104,13 @@ CSS = f"""
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:20px; font-weight:500; }}
+.pdf-summary-box {{
+    background: rgba(255,255,255,0.95);
+    border-radius: 14px;
+    padding: 16px;
+    margin: 12px 0;
+}}
+.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
 .chat-bubble-user, .chat-bubble-ai {{
     padding: 12px;
     border-radius: 15px;
@@ -132,10 +118,11 @@ CSS = f"""
     display: inline-block;
     max-width: 95%;
     word-wrap: break-word;
-    color: black;
+    color:black;
 }}
 .chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); }}
 .chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); }}
+.highlight {{ font-weight: bold; background-color: yellow; color: black; padding: 2px 4px; border-radius: 4px; }}
 .bottom-bar {{
     position: fixed;
     bottom: 12px;
@@ -175,6 +162,24 @@ st.markdown('<p class="disclaimer">⚠️ Disclaimer: For training and education
 language = st.radio("", options=["English", "العربية"], horizontal=True, label_visibility="collapsed")
 
 # ----------------------------
+# GSK data
+# ----------------------------
+gsk_brands = {"Shingrix":"https://www.shingrix.com/", "Trelegy":"https://www.trelegy.com/", "Zejula":"https://www.zejula.com/"}
+gsk_brands_images = {
+    "Shingrix":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Trelegy":"https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
+    "Zejula":"https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"
+}
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"]
+personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+gsk_approaches = ["Use data-driven evidence (local + global studies)","Focus on patient outcomes & quality of life","Leverage brief storytelling and peer endorsement","Address practical barriers (access, scheduling, cost solutions)"]
+sales_call_flow = ["**Prepare**: Data & patient profiles","**Engage**: Opening & rapport","**Create Opportunities**: Identify eligible patients","**Influence**: Present evidence & handle objections","**Impact GSO**: Secure next steps","**Analyze & Post Call Analysis**"]
+APACT_STEPS = ["**Acknowledge**","**Probing**","**Action**","**Confirm**","**Transition**"]
+objectives = ["Awareness","Adoption","Retention"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologists","Pneumologist"]
+
+# ----------------------------
 # Sidebar filters
 # ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
@@ -198,7 +203,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     interface_mode = st.radio("Interface Mode", ["Chatbot","Card Dashboard","Flow Visualization"])
 
 # ----------------------------
-# PDF upload and summary
+# PDF upload and summary with box & expand
 # ----------------------------
 st.subheader("📄 Upload Medical Reference PDF")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -210,6 +215,7 @@ if uploaded_pdf:
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
         st.success("✅ PDF processed")
+        # Auto summary using Groq
         summary_prompt = f"Summarize this medical document into bullet points with key results, practical recommendations, and figures. Language: {language}.\n\n{full_text[:6000]}"
         summary_resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -217,14 +223,44 @@ if uploaded_pdf:
             temperature=0.3
         )
         st.session_state.pdf_summary = summary_resp.choices[0].message.content
-        st.markdown("### 📑 PDF Summary")
-        st.markdown("\n".join([f"- {line.strip()}" for line in st.session_state.pdf_summary.split("\n") if line.strip()]))
+
+        with st.expander("Expand / Collapse PDF Summary", expanded=False):
+            st.markdown(f'<div class="pdf-summary-box">', unsafe_allow_html=True)
+            for line in st.session_state.pdf_summary.split("\n"):
+                if line.strip():
+                    st.markdown(f"- {line.strip()}", unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
     except Exception as e:
         st.error(f"PDF error: {e}")
 
 # ----------------------------
-# Chat interface
+# TTS helper (humanized)
+# ----------------------------
+def synthesize_tts_base64(text: str, lang: str) -> Optional[str]:
+    text = re.sub(r'([;:{}\[\]\*\^<>@#\$%&\|~_=/\\\+])','',text)
+    text = re.sub(r'\s+',' ', text).strip()
+    if not text:
+        return None
+    sentences = re.split(r'(?<=[.?!]) +', text)
+    ssml_text = "<speak>" + " ".join([f"<prosody rate='medium'>{s}<break time='0.4s'/></prosody>" for s in sentences]) + "</speak>"
+    voice = "ar-EG-SalmaNeural" if lang=="العربية" else "en-US-AriaNeural"
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp_name = tmp.name
+    tmp.close()
+    try:
+        async def _save():
+            comm = edge_tts.Communicate(ssml_text, voice=voice)
+            await comm.save(tmp_name)
+        asyncio.run(_save())
+        with open(tmp_name,"rb") as f:
+            b = f.read()
+        return base64.b64encode(b).decode("utf-8")
+    finally:
+        if os.path.exists(tmp_name): os.remove(tmp_name)
+
+# ----------------------------
+# Chat form
 # ----------------------------
 st.subheader("💬 Chatbot Interface")
 def render_chat_html() -> str:
@@ -240,37 +276,11 @@ def render_chat_html() -> str:
             html += f"<div class='chat-bubble-ai'>{content}{audio_html}</div>"
     return html
 
-chat_placeholder = st.empty()
-chat_placeholder.markdown(render_chat_html(), unsafe_allow_html=True)
+st.markdown(render_chat_html(), unsafe_allow_html=True)
 
-# ----------------------------
-# Chat form
-# ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
-
-# ----------------------------
-# TTS helper
-# ----------------------------
-def synthesize_tts_base64(text: str, lang: str) -> Optional[str]:
-    text = re.sub(r'([;:{}\[\]\*\^<>@#\$%&\|~_=/\\\+])','',text)
-    clean_text = re.sub(r'\s+',' ', text).strip()
-    if not clean_text: return None
-    voice = "ar-EG-SalmaNeural" if lang=="العربية" else "en-US-JennyNeural"
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-    tmp_name = tmp.name
-    tmp.close()
-    try:
-        async def _save():
-            comm = edge_tts.Communicate(clean_text, voice=voice)
-            await comm.save(tmp_name)
-        asyncio.run(_save())
-        with open(tmp_name,"rb") as f:
-            b = f.read()
-        return base64.b64encode(b).decode("utf-8")
-    finally:
-        if os.path.exists(tmp_name): os.remove(tmp_name)
 
 # ----------------------------
 # Handle submission
@@ -289,9 +299,10 @@ if submitted and user_input.strip():
         "Instructions for AI:",
         "- Use the uploaded PDF and extracted references as primary sources for clinical info.",
         "- Cite references explicitly if possible.",
-        "- Include sales call flow & APACT steps inside AI response only.",
+        "- Follow APACT technique for objections.",
+        "- Bold **sales call steps**, APACT steps, and figures.",
         "- Provide actionable sales suggestions.",
-        f"- Response length: {response_length}, Tone: {response_tone}",
+        "- Response length: {response_length}, Tone: {response_tone}",
         "PDF Summary:\n" + (st.session_state.pdf_summary or "None"),
         "References:\n" + (st.session_state.extracted_medical_ref or "None")
     ]
@@ -303,7 +314,7 @@ if submitted and user_input.strip():
     ).choices[0].message.content
     audio_b64 = synthesize_tts_base64(ai_output, language)
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M"),"audio":audio_b64})
-    chat_placeholder.markdown(render_chat_html(), unsafe_allow_html=True)
+    st.markdown(render_chat_html(), unsafe_allow_html=True)
 
 # ----------------------------
 # Bottom controls
