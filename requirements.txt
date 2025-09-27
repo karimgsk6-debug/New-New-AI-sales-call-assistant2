@@ -13,3 +13,8 @@ groq
 python-docx
 PyPDF2
 edge-tts
+gtts
+PyPDF2
+Pillow
+requests
+groq
