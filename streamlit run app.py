@@ -104,13 +104,13 @@ CSS = f"""
     padding: 35px;
     border-radius: 18px;
     text-align: center;
-    max-width: 80%;
+    max-width: 50%;
     margin: 12px auto;
 }}
 .title-box h1 {{
     margin: 0;
     font-size: 50px;
-    font-weight: 800;
+    font-weight: 600;
 }}
 .title-box p {{
     margin: 8px 0 0 0;
