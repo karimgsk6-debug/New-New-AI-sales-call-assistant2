@@ -63,8 +63,8 @@ def get_brightness(url):
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
-button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
+text_color = "black" if brightness > 120 else "white"
+button_bg = "#FFA500" if brightness > 120 else "#FF8C00"
 
 # ----------------------------
 # CSS
@@ -128,7 +128,7 @@ CSS = f"""
 /* Chat bubbles */
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(220,248,198,0.95);
+    background: rgba(220,240,198,0.75);
     padding: 12px;
     border-radius: 15px 15px 0px 15px;
     margin: 6px;
@@ -138,7 +138,7 @@ CSS = f"""
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(240,242,246,0.95);
+    background: rgba(240,240,240,0.75);
     padding: 12px;
     border-radius: 15px 15px 15px 0px;
     margin: 6px;
