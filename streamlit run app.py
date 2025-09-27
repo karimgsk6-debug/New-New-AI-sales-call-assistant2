@@ -32,7 +32,7 @@ except Exception:
 # ----------------------------
 # GROQ client (replace with your key)
 # ----------------------------
-GROQ_API_KEY = "YOUR_KEY_HERE"  # <- REPLACE with your key
+GROQ_API_KEY = "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"  # <- REPLACE with your key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
