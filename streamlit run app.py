@@ -88,7 +88,7 @@ CSS = f"""
 
 /* Sidebar background GSK Orange */
 [data-testid="stSidebar"] {{
-    background-color: {GSK_ORANGE};
+    background-color: {white};
     color:white;
 }}
 
