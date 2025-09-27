@@ -115,7 +115,7 @@ CSS = f"""
 }}
 .chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); color:{text_color}; }}
 .chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); color:{text_color}; }}
-.highlight {{ font-weight: bold; background-color: yellow; color: black; padding: 2px 4px; border-radius: 4px; }}
+.highlight {{ font-weight: bold; background-color: black; color: black; padding: 2px 4px; border-radius: 4px; }}
 .bottom-bar {{
     position: fixed;
     bottom: 12px;
