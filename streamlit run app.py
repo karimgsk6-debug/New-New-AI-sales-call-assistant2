@@ -99,8 +99,8 @@ CSS = f"""
     padding: 28px;
     border-radius: 14px;
     text-align: center;
-    max-width: 85%;
-    margin: 12px auto;
+    max-width: 70%;
+    margin: 10px auto;
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
