@@ -87,19 +87,19 @@ CSS = f"""
     border-radius: 10px;
     padding: 8px;
     margin-bottom: 12px;
-    background-color: #fff;
+    background-color: #ddd;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.95);
-    padding: 28px;
-    border-radius: 14px;
+    background: rgba(255,255,255,0.6);
+    padding: 20px;
+    border-radius: 12px;
     text-align: center;
-    max-width: 85%;
+    max-width: 75%;
     margin: 12px auto;
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:18px; font-weight:500; }}
 .chat-bubble-user {{
     text-align: right;
     background: rgba(220,248,198,0.95);
