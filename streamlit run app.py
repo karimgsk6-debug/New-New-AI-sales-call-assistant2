@@ -30,7 +30,7 @@ except ImportError:
 # ----------------------------
 # GROQ client
 # ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
