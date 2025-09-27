@@ -50,8 +50,8 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = ("https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf%2Fnvdkbjs%3D")
-GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+BACKGROUND_URL = ("https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T15%3A35%3A52Z&sp=r&sv=2024-08-04&sr=b&scid=134c6041-1913-5d1b-9974-a2aba92201a7&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T05%3A09%3A07Z&ske=2025-09-28T05%3A09%3A07Z&sks=b&skv=2024-08-04&sig=7aQFm5RhZ9epNykQFKn7PqPerMyorga4a47YrmyCvo8%3D")
+GSK_LOGO_URL = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
 
 def get_brightness(url):
     try:
