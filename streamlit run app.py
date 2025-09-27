@@ -90,12 +90,12 @@ CSS = f"""
 }}
 .gsk-logo {{
     position: fixed;
-    top: 60px;
-    right: 16px;
+    top: 80px;
+    left: 16px;
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.6);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
@@ -311,6 +311,28 @@ if submitted and user_input.strip():
     audio_b64 = synthesize_tts_base64(ai_output, language)
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M"),"audio":audio_b64})
     st.markdown(render_chat_html(), unsafe_allow_html=True)
+# ----------------------------
+# Enhanced chat rendering with highlighted numbers
+# ----------------------------
+def render_chat_html() -> str:
+    html = ""
+    number_pattern = r"(\b\d+(\.\d+)?%?\b)"  # Matches numbers, decimals, and percentages
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n","<br>")
+        # Highlight APACT steps
+        for step in APACT_STEPS:
+            content = content.replace(step, f"<span class='highlight'>{step}</span>")
+        # Highlight numbers and stats
+        content = re.sub(number_pattern, r"<span class='highlight'>\1</span>", content)
+        
+        if msg["role"]=="user":
+            html += f"<div class='chat-bubble-user'>{content}</div>"
+        else:
+            audio_html = ""
+            if msg.get("audio"):
+                audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
+            html += f"<div class='chat-bubble-ai'>{content}{audio_html}</div>"
+    return html
 
 # ----------------------------
 # Bottom controls
