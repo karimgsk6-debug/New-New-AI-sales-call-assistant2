@@ -53,7 +53,7 @@ if "pdf_summary" not in st.session_state:
 # Assets & styling variables
 # ----------------------------
 BACKGROUND_URL = "https://sdmntprwestus2.oaiusercontent.com/files/00000000-8938-61f8-9ad4-67d8ede9c081/raw?se=2025-09-27T22%3A16%3A30Z&sp=r&sv=2024-08-04&sr=b&scid=0a78f1b4-0cf9-5f7d-a678-1ae2eeda8012&skoid=f05d6a75-3c59-41ae-be2c-51a75f29841e&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T05%3A28%3A39Z&ske=2025-09-28T05%3A28%3A39Z&sks=b&skv=2024-08-04&sig=Gvl5QQwvTZI0Qs0v7Sn0TgfX1O4ho395g/SXEsJEDoc%3D"
-GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
     try:
@@ -106,12 +106,12 @@ CSS = f"""
     border-radius: 10px;
     padding: 8px;
     margin-bottom: 12px;
-    background-color: #fff;
+    background-color: #dddd;
 }}
 .gsk-logo {{
-    position: fixed;
-    top: 60px;
-    right: 16px;
+    position: flix;
+    top: 80px;
+    left: 16px;
     z-index: 1000;
 }}
 .title-box {{
