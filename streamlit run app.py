@@ -46,7 +46,7 @@ if "extracted_medical_ref" not in st.session_state:
 # ----------------------------
 # Background image (girl on right)
 # ----------------------------
-BACKGROUND_URL = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A15%3A06Z&sp=r&sv=2024-08-04&sr=b&scid=6870570a-c416-5cac-816d-8f43608d4723&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T03%3A34%3A38Z&ske=2025-09-26T03%3A34%3A38Z&sks=b&skv=2024-08-04&sig=zeUa/UVyTIdgz6/Qm5s/D47aOZrYQj/LJX9T60q%2BXBw%3D"
+BACKGROUND_URL = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf/nvdkbjs%3D"
 
 def get_brightness(url):
     try:
@@ -125,30 +125,11 @@ st.markdown(f"""
     padding: 2px 4px;
     border-radius: 4px;
 }}
-.chat-input-container {{
-    display:flex;
-    margin-top:10px;
-}}
-.chat-input-container input {{
-    flex:1;
-    padding:12px;
-    border-radius:20px;
-    border:none;
-    outline:none;
-    backdrop-filter: blur(8px);
-    background-color: rgba(255,255,255,0.4);
-    color:{text_color};
-}}
-.chat-input-container button {{
-    margin-left:5px;
-    border:none;
-    border-radius:50%;
-    width:45px;
-    height:45px;
-    cursor:pointer;
-    font-weight:bold;
-    background-color:{button_bg};
-    color:white;
+.clear-chat {{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
 }}
 .sidebar-bold {{
     background: rgba(255,255,255,0.85);
@@ -235,11 +216,19 @@ objectives = ["Awareness", "Adoption", "Retention"]
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
 
 # ----------------------------
-# Sidebar with filters
+# Sidebar with filters & brand photo under brand name
 # ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     st.markdown('<div class="sidebar-bold">Filters & Options</div>', unsafe_allow_html=True)
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+    img_path = gsk_brands_images.get(brand)
+    try:
+        if img_path and img_path.startswith("http"):
+            resp = requests.get(img_path, timeout=10)
+            img = Image.open(BytesIO(resp.content))
+            st.image(img, width=200)
+    except:
+        st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
     segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", options=race_segments)
     barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
     objective = st.selectbox("Select Objective / اختر الهدف", options=objectives)
@@ -249,15 +238,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_tone = st.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
     language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
     interface_mode = st.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
-    # brand image below selection
-    img_path = gsk_brands_images.get(brand)
-    try:
-        if img_path and img_path.startswith("http"):
-            resp = requests.get(img_path, timeout=10)
-            img = Image.open(BytesIO(resp.content))
-            st.image(img, width=200)
-    except:
-        st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
 
 # ----------------------------
 # PDF upload & extraction
@@ -311,7 +291,7 @@ with st.form("chat_form", clear_on_submit=True):
 def synthesize_tts(text, lang):
     if not text.strip(): return None
     voice = "ar-EG-SalmaNeural" if lang=="العربية" else "en-US-JennyNeural"
-    filename = f"tts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
+    filename = f"tts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.mp3"
     try:
         async def _save(): await edge_tts.Communicate(text, voice=voice).save(filename)
         asyncio.run(_save())
@@ -366,6 +346,15 @@ Provide actionable sales call suggestions, a concise summary of the PDF content,
     audio_b64 = synthesize_tts(ai_output, language)
     st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M"),"audio":audio_b64})
     display_chat()
+
+# ----------------------------
+# Clear Chat button (bottom-left)
+# ----------------------------
+if st.button("🗑️ Clear Chat", key="clear_chat", help="Clear conversation history"):
+    st.session_state.chat_history = []
+    st.session_state.uploaded_pdf_text = ""
+    st.session_state.extracted_medical_ref = ""
+    st.rerun()
 
 # ----------------------------
 # Word download
