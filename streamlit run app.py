@@ -34,7 +34,7 @@ except Exception:
 # ----------------------------
 # GROQ client (replace with your key)
 # ----------------------------
-GROQ_API_KEY = "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"  # <- replace
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -52,9 +52,8 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = (
-    "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D"
-)
+# Permanent Unsplash healthcare background
+BACKGROUND_URL = "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D"
 GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
 def get_brightness(url: str) -> int:
@@ -70,22 +69,23 @@ brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
-# CSS (background + sidebar + chat bubbles semi-transparent)
+# CSS (responsive background + sidebar white + filter borders + UI)
 # ----------------------------
 CSS = f"""
 <style>
 .stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: contain;
+    background-size: cover;
     background-attachment: fixed;
 }}
 
 .stSidebar {{
     background-color: #fff;
     padding: 14px;
+    border-left: 2px solid #eee;
 }}
 
-.stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio,
+.stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, 
 .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
     border: 1px solid #ddd;
     border-radius: 10px;
@@ -114,7 +114,7 @@ CSS = f"""
 
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(220,248,198,0.85);
+    background: rgba(220,248,198,0.95);
     padding: 12px;
     border-radius: 15px 15px 0 15px;
     margin: 6px;
@@ -124,7 +124,7 @@ CSS = f"""
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(240,242,246,0.85);
+    background: rgba(240,242,246,0.95);
     padding: 12px;
     border-radius: 15px 15px 15px 0;
     margin: 6px;
@@ -152,6 +152,10 @@ CSS = f"""
 }}
 .chat-input {{ flex: 1; }}
 
+.clear-btn, .download-btn {{
+    min-width: 140px;
+}}
+
 @media (max-width: 800px) {{
     .title-box h1 {{ font-size: 28px; }}
     .gsk-logo img {{ width: 110px; }}
@@ -160,18 +164,16 @@ CSS = f"""
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# JS to resize background when sidebar expands
+# ----------------------------
+# Sidebar background responsiveness (JS)
+# ----------------------------
 SIDEBAR_JS = """
 <script>
 (function() {
   function setBgSize(expanded) {
     const el = document.querySelector('.stApp');
     if (!el) return;
-    if (expanded) {
-      el.style.backgroundSize = 'auto 90%';
-    } else {
-      el.style.backgroundSize = 'auto 100%';
-    }
+    el.style.backgroundSize = expanded ? 'auto 90%' : 'cover';
   }
   const sidebar = document.querySelector('[data-testid="stSidebar"]');
   if (!sidebar) return;
@@ -188,19 +190,3 @@ SIDEBAR_JS = """
 </script>
 """
 st.markdown(SIDEBAR_JS, unsafe_allow_html=True)
-
-# JS for chat scroll
-SCROLL_JS = """
-<script>
-function scrollChat() {
-  const container = document.getElementById('chat-container');
-  if (container) container.scrollTop = container.scrollHeight;
-}
-setTimeout(scrollChat, 200);
-</script>
-"""
-
-# ----------------------------
-# Rest of your logic unchanged...
-# (PDF upload, chat, Groq calls, TTS, etc.)
-# ----------------------------
