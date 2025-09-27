@@ -83,7 +83,7 @@ CSS = f"""
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.92);
+    background: rgba(240,240,240,0.5);
     padding: 35px;
     border-radius: 18px;
     text-align: center;
@@ -103,7 +103,7 @@ CSS = f"""
 .disclaimer {{
     text-align: center;
     padding: 12px;
-    font-size: 15px;
+    font-size: 25px;
     font-weight: 500;
     margin-bottom: 10px;
 }}
