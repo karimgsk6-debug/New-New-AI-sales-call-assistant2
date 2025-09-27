@@ -65,7 +65,7 @@ def get_brightness(url: str) -> int:
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
+text_color = "black" if brightness > 150 else "white"
 
 # ----------------------------
 # CSS styling
@@ -79,7 +79,7 @@ CSS = f"""
 }}
 .stSidebar {{
     background-color: #dddd;
-    padding: 14px;
+    padding: 15px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
     border: 2px solid #ddd;
@@ -104,7 +104,7 @@ CSS = f"""
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; color: black; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; color: black; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; color:black; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:20px; font-weight:500; color:black; }}
 .chat-bubble-user, .chat-bubble-ai {{
     padding: 12px;
     border-radius: 15px;
@@ -115,8 +115,8 @@ CSS = f"""
     color: black;
     font-weight: 500;
 }}
-.chat-bubble-user {{ text-align:right; background: rgba(200,200,200,0.8); }}
-.chat-bubble-ai {{ text-align:left; background: rgba(230,230,230,0.8); }}
+.chat-bubble-user {{ text-align:right; background: rgba(200,200,200,0.6); }}
+.chat-bubble-ai {{ text-align:left; background: rgba(230,230,230,0.6); }}
 .highlight {{ font-weight: bold; background-color: yellow; color: black; padding: 2px 4px; border-radius: 4px; }}
 .bottom-bar {{
     position: fixed;
