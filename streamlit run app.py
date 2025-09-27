@@ -104,7 +104,7 @@ CSS = f"""
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.7);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
