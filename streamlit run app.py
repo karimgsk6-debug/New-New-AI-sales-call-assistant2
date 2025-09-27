@@ -115,7 +115,7 @@ CSS = f"""
     z-index: 1000;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.7);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
@@ -124,7 +124,7 @@ CSS = f"""
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:20px; font-weight:500; }}
 .chat-bubble-user, .chat-bubble-ai {{
     padding: 12px;
     border-radius: 15px;
