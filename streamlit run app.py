@@ -86,9 +86,9 @@ CSS = f"""
     background-size: auto 100%;
 }}
 
-/* Sidebar background GSK Orange */
+/* Sidebar background White */
 [data-testid="stSidebar"] {{
-    background-color: {white};
+    background-color: {White};
     color:white;
 }}
 
