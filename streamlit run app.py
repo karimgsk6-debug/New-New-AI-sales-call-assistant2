@@ -89,8 +89,8 @@ CSS = f"""
     background-color: #fff;
 }}
 .gsk-logo {{
-    position: fixed;
-    top: 60px;
+    position: flix;
+    top: 70px;
     left: 16px;
     z-index: 1000;
 }}
