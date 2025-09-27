@@ -32,7 +32,7 @@ except Exception:
 # ----------------------------
 # GROQ client (replace with your key)
 # ----------------------------
-GROQ_API_KEY = "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"  # <- REPLACE with your key
+GROQ_API_KEY = "YOUR_KEY_HERE"  # <- REPLACE with your key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -46,15 +46,20 @@ if "extracted_medical_ref" not in st.session_state:
     st.session_state.extracted_medical_ref = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
+if "sidebar_expanded" not in st.session_state:
+    st.session_state.sidebar_expanded = True
 
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = ("https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D")
+BACKGROUND_URL = ("https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/"
+                  "raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd"
+                  "&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3"
+                  "&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04"
+                  "&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf%2Fnvdkbjs%3D")
 
 GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
-# compute brightness to pick text color
 def get_brightness(url):
     try:
         r = requests.get(url, timeout=8)
@@ -65,28 +70,28 @@ def get_brightness(url):
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 140 else "white"
-button_bg = "#FFA500" if brightness > 140 else "#FF8C00"
+text_color = "black" if brightness > 130 else "white"
+button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 
 # ----------------------------
-# CSS (background, logo, layout, sidebar, chat)
+# CSS (background, sidebar, chat)
 # ----------------------------
 CSS = f"""
 <style>
-/* Main background */
+/* Main background responsive to sidebar */
 .stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: contain;
+    background-size: {'80%' if st.session_state.sidebar_expanded else '95%'};
     background-attachment: fixed;
 }}
 
-/* Sidebar default */
+/* Sidebar default white */
 .stSidebar {{
     background-color: #fff;
-    padding: 15px;
+    padding: 12px;
 }}
 
-/* Sidebar filter borders */
+/* Sidebar filters border */
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox {{
     border: 1px solid #ccc;
     border-radius: 8px;
@@ -105,7 +110,7 @@ CSS = f"""
 
 /* Title box */
 .title-box {{
-    background: rgba(240,240,240,0.72);
+    background: rgba(255,255,255,0.92);
     padding: 35px;
     border-radius: 18px;
     text-align: center;
@@ -135,7 +140,7 @@ CSS = f"""
 /* Chat bubbles */
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(220,248,198,0.75);
+    background: rgba(220,248,198,0.95);
     padding: 12px;
     border-radius: 15px 15px 0px 15px;
     margin: 6px;
@@ -145,7 +150,7 @@ CSS = f"""
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(240,242,246,0.75);
+    background: rgba(240,242,246,0.95);
     padding: 12px;
     border-radius: 15px 15px 15px 0px;
     margin: 6px;
@@ -198,7 +203,7 @@ CSS = f"""
     z-index: 1000;
 }}
 
-/* Sidebar section bold */
+/* Sidebar bold header */
 .sidebar-bold {{
     background: rgba(255,255,255,0.85);
     padding: 10px;
@@ -223,7 +228,7 @@ st.markdown("""
 st.markdown('<p class="disclaimer">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
 # ----------------------------
-# Top-left language selector
+# Language selector
 # ----------------------------
 st.markdown("""
 <div style="position:fixed; top:72px; left:18px; z-index:1000; background: rgba(255,255,255,0.9); padding:8px 12px; border-radius:8px;">
@@ -246,32 +251,25 @@ race_segments = ["R – Reach: Not prescribing yet; doesn't see vaccination resp
                  "A – Acquisition: Prescribes when patient asks; convinced by data.",
                  "C – Conversion: Initiates for specific profiles; not across all profiles.",
                  "E – Engagement: Proactively prescribes across multiple patient profiles."]
-doctor_barriers = ["HCP does not consider HZ a risk",
-                   "No time for discussion",
-                   "Cost concerns",
-                   "Not convinced of efficacy",
-                   "Accessibility/Logistics",
-                   "Patient reluctance",
-                   "Other clinical doubts"]
-personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
+doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns",
+                   "Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"]
+personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
 gsk_approaches = ["Use data-driven evidence (local + global studies)",
                   "Focus on patient outcomes & quality of life",
                   "Leverage brief storytelling and peer endorsement",
                   "Address practical barriers (access, scheduling, cost solutions)"]
-sales_call_flow = ["Prepare: Data & patient profiles",
-                   "Engage: Opening question & rapport",
-                   "Create Opportunities: Identify eligible patients",
-                   "Influence: Present tailored evidence & handle objections",
-                   "Drive Impact: Secure next steps (prescription/scheduling)",
-                   "Post Call Analysis: Document & follow up"]
-APACT_STEPS = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
-objectives = ["Awareness", "Adoption", "Retention"]
-specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
+sales_call_flow = ["Prepare: Data & patient profiles","Engage: Opening question & rapport",
+                   "Create Opportunities: Identify eligible patients","Influence: Present tailored evidence & handle objections",
+                   "Drive Impact: Secure next steps (prescription/scheduling)","Post Call Analysis: Document & follow up"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
+objectives = ["Awareness","Adoption","Retention"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist"]
 
 # ----------------------------
 # Sidebar filters
 # ----------------------------
-with st.sidebar.expander("Filters & Options", expanded=True):
+with st.sidebar.expander("Filters & Options", expanded=True) as exp:
+    st.session_state.sidebar_expanded = exp.expanded
     st.markdown('<div class="sidebar-bold">Filters & Options</div>', unsafe_allow_html=True)
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
     img_path = gsk_brands_images.get(brand)
@@ -292,7 +290,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     interface_mode = st.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # ----------------------------
-# PDF upload moved above chat input
+# PDF upload above chat input
 # ----------------------------
 st.subheader("📄 Upload Medical Reference PDF")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -300,33 +298,18 @@ show_more_toggle = st.checkbox("Show full PDF text", value=False)
 if uploaded_pdf:
     try:
         reader = PyPDF2.PdfReader(uploaded_pdf)
-        full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text if show_more_toggle else full_text[:1000]+"..."
+        full_text = ""
+        for p in reader.pages:
+            full_text += (p.extract_text() or "") + "\n"
+        st.session_state.uploaded_pdf_text = full_text if show_more_toggle else full_text[:1000] + "..."
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else ""
         st.success("✅ PDF processed")
-        if st.button("Summarize PDF"):
-            text_for_summary = full_text[:6000]
-            summary_prompt = f"Summarize this medical document for sales reps for {brand}. Language: {language}.\n\n{text_for_summary}"
-            try:
-                summary_resp = client.chat.completions.create(
-                    model="meta-llama/llama-4-scout-17b-16e-instruct",
-                    messages=[{"role": "system", "content": "You are a concise medical summarizer for sales teams."},
-                              {"role": "user", "content": summary_prompt}],
-                    temperature=0.3
-                )
-                st.session_state.pdf_summary = summary_resp.choices[0].message.content
-            except Exception as e:
-                st.session_state.pdf_summary = f"⚠️ Error summarizing PDF: {e}"
-            st.markdown("### 📑 PDF Summary")
-            st.write(st.session_state.pdf_summary)
-            if st.session_state.extracted_medical_ref:
-                st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
     except Exception as e:
         st.error(f"PDF error: {e}")
 
 # ----------------------------
-# Chat interface
+# Chat display & TTS functions
 # ----------------------------
 st.subheader("💬 Chatbot Interface")
 chat_placeholder = st.empty()
@@ -334,14 +317,14 @@ chat_placeholder = st.empty()
 def display_chat():
     html = ""
     for msg in st.session_state.chat_history:
-        content = msg["content"].replace("\n","<br>")
+        content = msg["content"].replace("\n", "<br>")
         for step in APACT_STEPS:
             content = content.replace(step, f"<span class='highlight'>{step}</span>")
-        ts = msg.get("time","")
+        ts = msg.get("time", "")
         audio_html = ""
         if msg.get("audio"):
             audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-        if msg["role"]=="user":
+        if msg["role"] == "user":
             html += f"<div class='chat-bubble-user'>{content}<br><span style='font-size:10px;color:gray'>{ts}</span></div>"
         else:
             html += f"<div class='chat-bubble-ai'>{content}<br><span style='font-size:10px;color:gray'>{ts}</span>{audio_html}</div>"
@@ -349,50 +332,35 @@ def display_chat():
 
 display_chat()
 
+def synthesize_tts_base64(text, lang):
+    if not text.strip(): return None
+    voice = "ar-EG-SalmaNeural" if lang == "العربية" else "en-US-JennyNeural"
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp_name = tmp.name
+    tmp.close()
+    try:
+        async def _save(): await edge_tts.Communicate(text, voice=voice).save(tmp_name)
+        asyncio.run(_save())
+        with open(tmp_name,"rb") as f: audio_bytes=f.read()
+        return base64.b64encode(audio_bytes).decode("utf-8")
+    except Exception as e:
+        st.warning(f"⚠️ TTS failed: {e}")
+        return None
+    finally:
+        if os.path.exists(tmp_name): os.remove(tmp_name)
+
 # ----------------------------
-# Chat input at bottom
+# Chat input form
 # ----------------------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message... / اكتب رسالتك هنا", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
-# ----------------------------
-# TTS helper
-# ----------------------------
-def synthesize_tts_base64(text, lang):
-    if not text.strip(): return None
-    clean_text = re.sub(r'([.,;:!?])', '', text)
-    voice = "ar-EG-SalmaNeural" if lang=="العربية" else "en-US-JennyNeural"
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-    tmp_name = tmp.name
-    tmp.close()
-    try:
-        async def _save():
-            comm = edge_tts.Communicate(clean_text, voice=voice)
-            await comm.save(tmp_name)
-        asyncio.run(_save())
-        with open(tmp_name,"rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
-    except Exception as e:
-        st.warning(f"⚠️ TTS failed: {e}")
-        return None
-    finally:
-        if os.path.exists(tmp_name):
-            os.remove(tmp_name)
-
-# ----------------------------
-# Handle chat submission
-# ----------------------------
 if submitted and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
     display_chat()
-    
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
-    medical_ref_str = st.session_state.extracted_medical_ref or "None"
-    pdf_summary_text = st.session_state.pdf_summary or "None"
-    pdf_preview = st.session_state.uploaded_pdf_text or "No PDF uploaded."
 
+    # Build prompt
     prompt_lines = [
         f"Language: {language}",
         f"User input: {user_input}",
@@ -402,15 +370,19 @@ if submitted and user_input.strip():
         f"Objective: {objective}",
         f"Doctor Specialty: {specialty}",
         f"HCP Persona: {persona}",
-        f"Medical Reference(s): {medical_ref_str}",
+        f"Medical Reference(s): {st.session_state.extracted_medical_ref or 'None'}",
         "",
-        "Uploaded PDF (preview):", pdf_preview,
+        "Uploaded PDF (preview):",
+        st.session_state.uploaded_pdf_text or "No PDF uploaded.",
         "",
-        "PDF AI Summary (if available):", pdf_summary_text,
+        "PDF AI Summary (if available):",
+        st.session_state.pdf_summary or "None",
         "",
-        "Approved Sales Approaches:", approaches_str,
+        "Approved Sales Approaches:",
+        "\n".join(gsk_approaches),
         "",
-        "Sales Call Flow Steps:", flow_str,
+        "Sales Call Flow Steps:",
+        " → ".join(sales_call_flow),
         "",
         "Use APACT (Acknowledge → Probing → Action → Confirm → Transition) technique for handling objections.",
         f"Response Length: {response_length}",
@@ -419,6 +391,7 @@ if submitted and user_input.strip():
     ]
     prompt = "\n".join(prompt_lines)
 
+    # Call Groq
     try:
         resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -435,7 +408,7 @@ if submitted and user_input.strip():
     display_chat()
 
 # ----------------------------
-# Clear chat and download
+# Clear chat & download at bottom
 # ----------------------------
 col1, col2 = st.columns([1,1])
 with col1:
@@ -457,6 +430,6 @@ with col2:
             st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
 
 # ----------------------------
-# Brand leaflet link
+# Brand leaflet
 # ----------------------------
 st.markdown(f"[📄 Brand Leaflet - {brand}]({gsk_brands[brand]})")
