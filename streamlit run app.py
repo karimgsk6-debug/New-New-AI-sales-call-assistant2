@@ -74,7 +74,7 @@ CSS = f"""
 /* Main background */
 .stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: auto 200%;
+    background-size: auto 150%;
     background-attachment: fixed;
     transition: background-size 0.3s ease;
 }}
