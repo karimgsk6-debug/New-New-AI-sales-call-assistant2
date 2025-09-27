@@ -44,29 +44,21 @@ if "extracted_medical_ref" not in st.session_state:
     st.session_state.extracted_medical_ref = ""
 
 # ----------------------------
-# Background image (girl on right)
-# ----------------------------
-BACKGROUND_URL = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf/nvdkbjs%3D"
+# --- Background Image (external URL) ---
+bg_url = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf/nvdkbjs%3D"
 
-def get_brightness(url):
-    try:
-        r = requests.get(url, timeout=10)
-        img = Image.open(BytesIO(r.content)).convert("L")
-        stat = ImageStat.Stat(img)
-        return stat.mean[0]
-    except Exception:
-        return 255
-
-brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
-button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
-
-st.markdown(f"""
-<style>
-.stApp {{
-    background: url("{BACKGROUND_URL}") no-repeat right top fixed;
-    background-size: contain;
-}}
+st.markdown(
+    f"""
+    <style>
+    .stApp {{
+        background: url('{bg_url}') no-repeat right top;
+        background-size: contain;
+        background-attachment: fixed;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 .gsk-logo {{
     position: fixed;
     top: 60px;
