@@ -65,8 +65,8 @@ def get_brightness(url):
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
-button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
+text_color = "black" if brightness > 140 else "white"
+button_bg = "#FFA500" if brightness > 140 else "#FF8C00"
 
 # ----------------------------
 # CSS (background, logo, layout, sidebar, chat)
@@ -83,7 +83,7 @@ CSS = f"""
 /* Sidebar default */
 .stSidebar {{
     background-color: #fff;
-    padding: 12px;
+    padding: 15px;
 }}
 
 /* Sidebar filter borders */
@@ -105,7 +105,7 @@ CSS = f"""
 
 /* Title box */
 .title-box {{
-    background: rgba(255,255,255,0.92);
+    background: rgba(240,240,240,0.72);
     padding: 35px;
     border-radius: 18px;
     text-align: center;
@@ -135,7 +135,7 @@ CSS = f"""
 /* Chat bubbles */
 .chat-bubble-user {{
     text-align: right;
-    background: rgba(220,248,198,0.95);
+    background: rgba(220,248,198,0.75);
     padding: 12px;
     border-radius: 15px 15px 0px 15px;
     margin: 6px;
@@ -145,7 +145,7 @@ CSS = f"""
 }}
 .chat-bubble-ai {{
     text-align: left;
-    background: rgba(240,242,246,0.95);
+    background: rgba(240,242,246,0.75);
     padding: 12px;
     border-radius: 15px 15px 15px 0px;
     margin: 6px;
