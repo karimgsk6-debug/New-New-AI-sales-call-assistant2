@@ -78,7 +78,7 @@ CSS = f"""
     background-attachment: fixed;
 }}
 .stSidebar {{
-    background-color: #fff;
+    background-color: #dddd;
     padding: 14px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
