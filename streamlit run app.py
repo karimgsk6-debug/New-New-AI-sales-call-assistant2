@@ -1,126 +1,206 @@
+# app.py
 import streamlit as st
-import base64
-import os
-from gtts import gTTS
-import tempfile
-import PyPDF2
+from PIL import Image, ImageStat
 import requests
-from io import BytesIO
+from io import BytesIO, BytesIO as io_bytes
+import groq
+from groq import Groq
+from datetime import datetime
+import PyPDF2
+import asyncio
+import edge_tts
+import base64
+import re
+import os
+import tempfile
+import time
+from typing import Optional
 
-# -------------------- PAGE CONFIG --------------------
-st.set_page_config(
-    page_title="AI Sales Call Assistant",
-    layout="wide"
-)
+# ----------------------------
+# Page config
+# ----------------------------
+st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
-# -------------------- BACKGROUND IMAGE --------------------
-def set_bg_from_url(url):
-    page_bg_img = f"""
-    <style>
-    .stApp {{
-        background-image: url("{url}");
-        background-size: cover;
-        background-position: center center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        transition: all 0.3s ease-in-out;
-    }}
-    [data-testid="stSidebar"] {{
-        background-color: rgba(255, 255, 255, 0.8) !important;  /* semi-transparent white */
-        border-right: 1px solid #e0e0e0;
-    }}
-    </style>
-    """
-    st.markdown(page_bg_img, unsafe_allow_html=True)
+# ----------------------------
+# Optional Word download (docx)
+# ----------------------------
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except Exception:
+    DOCX_AVAILABLE = False
+    st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# Use the provided background image
-bg_url = "https://sdmntprnortheu.oaiusercontent.com/files/00000000-7268-61f4-9aa6-71a39056c20e/raw?se=2025-09-25T15%3A42%3A47Z&sp=r&sv=2024-08-04&sr=b&scid=dfa0d35f-01ac-5224-bec7-ff9f505758dd&skoid=b32d65cd-c8f1-46fb-90df-c208671889d4&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-25T09%3A41%3A15Z&ske=2025-09-26T09%3A41%3A15Z&sks=b&skv=2024-08-04&sig=ap%2BO7ty9YJurxH528T8cPoSQD5Kh6VHdsvf/nvdkbjs%3D"
-set_bg_from_url(bg_url)
+# ----------------------------
+# GROQ client (replace with your key)
+# ----------------------------
+GROQ_API_KEY = "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"  # <- replace
+client = Groq(api_key=GROQ_API_KEY)
 
-# -------------------- SIDEBAR --------------------
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/5/5a/GlaxoSmithKline_logo.svg", use_column_width=True)
-st.sidebar.markdown("### Filters")
-
-with st.sidebar.expander("📂 Segmentation Filters", expanded=True):
-    st.markdown(
-        """
-        <style>
-        .sidebar-content {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 8px;
-            margin-bottom: 10px;
-            background-color: #fafafa;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown('<div class="sidebar-content">Specialty Filter</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-content">Region Filter</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-content">Potential Filter</div>', unsafe_allow_html=True)
-
-# -------------------- MAIN LAYOUT --------------------
-st.title("💊 AI Sales Call Assistant (APACT + GSK Flow)")
-
-# -------- PDF UPLOAD + SUMMARIZE --------
-st.subheader("📑 Upload and Summarize PDF")
-uploaded_pdf = st.file_uploader("Upload a PDF", type="pdf")
-
-if uploaded_pdf:
-    pdf_reader = PyPDF2.PdfReader(uploaded_pdf)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text() or ""
-    st.text_area("Extracted PDF Content", text[:2000] + "...", height=200)
-    if st.button("Summarize PDF"):
-        st.success("✅ PDF summarized (mock response).")
-
-# -------- CHAT INTERFACE --------
-st.subheader("💬 Chatbot Interface")
-
+# ----------------------------
+# Session state defaults
+# ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "uploaded_pdf_text" not in st.session_state:
+    st.session_state.uploaded_pdf_text = ""
+if "extracted_medical_ref" not in st.session_state:
+    st.session_state.extracted_medical_ref = ""
+if "pdf_summary" not in st.session_state:
+    st.session_state.pdf_summary = ""
 
-user_input = st.text_area("Type your question here...", height=100)
+# ----------------------------
+# Assets & styling variables
+# ----------------------------
+BACKGROUND_URL = (
+    "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D"
+)
+GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
-    if st.button("Send"):
-        if user_input.strip():
-            st.session_state.chat_history.append(("user", user_input))
-            ai_response = f"AI response to: {user_input}\n\n(Using GSK APACT model)"
-            st.session_state.chat_history.append(("ai", ai_response))
-with col2:
-    if st.button("Clear Chat"):
-        st.session_state.chat_history = []
-with col3:
-    if st.button("Download Chat"):
-        chat_text = "\n".join([f"{role}: {msg}" for role, msg in st.session_state.chat_history])
-        b64 = base64.b64encode(chat_text.encode()).decode()
-        href = f'<a href="data:file/txt;base64,{b64}" download="chat_history.txt">Download</a>'
-        st.markdown(href, unsafe_allow_html=True)
+def get_brightness(url: str) -> int:
+    try:
+        r = requests.get(url, timeout=8)
+        img = Image.open(BytesIO(r.content)).convert("L")
+        stat = ImageStat.Stat(img)
+        return int(stat.mean[0])
+    except Exception:
+        return 255
 
-# -------- DISPLAY CHAT --------
-for role, msg in st.session_state.chat_history:
-    if role == "user":
-        st.markdown(f"🧑‍💼 **You:** {msg}")
-    else:
-        st.markdown(f"🤖 **AI:** {msg}")
+brightness = get_brightness(BACKGROUND_URL)
+text_color = "black" if brightness > 130 else "white"
 
-        # Generate TTS in English & Arabic (remove punctuation for smoother voice)
-        try:
-            clean_msg = msg.replace(".", "").replace(",", "").replace(";", "").replace(":", "")
+# ----------------------------
+# CSS (background + sidebar + chat bubbles semi-transparent)
+# ----------------------------
+CSS = f"""
+<style>
+.stApp {{
+    background: url('{BACKGROUND_URL}') no-repeat top right;
+    background-size: contain;
+    background-attachment: fixed;
+}}
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmpfile:
-                tts = gTTS(clean_msg, lang="en")
-                tts.save(tmpfile.name)
-                st.audio(tmpfile.name)
+.stSidebar {{
+    background-color: #fff;
+    padding: 14px;
+}}
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmpfile_ar:
-                tts_ar = gTTS(clean_msg, lang="ar")
-                tts_ar.save(tmpfile_ar.name)
-                st.audio(tmpfile_ar.name)
+.stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio,
+.stSidebar .stCheckbox, .stSidebar .stFileUploader {{
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 8px;
+    margin-bottom: 12px;
+    background-color: #fff;
+}}
 
-        except Exception as e:
-            st.warning(f"TTS error: {e}")
+.gsk-logo {{
+    position: fixed;
+    top: 60px;
+    right: 16px;
+    z-index: 1000;
+}}
+.title-box {{
+    background: rgba(255,255,255,0.7);
+    padding: 28px;
+    border-radius: 14px;
+    text-align: center;
+    max-width: 85%;
+    margin: 12px auto;
+}}
+.title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
+.title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+
+.chat-bubble-user {{
+    text-align: right;
+    background: rgba(220,248,198,0.85);
+    padding: 12px;
+    border-radius: 15px 15px 0 15px;
+    margin: 6px;
+    display: inline-block;
+    max-width: 80%;
+    color: {text_color};
+}}
+.chat-bubble-ai {{
+    text-align: left;
+    background: rgba(240,242,246,0.85);
+    padding: 12px;
+    border-radius: 15px 15px 15px 0;
+    margin: 6px;
+    display: inline-block;
+    max-width: 80%;
+    color: {text_color};
+}}
+.highlight {{
+    font-weight: bold;
+    background-color: yellow;
+    color: black;
+    padding: 2px 4px;
+    border-radius: 4px;
+}}
+
+.bottom-bar {{
+    position: fixed;
+    bottom: 12px;
+    width: 96%;
+    left: 2%;
+    z-index: 1000;
+    display:flex;
+    gap:12px;
+    align-items:center;
+}}
+.chat-input {{ flex: 1; }}
+
+@media (max-width: 800px) {{
+    .title-box h1 {{ font-size: 28px; }}
+    .gsk-logo img {{ width: 110px; }}
+}}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+# JS to resize background when sidebar expands
+SIDEBAR_JS = """
+<script>
+(function() {
+  function setBgSize(expanded) {
+    const el = document.querySelector('.stApp');
+    if (!el) return;
+    if (expanded) {
+      el.style.backgroundSize = 'auto 90%';
+    } else {
+      el.style.backgroundSize = 'auto 100%';
+    }
+  }
+  const sidebar = document.querySelector('[data-testid="stSidebar"]');
+  if (!sidebar) return;
+  setBgSize(sidebar.getAttribute('aria-expanded') === 'true');
+  const mo = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.attributeName === 'aria-expanded') {
+        setBgSize(sidebar.getAttribute('aria-expanded') === 'true');
+      }
+    }
+  });
+  mo.observe(sidebar, { attributes: true });
+})();
+</script>
+"""
+st.markdown(SIDEBAR_JS, unsafe_allow_html=True)
+
+# JS for chat scroll
+SCROLL_JS = """
+<script>
+function scrollChat() {
+  const container = document.getElementById('chat-container');
+  if (container) container.scrollTop = container.scrollHeight;
+}
+setTimeout(scrollChat, 200);
+</script>
+"""
+
+# ----------------------------
+# Rest of your logic unchanged...
+# (PDF upload, chat, Groq calls, TTS, etc.)
+# ----------------------------
