@@ -22,7 +22,7 @@ from typing import Optional
 st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
 # ----------------------------
-# Optional Word download
+# Optional Word download (docx)
 # ----------------------------
 try:
     from docx import Document
@@ -32,9 +32,9 @@ except Exception:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # ----------------------------
-# GROQ client
+# GROQ client (replace with your key)
 # ----------------------------
-GROQ_API_KEY = "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"  # <- replace
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
@@ -55,62 +55,6 @@ if "pdf_summary" not in st.session_state:
 BACKGROUND_URL = "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-a9b4-61f7-b2cf-05a782087038/raw?se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-26T17%3A22%3A36Z&ske=2025-09-27T17%3A22%3A36Z&sks=b&skv=2024-08-04&sig=eSrtOWb2e5Fm4%2Bpg7z1kf2I0XJ2H3I/Mqc5df0aOFSk%3D"
 GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
 
-# ----------------------------
-# HCP specialties
-# ----------------------------
-specialties = ["GP", "Cardiologist", "Rheumatologist", "Dermatologist", "Internal Medicine", "Diabetologist",
-               "Endocrinologist", "Pneumologist", "Neurologists"]
-
-# ----------------------------
-# Filters & other definitions
-# ----------------------------
-gsk_brands = {
-    "Shingrix": "https://www.shingrix.com/",
-    "Trelegy": "https://www.trelegy.com/",
-    "Zejula": "https://www.zejula.com/",
-}
-gsk_brands_images = {
-    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Trelegy": "https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
-    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
-}
-
-race_segments = [
-    "R – Reach: Not prescribing yet; doesn't see vaccination responsibility.",
-    "A – Acquisition: Prescribes when patient asks; convinced by data.",
-    "C – Conversion: Initiates for specific profiles; not across all profiles.",
-    "E – Engagement: Proactively prescribes across multiple patient profiles.",
-]
-doctor_barriers = [
-    "HCP does not consider HZ a risk",
-    "No time for discussion",
-    "Cost concerns",
-    "Not convinced of efficacy",
-    "Accessibility/Logistics",
-    "Patient reluctance",
-    "Other clinical doubts",
-]
-personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
-gsk_approaches = [
-    "Use data-driven evidence (local + global studies)",
-    "Focus on patient outcomes & quality of life",
-    "Leverage brief storytelling and peer endorsement",
-    "Address practical barriers (access, scheduling, cost solutions)",
-]
-sales_call_flow = [
-    "Prepare: Data & patient profiles",
-    "Engage: Opening question & rapport",
-    "Create Opportunities: Identify eligible patients",
-    "Influence: Present tailored evidence & handle objections",
-    "Drive Impact: Secure next steps (prescription/scheduling)",
-    "Post Call Analysis: Document & follow up",
-]
-APACT_STEPS = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
-objectives = ["Awareness", "Adoption", "Retention"]
-
-# ----------------------------
-# Determine text color based on background brightness
-# ----------------------------
 def get_brightness(url: str) -> int:
     try:
         r = requests.get(url, timeout=8)
@@ -124,51 +68,67 @@ brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
-# CSS Styling
+# CSS styling
 # ----------------------------
 CSS = f"""
 <style>
-body, .stApp {{
+.stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: 100% 100%;
+    background-size: cover;
     background-attachment: fixed;
 }}
 .stSidebar {{
-    background-color: #dddd;
-    padding: 12px;
+    background-color: #fff;
+    padding: 14px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
-    border: 2px solid #aaa;
+    border: 2px solid #ddd;
     border-radius: 10px;
     padding: 8px;
     margin-bottom: 12px;
     background-color: #fff;
 }}
-.chat-bubble-user, .chat-bubble-ai {{
-    padding: 12px;
-    border-radius: 12px;
-    margin: 6px 0;
-    display: inline-block;
-    max-width: 100%;
-    word-wrap: break-word;
+.gsk-logo {{
+    position: fixed;
+    top: 60px;
+    right: 16px;
+    z-index: 1000;
 }}
-.chat-bubble-user {{ background: rgba(220,248,198,0.95); text-align:right; color:{text_color}; }}
-.chat-bubble-ai {{ background: rgba(240,242,246,0.95); text-align:left; color:{text_color}; }}
 .title-box {{
-    background: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.96);
     padding: 28px;
     border-radius: 14px;
     text-align: center;
     max-width: 85%;
     margin: 12px auto;
 }}
-.title-box h1 {{ margin:0; font-size:38px; font-weight:800; }}
-.title-box p {{ margin:8px 0 0 0; font-size:18px; font-weight:500; }}
-.gsk-logo {{ position: fixed; top: 60px; right: 16px; z-index:1000; }}
-.bottom-bar {{ position:fixed; bottom:12px; width:96%; left:2%; z-index:1000; display:flex; gap:12px; align-items:center; }}
+.title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
+.title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
+.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+.chat-bubble-user, .chat-bubble-ai {{
+    padding: 12px;
+    border-radius: 15px;
+    margin: 6px 0;
+    display: inline-block;
+    max-width: 95%;
+    word-wrap: break-word;
+}}
+.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); color:{text_color}; }}
+.chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); color:{text_color}; }}
+.highlight {{ font-weight: bold; background-color: yellow; color: black; padding: 2px 4px; border-radius: 4px; }}
+.bottom-bar {{
+    position: fixed;
+    bottom: 12px;
+    width: 96%;
+    left: 2%;
+    z-index: 1000;
+    display:flex; gap:12px; align-items:center;
+}}
+.chat-input {{ flex: 1; }}
+.clear-btn, .download-btn {{ min-width: 140px; }}
 @media (max-width: 430px) {{
-    .title-box h1 {{ font-size:28px; }}
-    .gsk-logo img {{ width:110px; }}
+    .title-box h1 {{ font-size: 26px; }}
+    .gsk-logo img {{ width: 90px; }}
 }}
 </style>
 """
@@ -187,38 +147,56 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 st.markdown('<p class="disclaimer">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
 # ----------------------------
 # Language selector
 # ----------------------------
-language = st.radio("Language / اللغة", options=["English", "العربية"], horizontal=True, label_visibility="collapsed")
+language = st.radio("", options=["English", "العربية"], horizontal=True, label_visibility="collapsed")
 
 # ----------------------------
-# Sidebar: Filters
+# GSK data
+# ----------------------------
+gsk_brands = {"Shingrix":"https://www.shingrix.com/", "Trelegy":"https://www.trelegy.com/", "Zejula":"https://www.zejula.com/"}
+gsk_brands_images = {
+    "Shingrix":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Trelegy":"https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
+    "Zejula":"https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"
+}
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"]
+personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+gsk_approaches = ["Use data-driven evidence (local + global studies)","Focus on patient outcomes & quality of life","Leverage brief storytelling and peer endorsement","Address practical barriers (access, scheduling, cost solutions)"]
+sales_call_flow = ["Prepare: Data & patient profiles","Engage: Opening question & rapport","Create Opportunities: Identify eligible patients","Influence: Present tailored evidence & handle objections","Drive Impact: Secure next steps","Post Call Analysis: Document & follow up"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
+objectives = ["Awareness","Adoption","Retention"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologists","Pneumologist"]
+
+# ----------------------------
+# Sidebar filters
 # ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
-    brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+    st.markdown('<div style="font-weight:800; margin-bottom:8px;">Filters & Options</div>', unsafe_allow_html=True)
+    brand = st.selectbox("Select Brand", options=list(gsk_brands.keys()))
     img_path = gsk_brands_images.get(brand)
     if img_path:
         try:
             resp = requests.get(img_path, timeout=8)
             img = Image.open(BytesIO(resp.content))
             st.image(img, width=200)
-        except Exception:
+        except:
             st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
     segment = st.selectbox("Select RACE Segment", options=race_segments)
     barrier = st.multiselect("Select Doctor Barrier", options=doctor_barriers, default=[])
     objective = st.selectbox("Select Objective", options=objectives)
     specialty = st.selectbox("Select Doctor Specialty", options=specialties)
     persona = st.selectbox("Select HCP Persona", options=personas)
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"])
-    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-    interface_mode = st.radio("Interface Mode", ["Chatbot", "Card Dashboard", "Flow Visualization"])
+    response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
+    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
+    interface_mode = st.radio("Interface Mode", ["Chatbot","Card Dashboard","Flow Visualization"])
 
 # ----------------------------
-# PDF upload & summarization (top)
+# PDF upload and summary
 # ----------------------------
 st.subheader("📄 Upload Medical Reference PDF")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -226,99 +204,77 @@ if uploaded_pdf:
     try:
         reader = PyPDF2.PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text[:1000] + "..." if len(full_text) > 1000 else full_text
-
+        st.session_state.uploaded_pdf_text = full_text[:2000]+"..." if len(full_text)>2000 else full_text
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM)[^.\n]*", full_text, flags=re.I)
-        st.session_state.extracted_medical_ref = ", ".join(matches) if matches else ""
-
+        st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
         st.success("✅ PDF processed")
-
-        # Bullet point summary via GROQ
-        summary_prompt = f"Summarize the medical PDF into bullet points with real figures, key actionable insights, and references. Language: {language}.\n\n{full_text[:6000]}"
-        try:
-            summary_resp = client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[
-                    {"role": "system", "content": "You are a concise medical summarizer for sales teams."},
-                    {"role": "user", "content": summary_prompt},
-                ],
-                temperature=0.3,
-            )
-            st.session_state.pdf_summary = summary_resp.choices[0].message.content
-        except Exception as e:
-            st.session_state.pdf_summary = f"⚠️ Error summarizing PDF: {e}"
-
-        st.markdown("### 📑 PDF Summary (bullet points)")
-        st.markdown(st.session_state.pdf_summary.replace("\n", "\n- "))
-        if st.session_state.extracted_medical_ref:
-            st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
-
+        # Auto summary using Groq
+        summary_prompt = f"Summarize this medical document into bullet points with key results, practical recommendations, and figures. Language: {language}.\n\n{full_text[:6000]}"
+        summary_resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{"role":"system","content":"You are a concise medical summarizer."},{"role":"user","content":summary_prompt}],
+            temperature=0.3
+        )
+        st.session_state.pdf_summary = summary_resp.choices[0].message.content
+        st.markdown("### 📑 PDF Summary")
+        st.markdown("\n".join([f"- {line.strip()}" for line in st.session_state.pdf_summary.split("\n") if line.strip()]))
+        st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
     except Exception as e:
         st.error(f"PDF error: {e}")
 
 # ----------------------------
-# Chat interface below
+# Chat form
 # ----------------------------
 st.subheader("💬 Chatbot Interface")
+def render_chat_html() -> str:
+    html = ""
+    for msg in st.session_state.chat_history:
+        content = msg["content"].replace("\n","<br>")
+        for step in APACT_STEPS:
+            content = content.replace(step, f"<span class='highlight'>{step}</span>")
+        if msg["role"]=="user":
+            html += f"<div class='chat-bubble-user'>{content}</div>"
+        else:
+            audio_html = ""
+            if msg.get("audio"):
+                audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
+            html += f"<div class='chat-bubble-ai'>{content}{audio_html}</div>"
+    return html
 
-chat_container = st.container()
+st.markdown(render_chat_html(), unsafe_allow_html=True)
 
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message... / اكتب رسالتك هنا", key="user_input_box")
+    user_input = st.text_input("Type your message...", key="user_input_box")
     submitted = st.form_submit_button("➤")
 
 # ----------------------------
-# TTS helper (humanized)
+# TTS helper
 # ----------------------------
 def synthesize_tts_base64(text: str, lang: str) -> Optional[str]:
-    text = re.sub(r'([;:{}\[\]\*\^<>@#\$%&\|~_=/\\\+])', '', text)  # remove unnecessary punctuation
-    text = re.sub(r'\s+', ' ', text).strip()
-    if not text:
-        return None
-    voice = "ar-EG-SalmaNeural" if lang == "العربية" else "en-US-JennyNeural"
+    text = re.sub(r'([;:{}\[\]\*\^<>@#\$%&\|~_=/\\\+])','',text)
+    clean_text = re.sub(r'\s+',' ', text).strip()
+    if not clean_text: return None
+    voice = "ar-EG-SalmaNeural" if lang=="العربية" else "en-US-JennyNeural"
     tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
     tmp_name = tmp.name
     tmp.close()
     try:
         async def _save():
-            comm = edge_tts.Communicate(text, voice=voice)
+            comm = edge_tts.Communicate(clean_text, voice=voice)
             await comm.save(tmp_name)
         asyncio.run(_save())
-        with open(tmp_name, "rb") as f:
+        with open(tmp_name,"rb") as f:
             b = f.read()
         return base64.b64encode(b).decode("utf-8")
     finally:
-        if os.path.exists(tmp_name):
-            os.remove(tmp_name)
+        if os.path.exists(tmp_name): os.remove(tmp_name)
 
 # ----------------------------
-# Generate AI response
-# ----------------------------
-def call_groq(prompt: str, language: str) -> str:
-    try:
-        resp = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role": "system", "content": f"You are a helpful sales assistant that responds in {language}."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.7,
-        )
-        return resp.choices[0].message.content
-    except Exception as e:
-        return f"⚠️ Error generating response: {e}"
-
-# ----------------------------
-# Handle chat submission
+# Handle submission
 # ----------------------------
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
-    medical_ref_str = st.session_state.extracted_medical_ref or "None"
-    pdf_summary_text = st.session_state.pdf_summary or "None"
-
+    st.session_state.chat_history.append({"role":"user","content":user_input,"time":datetime.now().strftime("%H:%M")})
+    # Build enhanced prompt prioritizing PDF & references
     prompt_lines = [
         f"Language: {language}",
         f"User input: {user_input}",
@@ -328,60 +284,51 @@ if submitted and user_input.strip():
         f"Objective: {objective}",
         f"Doctor Specialty: {specialty}",
         f"HCP Persona: {persona}",
-        f"Medical Reference(s): {medical_ref_str}",
-        "Uploaded PDF preview:",
-        st.session_state.uploaded_pdf_text or "No PDF uploaded.",
-        "PDF AI Summary:",
-        pdf_summary_text,
-        "Approved Sales Approaches:",
-        approaches_str,
-        "Sales Call Flow Steps:",
-        flow_str,
-        "Use APACT (Acknowledge → Probing → Action → Confirm → Transition) technique for handling objections.",
-        f"Response Length: {response_length}",
-        f"Response Tone: {response_tone}",
-        "Provide actionable sales-call suggestions and a short 3–6 line script."
+        "Instructions for AI:",
+        "- Use the uploaded PDF and extracted references as primary sources for clinical info.",
+        "- Cite references explicitly if possible.",
+        "- Follow APACT technique for objections.",
+        "- Provide actionable sales suggestions.",
+        "- Response length: {response_length}, Tone: {response_tone}",
+        "PDF Summary:\n" + (st.session_state.pdf_summary or "None"),
+        "References:\n" + (st.session_state.extracted_medical_ref or "None")
     ]
     prompt = "\n".join(prompt_lines)
-
-    ai_output = call_groq(prompt, language)
+    # Call GROQ
+    ai_output = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        messages=[{"role":"system","content":"You are a helpful sales assistant."},{"role":"user","content":prompt}],
+        temperature=0.7
+    ).choices[0].message.content
     audio_b64 = synthesize_tts_base64(ai_output, language)
-
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M"), "audio": audio_b64})
-
-# ----------------------------
-# Render chat below input
-# ----------------------------
-for msg in st.session_state.chat_history:
-    if msg["role"] == "user":
-        chat_container.markdown(f'<div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
-    else:
-        audio_html = f'<br><audio controls style="margin-top:8px;"><source src="data:audio/mp3;base64,{msg["audio"]}" type="audio/mp3"></audio>' if msg.get("audio") else ""
-        chat_container.markdown(f'<div class="chat-bubble-ai">{msg["content"]}{audio_html}</div>', unsafe_allow_html=True)
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"time":datetime.now().strftime("%H:%M"),"audio":audio_b64})
+    st.markdown(render_chat_html(), unsafe_allow_html=True)
 
 # ----------------------------
-# Clear & Download buttons
+# Bottom controls
 # ----------------------------
-cols = st.columns([1, 1])
+cols = st.columns([1,1])
 with cols[0]:
     if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
-        st.session_state.uploaded_pdf_text = ""
-        st.session_state.extracted_medical_ref = ""
-        st.session_state.pdf_summary = ""
+        st.session_state.chat_history=[]
+        st.session_state.uploaded_pdf_text=""
+        st.session_state.extracted_medical_ref=""
+        st.session_state.pdf_summary=""
         st.experimental_rerun()
 with cols[1]:
     if DOCX_AVAILABLE and st.session_state.chat_history:
-        doc = Document()
-        doc.add_heading("AI Sales Call Responses", 0)
-        for idx, msg in enumerate([m for m in st.session_state.chat_history if m["role"]=="ai"],1):
-            doc.add_heading(f"Response {idx}", level=1)
-            doc.add_paragraph(msg["content"])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Responses.docx")
+        latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
+        if latest_ai:
+            doc = Document()
+            doc.add_heading("AI Sales Call Responses",0)
+            for idx,txt in enumerate(latest_ai,1):
+                doc.add_heading(f"Response {idx}",level=1)
+                doc.add_paragraph(txt)
+            word_buffer = io_bytes()
+            doc.save(word_buffer)
+            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Responses.docx")
 
 # ----------------------------
-# Brand leaflet link
+# Brand leaflet
 # ----------------------------
 st.markdown(f"[📄 Brand Leaflet - {brand}]({gsk_brands[brand]})")
