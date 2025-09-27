@@ -70,30 +70,36 @@ text_color = "black" if brightness > 130 else "white"
 button_bg = "#FFA500" if brightness > 130 else "#FF8C00"
 
 # ----------------------------
-# CSS (background, logo, layout, responsive with sidebar)
+# ----------------------------
+# CSS: Responsive background with sidebar
 # ----------------------------
 CSS = f"""
 <style>
-/* App background responsive to sidebar */
+/* Main app background */
 .stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: calc(100% - 300px) auto; /* default width minus sidebar */
+    background-size: auto 100%; /* full height, auto width to keep aspect ratio */
+    background-attachment: fixed;
     transition: background-size 0.3s ease;
 }}
-[data-testid="stSidebar"] {{
-    transition: width 0.3s ease;
+
+/* Adjust background when sidebar expands/collapses */
+[data-testid="stSidebar"][aria-expanded="true"] ~ .stApp {{
+    background-size: auto 90%; /* slightly smaller height when sidebar open */
 }}
-/* Adjust background when sidebar is collapsed */
-[data-testid="stSidebar"][aria-expanded="false"] ~ .main {{
-    background-size: 100% auto;
+[data-testid="stSidebar"][aria-expanded="false"] ~ .stApp {{
+    background-size: auto 100%; /* full height when sidebar collapsed */
 }}
 
+/* GSK logo */
 .gsk-logo {{
     position: fixed;
-    top: 60px;  
+    top: 60px;
     right: 16px;
     z-index: 1000;
 }}
+
+/* Centered title box */
 .title-box {{
     background: rgba(255,255,255,0.92);
     padding: 35px;
@@ -112,6 +118,8 @@ CSS = f"""
     font-size: 20px;
     font-weight: 500;
 }}
+
+/* Disclaimer */
 .disclaimer {{
     text-align: center;
     padding: 12px;
@@ -119,6 +127,8 @@ CSS = f"""
     font-weight: 500;
     margin-bottom: 10px;
 }}
+
+/* Chat bubbles */
 .chat-bubble-user {{
     text-align: right;
     background: rgba(220,248,198,0.95);
@@ -139,6 +149,8 @@ CSS = f"""
     max-width: 80%;
     color: {text_color};
 }}
+
+/* Highlight APACT steps */
 .highlight {{
     font-weight: bold;
     background-color: yellow;
@@ -146,6 +158,8 @@ CSS = f"""
     padding: 2px 4px;
     border-radius: 4px;
 }}
+
+/* Chat input container */
 .chat-input-container {{
     display:flex;
     margin-top:10px;
@@ -171,12 +185,16 @@ CSS = f"""
     background-color: {button_bg};
     color: white;
 }}
+
+/* Clear chat button */
 .clear-chat {{
     position: fixed;
     bottom: 20px;
     left: 20px;
     z-index: 1000;
 }}
+
+/* Sidebar bold headers */
 .sidebar-bold {{
     background: rgba(255,255,255,0.85);
     padding: 10px;
