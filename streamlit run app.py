@@ -75,12 +75,12 @@ CSS = f"""
 /* Main background */
 .stApp {{
     background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: auto 100%;
+    background-size: auto 200%;
     background-attachment: fixed;
     transition: background-size 0.3s ease;
 }}
 [data-testid="stSidebar"][aria-expanded="true"] ~ .stApp {{
-    background-size: auto 90%;
+    background-size: auto 100%;
 }}
 [data-testid="stSidebar"][aria-expanded="false"] ~ .stApp {{
     background-size: auto 100%;
