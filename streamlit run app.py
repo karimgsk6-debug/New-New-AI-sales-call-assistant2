@@ -53,7 +53,7 @@ if "pdf_summary" not in st.session_state:
 # Assets & styling variables
 # ----------------------------
 BACKGROUND_URL = ("https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-09-27T20%3A50%3A12Z&sp=r&sv=2024-08-04&sr=b&scid=ecda9bff-da85-5e32-ac41-b08c14ba28cf&skoid=d9a3f0e9-8380-4267-a144-3f27388a5c5d&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T12%3A41%3A14Z&ske=2025-09-28T12%3A41%3A14Z&sks=b&skv=2024-08-04&sig=oXICxZIQ74jEr/fZxSZH/TmBnN8eb/3bsNRGRUHTsf0%3D")
-GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+GSK_LOGO_URL = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
 
 def get_brightness(url: str) -> int:
     try:
