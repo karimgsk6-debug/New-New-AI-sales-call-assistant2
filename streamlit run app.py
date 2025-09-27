@@ -78,7 +78,7 @@ CSS = f"""
     background-attachment: fixed;
 }}
 .stSidebar {{
-    background-color: #fff;
+    background-color: #dddd;
     padding: 14px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
@@ -120,8 +120,8 @@ CSS = f"""
     word-wrap: break-word;
     color:black;
 }}
-.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); }}
-.chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); }}
+.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.7); }}
+.chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.7); }}
 .highlight {{ font-weight: bold; background-color: yellow; color: black; padding: 2px 4px; border-radius: 4px; }}
 .bottom-bar {{
     position: fixed;
