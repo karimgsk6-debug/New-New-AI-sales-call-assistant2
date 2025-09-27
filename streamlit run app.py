@@ -79,7 +79,7 @@ CSS = f"""
 }}
 .stSidebar {{
     background-color: #dddd;
-    padding: 14px;
+    padding: 12px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
     border: 2px solid #ddd;
