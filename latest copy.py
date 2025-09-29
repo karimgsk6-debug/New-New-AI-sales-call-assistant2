@@ -106,7 +106,7 @@ CSS = f"""
 .gsk-logo {{
   position: flix;
   top: 80px;
-  left: 16px;
+  left: 12px;
   z-index: 1200;
 }}
 
