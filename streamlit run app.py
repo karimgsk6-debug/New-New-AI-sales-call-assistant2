@@ -108,8 +108,8 @@ CSS = f"""
 }}
 .title-box {{
   background: rgba(235,240,240,0.6);
-  padding: 28px;
-  border-radius: 14px;
+  padding: 25px;
+  border-radius: 12px;
   text-align: center;
   max-width: 75%;
   margin: 12px auto;
