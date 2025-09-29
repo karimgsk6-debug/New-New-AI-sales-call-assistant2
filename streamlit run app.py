@@ -96,11 +96,8 @@ CSS = """
 <style>
 /* App background (placeholder replaced below) */
 .app-bg {
-  background-image: url("__BG_URL__");
-  background-repeat: no-repeat;
-  background-position: right top;
-  background-attachment: fixed;
-  background-size: contain;
+    background: url('{BACKGROUND_URL}') no-repeat top right;
+  background-size: calc(120% - 280px) auto;
   transition: background-size 0.3s ease;
 }
 /* Keep sidebar white for readability */
