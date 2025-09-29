@@ -93,7 +93,7 @@ CSS = f"""
 .gsk-logo {{
   position: flix;
   top: 60px;
-  left: 12px;
+  left: 10px;
   z-index: 1200;
 }}
 .title-box {{
