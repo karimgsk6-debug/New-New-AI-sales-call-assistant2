@@ -76,7 +76,7 @@ CSS = f"""
 <style>
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: calc(200% - 280px) auto;
+    background-size: calc(120% - 280px) auto;
   background-attachment: flix;
   transition: background-size 0.3s ease;
 }}
