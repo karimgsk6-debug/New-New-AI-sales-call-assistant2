@@ -75,7 +75,7 @@ text_color = "black" if brightness > 130 else "white"
 CSS = f"""
 <style>
 .stApp {{
-  background: url('{BACKGROUND_URL}') no-repeat top auto;
+  background: url('{BACKGROUND_URL}') no-repeat top left;
   background-size: contain;
   background-attachment: flix;
 }}
