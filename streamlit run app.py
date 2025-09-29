@@ -94,7 +94,7 @@ text_color = "black" if brightness > 130 else "white"
 # CSS with placeholder for background URL
 CSS = f"""
 <style>
-.stApp {{
+.stApp {
 background: url('{BACKGROUND_URL}') no-repeat top right;
 background-size: calc(120% - 280px) auto;
 transition: background-size 0.3s ease;
