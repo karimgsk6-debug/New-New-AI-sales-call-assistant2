@@ -76,8 +76,9 @@ CSS = f"""
 <style>
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-  background-size: contain;
-  background-attachment: flix;
+    background-size: calc(100% - 280px) auto;
+  background-attachment: fixed;
+  transition: background-size 0.3s ease;
 }}
 .stSidebar {{
   background-color: #dddd;
