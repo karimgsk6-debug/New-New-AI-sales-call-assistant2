@@ -60,7 +60,7 @@ if "language" not in st.session_state:
 # ----------------------------
 # Assets & styling variables
 # ----------------------------
-BACKGROUND_URL = "https://sdmntprcentralus.oaiusercontent.com/files/00000000-b734-61f5-a93b-9ba88dbca3ee/raw?se=2025-09-29T12%3A57%3A58Z&sp=r&sv=2024-08-04&sr=b&scid=824d4bff-2b7f-5840-ab88-6b299849a7f3&skoid=add8ee7d-5fc7-451e-b06e-a82b2276cf62&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T06%3A35%3A36Z&ske=2025-09-30T06%3A35%3A36Z&sks=b&skv=2024-08-04&sig=INZ//zwicD0PpLeRFxvyL6kj3i6KdFnF3ZYZudrjqKw%3D"
+BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
