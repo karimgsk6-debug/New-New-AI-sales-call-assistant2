@@ -152,10 +152,10 @@ CSS = """
 /* Inline PDF snippet inside AI bubble */
 .pdf-summary-inline {{
   margin-top:8px;
-  background: rgba(255,255,255,0.98);
+  background: rgba(245,245,245,0.7);
   padding:10px;
   border-radius:8px;
-  border:1px solid #dddd;
+  border:1px solid #ddddd;
 }}
 
 /* Bottom fixed input */
