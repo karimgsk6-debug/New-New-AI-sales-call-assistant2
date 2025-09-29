@@ -93,7 +93,7 @@ CSS = f"""
 /* Sidebar style (white, visible borders on controls) */
 [data-testid="stSidebar"] > div:first-child {{
   background: #ffffff;
-  padding: 12px;
+  padding: 10px;
   border-left: 0;
 }}
 /* border-like appearance for common controls in sidebar */
@@ -117,11 +117,11 @@ CSS = f"""
   margin: 12px auto;
 }}
 .title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#000; }}
-.title-box p {{ margin:6px 0 0 0; font-size:16px; color:#333; }}
+.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#333; }}
 
 /* PDF summary box style */
 .pdf-summary-box {{
-  background: rgba(255,255,255,0.98);
+  background: rgba(255,255,255,0.9);
   padding: 14px;
   border-radius: 12px;
   margin-bottom: 12px;
@@ -134,7 +134,7 @@ CSS = f"""
   overflow:auto;
   padding:12px;
   border-radius:10px;
-  background: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.8);
 }}
 .chat-bubble-user, .chat-bubble-ai {{
   display:block;
