@@ -76,8 +76,8 @@ CSS = f"""
 <style>
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-    background-size: calc(100% - 280px) auto;
-  background-attachment: fixed;
+    background-size: calc(200% - 280px) auto;
+  background-attachment: flix;
   transition: background-size 0.3s ease;
 }}
 .stSidebar {{
@@ -85,7 +85,7 @@ CSS = f"""
   padding: 14px;
 }}
 .stSidebar .stSelectbox, .stSidebar .stMultiselect, .stSidebar .stRadio, .stSidebar .stCheckbox, .stSidebar .stFileUploader {{
-  border: 1px solid #ddd;
+  border: 1px solid #fff;
   border-radius: 10px;
   padding: 8px;
   margin-bottom: 12px;
