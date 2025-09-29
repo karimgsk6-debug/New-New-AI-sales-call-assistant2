@@ -77,7 +77,7 @@ CSS = f"""
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
   background-size: contain;
-  background-attachment: flexed;
+  background-attachment: flexible;
 }}
 .stSidebar {{
   background-color: #dddd;
@@ -88,7 +88,7 @@ CSS = f"""
   border-radius: 10px;
   padding: 8px;
   margin-bottom: 12px;
-  background-color: #fff;
+  background-color: #dddd;
 }}
 .gsk-logo {{
   position: flix;
