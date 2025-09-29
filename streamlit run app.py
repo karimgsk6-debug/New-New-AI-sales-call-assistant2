@@ -89,7 +89,7 @@ CSS = """
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 90%;
+  background-size: auto 120%;
   transition: background-size 0.25s ease;
 }}
 
