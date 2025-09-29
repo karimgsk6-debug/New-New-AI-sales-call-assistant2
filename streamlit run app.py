@@ -64,10 +64,10 @@ if "language" not in st.session_state:
 # ----------------------------
 # Background image URL (use your preferred image)
 BACKGROUND_URL = (
-    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-09-29T08%3A50%3A13Z&sp=r&sv=2024-08-04&sr=b&scid=61b996f9-1aa8-5450-9322-8df6ba4be66c&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T03%3A57%3A08Z&ske=2025-09-30T03%3A57%3A08Z&sks=b&skv=2024-08-04&sig=k8xWpLn%2BpScPIMXS/CBwvn%2Blwsduznv0W2gDvCqsIRM%3D"
+    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T10%3A48%3A44Z&sp=r&sv=2024-08-04&sr=b&scid=493e9f02-6d12-5738-8854-4f71fad23f4d&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T04%3A09%3A33Z&ske=2025-09-30T04%3A09%3A33Z&sks=b&skv=2024-08-04&sig=3r/IAqgZzWnGJMc9bLlu7lFL9W%2BEQDiv8JDybU7y71w%3D"
     "se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b"
 )
-GSK_LOGO_URL = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
+GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
     try:
@@ -91,12 +91,12 @@ CSS = f"""
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
   background-position: right top;
-  background-attachment: fixed;
+  background-attachment: flix;
   background-size: contain;
 }}
 /* Sidebar white background to keep readability */
 [data-testid="stSidebar"] > div:first-child {{
-  background: rgba(255,255,255,0.98);
+  background: rgba(255,255,255,0.7);
   padding: 12px;
 }}
 /* show visible borders around controls */
@@ -107,20 +107,20 @@ CSS = f"""
   border-radius: 10px;
   padding: 6px;
   margin-bottom: 12px;
-  background-color: #fff;
+  background-color: #dddd;
 }}
 
 /* Top-right logo (approx 3cm down) */
 .gsk-logo {{
   position: fixed;
   top: 60px;
-  right: 16px;
+  left: 16px;
   z-index: 1200;
 }}
 
 /* Title box */
 .title-box {{
-  background: rgba(255,255,255,0.96);
+  background: rgba(255,255,255,0.6);
   padding: 30px;
   border-radius: 16px;
   text-align: center;
