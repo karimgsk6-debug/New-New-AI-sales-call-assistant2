@@ -61,7 +61,7 @@ if "language" not in st.session_state:
 # Assets
 # ----------------------------
 BACKGROUND_URL = (
-    "https://media.istockphoto.com/id/1317479870/photo/smart-intelligent-caucasian-hispanic-latin-american-young-woman-student-using-digital-tablet.jpg?s=612x612&w=0&k=20&c=tRfn9dj_xCFr_QgL2Md9g5JXZ2_AvX-_1lgm9xXwDTc="
+    "https://www.freepik.com/premium-ai-image/black-woman-smiling-using-phone-with-yellow-background_60699013.htm?log-in=google"
 )
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
