@@ -38,7 +38,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layou
 # ----------------------------
 # Load GROQ API key
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
     st.warning("GROQ_API_KEY not found in environment. Set GROQ_API_KEY in env or Streamlit Secrets.")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
@@ -79,7 +79,8 @@ CSS = f"""
 <style>
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-  background-size: contain;
+  background-size: calc(120% - 280px) auto;
+  transition: background-size 0.3s ease;
   background-attachment: fixed;
 }}
 .stSidebar {{
