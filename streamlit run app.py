@@ -75,9 +75,9 @@ text_color = "black" if brightness > 130 else "white"
 CSS = f"""
 <style>
 .stApp {{
-  background: url('{BACKGROUND_URL}') no-repeat top right;
+  background: url('{BACKGROUND_URL}') no-repeat top auto;
   background-size: contain;
-  background-attachment: flexible;
+  background-attachment: flix;
 }}
 .stSidebar {{
   background-color: #dddd;
