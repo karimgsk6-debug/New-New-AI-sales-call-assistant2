@@ -116,8 +116,8 @@ CSS = f"""
   max-width: 75%;
   margin: 12px auto;
 }}
-.title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#000; }}
-.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#333; }}
+.title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#1111; }}
+.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#1111; }}
 
 /* PDF summary box style */
 .pdf-summary-box {{
