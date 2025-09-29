@@ -51,7 +51,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling
 # ----------------------------
-BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T08%3A43%3A55Z&sp=r&sv=2024-08-04&sr=b&scid=c4608825-e5cc-5d0a-852c-96f2becf3113&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-28T15%3A21%3A48Z&ske=2025-09-29T15%3A21%3A48Z&sks=b&skv=2024-08-04&sig=ajU7gjKt8ai8dQC%2ByMLvxz4ozElc2vGGadMjKib7A38%3D"
+BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-09-29T08%3A50%3A13Z&sp=r&sv=2024-08-04&sr=b&scid=61b996f9-1aa8-5450-9322-8df6ba4be66c&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T03%3A57%3A08Z&ske=2025-09-30T03%3A57%3A08Z&sks=b&skv=2024-08-04&sig=k8xWpLn%2BpScPIMXS/CBwvn%2Blwsduznv0W2gDvCqsIRM%3D"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
@@ -103,7 +103,7 @@ CSS = f"""
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
-.disclaimer {{ text-align:center; padding:10px; font-size:14px; font-weight:500; }}
+.disclaimer {{ text-align:center; padding:12px; font-size:18px; font-weight:800; }}
 .chat-bubble-user, .chat-bubble-ai {{
     padding: 12px;
     border-radius: 15px;
@@ -111,7 +111,7 @@ CSS = f"""
     display: inline-block;
     max-width: 95%;
     word-wrap: break-word;
-    color: black;
+    color: dark blue;
 }}
 .chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.6); }}
 .chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.6); }}
