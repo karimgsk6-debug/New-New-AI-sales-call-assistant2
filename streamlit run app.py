@@ -5,7 +5,6 @@ import time
 import base64
 import tempfile
 import asyncio
-from typing import Optional
 from datetime import datetime
 from io import BytesIO, BytesIO as io_bytes
 
@@ -36,12 +35,10 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
 # ----------------------------
-# Load GROQ API key
+# GROQ API key
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-if not GROQ_API_KEY:
-    st.warning("GROQ_API_KEY not found in environment. Set GROQ_API_KEY in env or Streamlit Secrets.")
 
 # ----------------------------
 # Session state defaults
@@ -55,14 +52,12 @@ if "extracted_medical_ref" not in st.session_state:
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 if "language" not in st.session_state:
-    st.session_state.language = "English"  # default
+    st.session_state.language = "English"
 
 # ----------------------------
-# Assets
+# Assets & styling
 # ----------------------------
-BACKGROUND_URL = (
-    "https://sdmntprcentralus.oaiusercontent.com/files/00000000-b734-61f5-a93b-9ba88dbca3ee/raw?se=2025-09-29T12%3A57%3A58Z&sp=r&sv=2024-08-04&sr=b&scid=824d4bff-2b7f-5840-ab88-6b299849a7f3&skoid=add8ee7d-5fc7-451e-b06e-a82b2276cf62&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T06%3A35%3A36Z&ske=2025-09-30T06%3A35%3A36Z&sks=b&skv=2024-08-04&sig=INZ//zwicD0PpLeRFxvyL6kj3i6KdFnF3ZYZudrjqKw%3D"
-)
+BACKGROUND_URL = "https://sdmntprcentralus.oaiusercontent.com/files/00000000-b734-61f5-a93b-9ba88dbca3ee/raw?se=2025-09-29T12%3A57%3A58Z&sp=r&sv=2024-08-04&sr=b&scid=824d4bff-2b7f-5840-ab88-6b299849a7f3&skoid=add8ee7d-5fc7-451e-b06e-a82b2276cf62&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T06%3A35%3A36Z&ske=2025-09-30T06%3A35%3A36Z&sks=b&skv=2024-08-04&sig=INZ//zwicD0PpLeRFxvyL6kj3i6KdFnF3ZYZudrjqKw%3D"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
@@ -77,23 +72,14 @@ def get_brightness(url: str) -> int:
 brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
-# ----------------------------
-# CSS: dynamic background & chat styling
-# ----------------------------
 CSS = f"""
 <style>
-:root {{
-  --sidebar-width: 300px;
-}}
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-  background-size: calc(100% - var(--sidebar-width)) auto;
-  min-height: 100vh;
-  transition: background-size 0.3s ease;
+  background-size: contain;
+  background-attachment: fixed;
 }}
 .stSidebar {{
-  width: var(--sidebar-width) !important;
-  transition: width 0.3s ease;
   background-color: #dddd;
   padding: 14px;
 }}
@@ -105,9 +91,9 @@ CSS = f"""
   background-color: #fff;
 }}
 .gsk-logo {{
-  position: absolute;
-  top: 80px;
-  left: 16px;
+  position: fixed;
+  top: 60px;
+  left: 12px;
   z-index: 1200;
 }}
 .title-box {{
@@ -181,25 +167,13 @@ CSS = f"""
 .highlight-step {{ font-weight:700; color:#000; }}
 .highlight-figure {{ font-weight:700; color:#d35400; }}
 </style>
-
-<script>
-// Dynamic background resizing based on sidebar width
-const observer = new ResizeObserver(entries => {{
-  for (let entry of entries) {{
-    const width = entry.contentRect.width;
-    document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-  }}
-}});
-const sidebar = document.querySelector('.css-1d391kg');
-if (sidebar) observer.observe(sidebar);
-</script>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+st.markdown(f'<div class="gsk-logo"><img src="{GSK_LOGO_URL}" width="140"></div>', unsafe_allow_html=True)
 
 # ----------------------------
-# Logo and Title
+# Title & disclaimer
 # ----------------------------
-st.markdown(f'<div class="gsk-logo"><img src="{GSK_LOGO_URL}" width="140"></div>', unsafe_allow_html=True)
 st.markdown("""
 <div class="title-box">
   <h1>💡 AI Sales Call Assistant</h1>
@@ -233,10 +207,8 @@ doctor_barriers = [
 ]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
 objectives = ["Awareness", "Adoption", "Retention"]
-specialties = [
-    "GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist",
-    "Rheumatologist", "Internal Medicine", "Diabetologist", "Neurologist", "Pneumologist"
-]
+specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist",
+               "Rheumatologist", "Internal Medicine", "Diabetologist", "Neurologist", "Pneumologist"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     st.markdown('<div style="font-weight:800; margin-bottom:8px;">Filters & Options</div>', unsafe_allow_html=True)
@@ -259,7 +231,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     interface_mode = st.radio("Interface Mode", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
 # ----------------------------
-# PDF Upload
+# PDF upload & summarization
 # ----------------------------
 st.markdown("### 📄 Upload Medical Reference PDF")
 uploaded_pdf = st.file_uploader("", type=["pdf"])
@@ -270,97 +242,138 @@ if uploaded_pdf:
         st.session_state.uploaded_pdf_text = full_text[:2000] + "..." if len(full_text) > 2000 else full_text
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-        st.success("✅ PDF processed")
+
+        # Summarization
+        summary_prompt = (
+            "You are a concise medical summarizer for sales reps. Produce bullet points with key results, "
+            "practical recommendations, and notable figures (with % format if present). Keep it short and actionable.\n\n"
+        ) + full_text[:6000]
+
+        if client:
+            try:
+                resp = client.chat.completions.create(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    messages=[{"role": "system", "content": "You are a concise medical summarizer."},
+                              {"role": "user", "content": summary_prompt}],
+                    temperature=0.25,
+                )
+                st.session_state.pdf_summary = resp.choices[0].message.content
+            except Exception as e:
+                st.warning(f"PDF summarization error: {e}")
+                st.session_state.pdf_summary = ""
+        else:
+            st.warning("Groq client not configured: PDF auto-summarize unavailable.")
+            st.session_state.pdf_summary = ""
+
+        if st.session_state.pdf_summary:
+            with st.expander("📑 PDF Summary (expand/collapse)", expanded=False):
+                st.markdown(f'<div class="pdf-summary-box">{"<br>".join([f"- {line.strip()}" for line in st.session_state.pdf_summary.split("\\n") if line.strip()])}</div>', unsafe_allow_html=True)
+
+        if st.session_state.extracted_medical_ref:
+            st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
     except Exception as e:
         st.error("PDF error: " + str(e))
 
 # ----------------------------
-# --- MISSING FUNCTIONS FILLED ---
+# Chat & TTS
 # ----------------------------
-
-def build_prompt(user_input: str) -> str:
-    pdf_ref = st.session_state.extracted_medical_ref
-    pdf_text = st.session_state.uploaded_pdf_text
-    prompt = f"""
-You are an AI sales assistant. Provide a sales call response for the user input.
-Brand: {brand}, RACE Segment: {segment}, Objective: {objective}, Specialty: {specialty}, Persona: {persona}
-Doctor barriers: {', '.join(barrier)}
-Response tone: {response_tone}, Response length: {response_length}
-PDF References: {pdf_ref}
-PDF Text Summary: {pdf_text}
-User query: {user_input}
-Highlight APACT steps and key figures using <span class='highlight-step'> and <span class='highlight-figure'> tags.
-"""
-    return prompt
-
-def call_groq_with_retry(prompt: str, max_retries=3) -> str:
-    if not client:
-        return "GROQ client not initialized."
-    retries = 0
-    while retries < max_retries:
-        try:
-            resp = client.query(prompt, max_output_tokens=700)
-            return resp
-        except Exception as e:
-            retries += 1
-            time.sleep(1)
-    return "AI call failed after retries."
-
-def build_ai_bubble_content(user_input: str) -> str:
-    prompt = build_prompt(user_input)
-    ai_resp = call_groq_with_retry(prompt)
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    st.session_state.chat_history.append({"role": "ai", "content": ai_resp})
-    return ai_resp
+async def synthesize_tts_base64(text: str, lang: str = "English") -> str:
+    if not text.strip(): return None
+    voice = "en-US-AriaNeural" if lang == "English" else "ar-EG-SalmaNeural"
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix=".mp3") as tmpfile:
+            comm = edge_tts.Communicate(text, voice)
+            await comm.save(tmpfile.name)
+            tmpfile.seek(0)
+            return base64.b64encode(tmpfile.read()).decode("utf-8")
+    except Exception as e:
+        st.warning(f"TTS failed: {e}")
+        return None
 
 def render_chat_history():
+    html = ""
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
-            st.markdown(f'<div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
+            html += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            st.markdown(f'<div class="chat-bubble-ai">{msg["content"]}</div>', unsafe_allow_html=True)
+            audio_html = ""
+            if msg.get("audio"):
+                audio_html = f'<br><audio controls style="margin-top:8px;"><source src="data:audio/mp3;base64,{msg["audio"]}" type="audio/mp3"></audio>'
+            html += f'<div class="chat-bubble-ai">{msg["content"]}{audio_html}</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
-async def synthesize_tts_base64(text: str, voice: str = "en-US-JennyNeural") -> str:
-    with tempfile.NamedTemporaryFile(delete=True, suffix=".mp3") as tmpfile:
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(tmpfile.name)
-        tmpfile.seek(0)
-        audio_bytes = tmpfile.read()
-        return base64.b64encode(audio_bytes).decode("utf-8")
+def build_prompt(user_input: str) -> str:
+    pdf_summary = st.session_state.pdf_summary or ""
+    refs = st.session_state.extracted_medical_ref or "None"
+    return f"""Language: {st.session_state.language}
+User input: {user_input}
+Brand: {brand}
+RACE Segment: {segment}
+Doctor Barrier(s): {', '.join(barrier) if barrier else 'None'}
+Objective: {objective}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+
+Instructions:
+- Use PDF summary and references
+- Bold steps, APACT, and figures
+
+PDF Summary:
+{pdf_summary}
+
+References:
+{refs}
+"""
+
+def call_groq_with_retry(prompt: str, max_retries=3, delay=2):
+    if not client: return "⚠️ AI service not configured."
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            resp = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[{"role":"user","content":prompt}],
+                temperature=0.7
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            last_err = e
+            time.sleep(delay*(2**attempt))
+    return f"⚠️ AI call failed after retries: {last_err}"
+
+# Input handling
+user_input = st.text_input("Type your message here")
+if st.button("Send") and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input})
+    prompt = build_prompt(user_input)
+    ai_output = call_groq_with_retry(prompt)
+    audio_b64 = asyncio.run(synthesize_tts_base64(ai_output))
+    st.session_state.chat_history.append({"role":"ai","content":ai_output,"audio":audio_b64})
+    render_chat_history()
 
 # ----------------------------
-# Chat input
+# Clear / Download
 # ----------------------------
-user_input = st.text_input("Type your question here...")
-if st.button("Send") and user_input:
-    build_ai_bubble_content(user_input)
-render_chat_history()
-
-# ----------------------------
-# Clear chat + download Word
-# ----------------------------
-cols = st.columns([1, 1])
+cols = st.columns(2)
 with cols[0]:
     if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
-        st.session_state.uploaded_pdf_text = ""
-        st.session_state.extracted_medical_ref = ""
-        st.session_state.pdf_summary = ""
+        st.session_state.chat_history=[]
+        st.session_state.uploaded_pdf_text=""
+        st.session_state.extracted_medical_ref=""
+        st.session_state.pdf_summary=""
         st.experimental_rerun()
 with cols[1]:
     if DOCX_AVAILABLE and st.session_state.chat_history:
-        latest_ai = [m["content"] for m in st.session_state.chat_history if m["role"] == "ai"]
+        latest_ai=[m["content"] for m in st.session_state.chat_history if m["role"]=="ai"]
         if latest_ai:
-            doc = Document()
-            doc.add_heading("AI Sales Call Responses", 0)
-            for idx, txt in enumerate(latest_ai, 1):
-                doc.add_heading(f"Response {idx}", level=1)
+            doc=Document()
+            doc.add_heading("AI Sales Call Responses",0)
+            for idx,txt in enumerate(latest_ai,1):
+                doc.add_heading(f"Response {idx}",1)
                 doc.add_paragraph(txt)
-            word_buffer = io_bytes()
+            word_buffer=io_bytes()
             doc.save(word_buffer)
-            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Responses.docx")
+            st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(),file_name="AI_Responses.docx")
 
-# ----------------------------
-# Brand leaflet link
-# ----------------------------
+# Brand leaflet
 st.markdown(f"[📄 Brand Leaflet - {brand}]({gsk_brands[brand]})")
