@@ -45,7 +45,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layou
 # ----------------------------
 # GROQ API key (prefer env var)
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")  # set your key in env or here for testing
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")  # set your key in env or here for testing
 client = Groq(api_key=GROQ_API_KEY) if (GROQ_API_KEY and GROQ_AVAILABLE) else None
 if client is None and GROQ_API_KEY:
     # If user set key but groq not installed, warn
