@@ -102,12 +102,12 @@ CSS = f"""
 }}
 .gsk-logo {{
   position: absolute;
-  top: 50px;
-  left: 12px;
+  top: 30px;
+  left: 10px;
   z-index: 1200;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.6);
+  background: rgba(255,240,240,0.6);
   padding: 28px;
   border-radius: 14px;
   text-align: center;
