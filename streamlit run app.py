@@ -102,16 +102,16 @@ CSS = f"""
 }}
 .gsk-logo {{
   position: absolute;
-  top: 30px;
+  top: 80px;
   left: 10px;
   z-index: 1200;
 }}
 .title-box {{
-  background: rgba(255,240,240,0.6);
+  background: rgba(240,240,240,0.6);
   padding: 28px;
   border-radius: 14px;
   text-align: center;
-  max-width: 85%;
+  max-width: 75%;
   margin: 12px auto;
 }}
 .title-box h1 {{ margin: 0; font-size: 38px; font-weight: 800; }}
