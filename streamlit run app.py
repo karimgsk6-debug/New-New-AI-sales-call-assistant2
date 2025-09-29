@@ -85,7 +85,7 @@ CSS = f"""
     border-radius: 10px;
     padding: 8px;
     margin-bottom: 12px;
-    background-color: #fff;
+    background-color: #dddd;
 }}
 .gsk-logo {{
     position: flix;
@@ -113,10 +113,10 @@ CSS = f"""
     word-wrap: break-word;
     color: black;
 }}
-.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.95); }}
-.chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.95); }}
+.chat-bubble-user {{ text-align:right; background: rgba(220,248,198,0.6); }}
+.chat-bubble-ai {{ text-align:left; background: rgba(240,242,246,0.6); }}
 .pdf-summary-box {{
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.6);
     padding: 18px;
     border-radius: 14px;
     margin-bottom: 12px;
