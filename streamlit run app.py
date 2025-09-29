@@ -141,7 +141,7 @@ CSS = f"""
   padding:12px;
   border-radius:12px;
   margin:8px 0;
-  max-width: 90%;
+  max-width: 20%;
   word-wrap: break-word;
   color: black;
 }}
