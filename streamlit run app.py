@@ -587,7 +587,7 @@ if user_text:
     # append user
     st.session_state.chat_history.append({"role": "user", "content": user_text, "time": datetime.now().strftime("%H:%M")})
     # build prompt with smart instructions
-    prompt = build_prompt(user_text, language)
+    prompt = build_prompt(user_text, st.session_state.language)
     # call Groq
     ai_output = call_groq_with_retry(prompt, language)
     # synthesize TTS (non-blocking-ish, but we produce base64 synchronously)
