@@ -60,7 +60,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Background image (external URL)
 BACKGROUND_URL = (
-    "https://www.shutterstock.com/shutterstock/photos/2080552369/display_1500/stock-photo-portrait-of-attractive-cheerful-girl-holding-on-palm-copy-space-choosing-idea-isolated-over-bright-2080552369.jpg"
+    "https://media.istockphoto.com/id/1317479870/photo/smart-intelligent-caucasian-hispanic-latin-american-young-woman-student-using-digital-tablet.jpg?s=612x612&w=0&k=20&c=tRfn9dj_xCFr_QgL2Md9g5JXZ2_AvX-_1lgm9xXwDTc="
 )
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
@@ -77,7 +77,7 @@ brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
-# UI CSS: background responsive & bottom input flixed
+# UI CSS: background responsive & bottom input flexed
 # ----------------------------
 CSS = f"""
 <style>
