@@ -82,7 +82,8 @@ CSS = f"""
 <style>
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
-  background-size: calc(100% - 260px) auto;
+  background-size: calc(100% - 280px) auto;
+  background-attachment: flix;
   transition: background-size 0.3s ease;
 }}
 [data-testid="stSidebar"][aria-expanded="true"] ~ .stApp {{
