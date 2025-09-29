@@ -92,13 +92,12 @@ brightness = safe_get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # CSS with placeholder for background URL
-CSS = """
+CSS = f"""
 <style>
-/* App background (placeholder replaced below) */
-.app-bg {
-    background: url('{BACKGROUND_URL}') no-repeat top right;
-  background-size: calc(120% - 280px) auto;
-  transition: background-size 0.3s ease;
+.stApp {{
+background: url('{BACKGROUND_URL}') no-repeat top right;
+background-size: calc(120% - 280px) auto;
+transition: background-size 0.3s ease;
 }
 /* Keep sidebar white for readability */
 [data-testid="stSidebar"] > div:first-child {
