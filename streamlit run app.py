@@ -51,7 +51,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Assets & styling
 # ----------------------------
-BACKGROUND_URL = "https://sdmntprwestus2.oaiusercontent.com/files/00000000-8938-61f8-9ad4-67d8ede9c081/raw?se=2025-09-27T22%3A16%3A30Z&sp=r&sv=2024-08-04&sr=b&scid=0a78f1b4-0cf9-5f7d-a678-1ae2eeda8012&skoid=f05d6a75-3c59-41ae-be2c-51a75f29841e&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-27T05%3A28%3A39Z&ske=2025-09-28T05%3A28%3A39Z&sks=b&skv=2024-08-04&sig=Gvl5QQwvTZI0Qs0v7Sn0TgfX1O4ho395g/SXEsJEDoc%3D"
+BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T08%3A43%3A55Z&sp=r&sv=2024-08-04&sr=b&scid=c4608825-e5cc-5d0a-852c-96f2becf3113&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-28T15%3A21%3A48Z&ske=2025-09-29T15%3A21%3A48Z&sks=b&skv=2024-08-04&sig=ajU7gjKt8ai8dQC%2ByMLvxz4ozElc2vGGadMjKib7A38%3D"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
