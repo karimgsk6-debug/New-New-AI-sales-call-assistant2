@@ -117,7 +117,7 @@ CSS = f"""
   margin: 12px auto;
 }}
 .title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#000; }}
-.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#999; }}
+.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#000; }}
 
 /* PDF summary box style */
 .pdf-summary-box {{
@@ -236,7 +236,7 @@ setTimeout(scrollChat, 200);
 """
 
 # top-left GSK logo and centered title
-st.markdown(f'<div style="position:fixed; right:16px; top:64px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
+st.markdown(f'<div style="position:flixed; left:16px; top:70px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
 st.markdown('<div class="title-box"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center;font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
