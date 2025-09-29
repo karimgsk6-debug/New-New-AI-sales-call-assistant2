@@ -60,7 +60,7 @@ if "pdf_summary" not in st.session_state:
 # ----------------------------
 # Background image (external URL)
 BACKGROUND_URL = (
-    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T08%3A43%3A55Z&sp=r&sv=2024-08-04&sr=b&scid=c4608825-e5cc-5d0a-852c-96f2becf3113&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-28T15%3A21%3A48Z&ske=2025-09-29T15%3A21%3A48Z&sks=b&skv=2024-08-04&sig=ajU7gjKt8ai8dQC%2ByMLvxz4ozElc2vGGadMjKib7A38%3D"
+    "https://plus.unsplash.com/premium_photo-1692948505024-20a1288d0b65?q=80&w=764&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
 )
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
