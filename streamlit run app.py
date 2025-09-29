@@ -64,9 +64,7 @@ if "language" not in st.session_state:
 # ----------------------------
 # Background image URL (use your preferred image)
 BACKGROUND_URL = (
-    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T10%3A48%3A44Z&sp=r&sv=2024-08-04&sr=b&scid=493e9f02-6d12-5738-8854-4f71fad23f4d&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T04%3A09%3A33Z&ske=2025-09-30T04%3A09%3A33Z&sks=b&skv=2024-08-04&sig=3r/IAqgZzWnGJMc9bLlu7lFL9W%2BEQDiv8JDybU7y71w%3D"
-    "se=2025-09-27T16%3A42%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=5258dbc1-6382-5fec-a8d5-ad7bcc18750b"
-)
+    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-3084-620a-86c7-d2b56a91e7ce/raw?se=2025-09-29T10%3A48%3A44Z&sp=r&sv=2024-08-04&sr=b&scid=493e9f02-6d12-5738-8854-4f71fad23f4d&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T04%3A09%3A33Z&ske=2025-09-30T04%3A09%3A33Z&sks=b&skv=2024-08-04&sig=3r/IAqgZzWnGJMc9bLlu7lFL9W%2BEQDiv8JDybU7y71w%3D")
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 def get_brightness(url: str) -> int:
