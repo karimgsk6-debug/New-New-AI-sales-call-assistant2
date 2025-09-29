@@ -77,7 +77,7 @@ brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
-# UI CSS: background responsive & bottom input fixed
+# UI CSS: background responsive & bottom input flixed
 # ----------------------------
 CSS = f"""
 <style>
