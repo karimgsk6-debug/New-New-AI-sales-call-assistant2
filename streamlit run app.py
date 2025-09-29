@@ -89,7 +89,7 @@ CSS = f"""
   background-size: auto 150%;
 }}
 [data-testid="stSidebar"] > div:first-child {{
-  background: #ffffff;
+  background: #dddd;
   padding: 10px;
 }}
 .title-box {{
