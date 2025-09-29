@@ -125,7 +125,7 @@ CSS = """
   background: rgba(245,245,245,0.6);
   padding: 12px;
   border-radius: 14px;
-  border: 1px solid #0000;
+  border: 1px solid #1111;
   margin-bottom: 12px;
 }}
 
@@ -155,7 +155,7 @@ CSS = """
   background: rgba(245,245,245,0.7);
   padding:10px;
   border-radius:8px;
-  border:1px solid #00000;
+  border:1px solid #1111;
 }}
 
 /* Bottom fixed input */
