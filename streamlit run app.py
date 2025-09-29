@@ -122,10 +122,10 @@ CSS = """
 
 /* PDF summary box */
 .pdf-summary-box {{
-  background: rgba(255,255,255,0.85);
+  background: rgba(245,245,245,0.6);
   padding: 12px;
-  border-radius: 10px;
-  border: 1px solid #eee;
+  border-radius: 14px;
+  border: 1px solid #ffff;
   margin-bottom: 12px;
 }}
 
