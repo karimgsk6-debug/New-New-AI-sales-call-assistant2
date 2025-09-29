@@ -89,7 +89,7 @@ CSS = """
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 120%;
+  background-size: auto 150%;
   transition: background-size 0.25s ease;
 }}
 
@@ -110,7 +110,7 @@ CSS = """
 
 /* Title box */
 .title-box {{
-  background: rgba(245,245,245,0.92);
+  background: rgba(245,245,245,0.6);
   padding: 22px;
   border-radius: 14px;
   text-align: center;
