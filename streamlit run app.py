@@ -33,7 +33,7 @@ except Exception:
 # ----------------------------
 # GROQ client
 # ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ----------------------------
