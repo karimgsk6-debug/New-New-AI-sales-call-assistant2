@@ -70,12 +70,12 @@ def get_brightness(url: str) -> int:
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
+text_color = "black" if brightness > 140 else "white"
 
 CSS = f"""
 <style>
 .stApp {{
-  background: url('{BACKGROUND_URL}') no-repeat top left;
+  background: url('{BACKGROUND_URL}') no-repeat top right;
   background-size: contain;
   background-attachment: flix;
 }}
@@ -108,7 +108,7 @@ CSS = f"""
 .title-box p {{ margin: 8px 0 0 0; font-size: 18px; font-weight: 500; }}
 .pdf-summary-box {{
   background: rgba(255,255,255,0.6);
-  padding: 16px;
+  padding: 20px;
   border-radius: 12px;
   margin-bottom: 12px;
 }}
