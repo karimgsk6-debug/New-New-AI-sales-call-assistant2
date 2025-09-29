@@ -80,24 +80,27 @@ brightness = get_brightness(BACKGROUND_URL)
 text_color = "black" if brightness > 130 else "white"
 
 # ----------------------------
+# app.py
+# ... [imports and setup remain the same]
+
+# ----------------------------
 # Styles: background + layout + fixed bottom input
 # ----------------------------
 CSS = f"""
 <style>
-/* Use data-testid selectors for Streamlit structure */
 [data-testid="stAppViewContainer"] {{
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
   background-position: right top;
-  background-attachment: flex;
-  background-size: contain;
+  background-attachment: scroll;
+  background-size: auto 100%;
+  transition: background-size 0.3s ease-in-out;
 }}
-/* Sidebar white background to keep readability */
 [data-testid="stSidebar"] > div:first-child {{
   background: rgba(255,255,255,0.7);
   padding: 12px;
 }}
-/* show visible borders around controls */
+/* Sidebar widgets styling */
 [data-testid="stSidebar"] .stSelectbox, [data-testid="stSidebar"] .stMultiselect,
 [data-testid="stSidebar"] .stRadio, [data-testid="stSidebar"] .stCheckbox,
 [data-testid="stSidebar"] .stFileUploader {{
@@ -105,17 +108,15 @@ CSS = f"""
   border-radius: 10px;
   padding: 6px;
   margin-bottom: 12px;
-  background-color: #dddd;
+  background-color: #fff;
 }}
-
-/* Top-right logo (approx 3cm down) */
+/* GSK logo top-left */
 .gsk-logo {{
-  position: flex;
+  position: absolute;
   top: 60px;
   left: 16px;
   z-index: 1200;
 }}
-
 /* Title box */
 .title-box {{
   background: rgba(255,255,255,0.6);
@@ -135,8 +136,7 @@ CSS = f"""
   border-radius: 12px;
   margin-bottom: 12px;
 }}
-
-/* Chat area container */
+/* Chat container */
 .chat-container {{
   height: 60vh;
   overflow: auto;
@@ -144,7 +144,6 @@ CSS = f"""
   border-radius: 10px;
   background: rgba(255,255,255,0.7);
 }}
-
 /* Chat bubbles */
 .chat-bubble-user, .chat-bubble-ai {{
   display:block;
@@ -153,20 +152,17 @@ CSS = f"""
   margin:8px 0;
   max-width: 92%;
   word-wrap: break-word;
-  color: black; /* black text in bubbles */
+  color: black;
 }}
 .chat-bubble-user {{ background: #eef9e6; margin-left:auto; }}
 .chat-bubble-ai {{ background: #f5f7fa; margin-right:auto; }}
-
-/* Inline PDF snippet inside AI bubble */
 .pdf-summary-inline {{
   margin-top:8px;
   background: rgba(255,255,255,0.94);
   padding:10px;
   border-radius:8px;
 }}
-
-/* Bottom-fixed input bar */
+/* Fixed input bar */
 .bottom-bar {{
   position: fixed;
   bottom: 12px;
@@ -197,7 +193,45 @@ CSS = f"""
   font-weight:600;
   cursor:pointer;
 }}
+/* Responsive */
+@media (max-width: 430px) {{
+  .title-box h1 {{ font-size:24px; }}
+  .gsk-logo img {{ width:90px; }}
+  .chat-container {{ height: 52vh; }}
+  .bottom-bar {{ left:8px; right:8px; bottom:8px; }}
+}}
+.highlight-step {{ font-weight:700; color:#000; }}
+.highlight-figure {{ font-weight:700; color:#d35400; }}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
 
+# ----------------------------
+# JS for sidebar responsiveness
+# ----------------------------
+SIDEBAR_JS = """
+<script>
+(function(){
+  const sidebar = document.querySelector('[data-testid="stSidebar"]');
+  const app = document.querySelector('[data-testid="stAppViewContainer"]');
+  if(!sidebar || !app) return;
+
+  function updateBg(){
+    const expanded = sidebar.getAttribute('aria-expanded') === 'true';
+    if(expanded){
+      app.style.backgroundSize = 'auto 85%';
+      app.style.backgroundPosition = 'right top';
+    } else {
+      app.style.backgroundSize = 'auto 100%';
+      app.style.backgroundPosition = 'right top';
+    }
+  }
+  updateBg();
+  new MutationObserver(updateBg).observe(sidebar, { attributes: true });
+})();
+</script>
+"""
+st.markdown(SIDEBAR_JS, unsafe_allow_html=True)
 /* mobile tweaks */
 @media (max-width: 430px) {{
   .title-box h1 {{ font-size:24px; }}
