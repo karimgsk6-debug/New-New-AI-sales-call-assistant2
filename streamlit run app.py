@@ -14,7 +14,7 @@ from PIL import Image, ImageStat
 import requests
 import PyPDF2
 import edge_tts
-
+import html 
 # Groq client (optional)
 try:
     import groq
@@ -306,20 +306,18 @@ def build_ai_bubble_content(ai_text: str, inject_pdf_lines: int = 6) -> str:
     return f"{text}{pdf_html}"
 
 def render_chat_history():
-    html = ""
+    html_out = ""
     for msg in st.session_state.chat_history:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-        if role == "user":
-            html += f"<div class='chat-bubble-user'>{st.escape(content)}</div>"
+        content = html.escape(msg["content"])  # safe escaping
+        if msg["role"] == "user":
+            html_out += f"<div class='chat-bubble-user'>{content}</div>"
         else:
-            ai_html = build_ai_bubble_content(content)
+            ai_bubble = build_ai_bubble_content(msg["content"])
             audio_html = ""
             if msg.get("audio"):
-                audio_html = f"<br><audio controls style='margin-top:8px; width:100%;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-            html += f"<div class='chat-bubble-ai'>{ai_html}{audio_html}</div>"
-    st.markdown(f'<div class="chat-container">{html}</div>', unsafe_allow_html=True)
-    st.markdown(SCROLL_JS, unsafe_allow_html=True)
+                audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
+            html_out += f"<div class='chat-bubble-ai'>{ai_bubble}{audio_html}</div>"
+    st.markdown(html_out, unsafe_allow_html=True)
 
 async def _edge_save_async(ssml_text: str, voice: str, outpath: str):
     comm = edge_tts.Communicate(ssml_text, voice=voice)
