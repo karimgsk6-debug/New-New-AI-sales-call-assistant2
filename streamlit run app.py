@@ -89,7 +89,7 @@ CSS = f"""
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
   background-position: right top;
-  background-attachment: flix;
+  background-attachment: flex;
   background-size: contain;
 }}
 /* Sidebar white background to keep readability */
@@ -110,7 +110,7 @@ CSS = f"""
 
 /* Top-right logo (approx 3cm down) */
 .gsk-logo {{
-  position: fixed;
+  position: flex;
   top: 60px;
   left: 16px;
   z-index: 1200;
