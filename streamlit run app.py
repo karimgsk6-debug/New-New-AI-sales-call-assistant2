@@ -36,12 +36,12 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
 # ----------------------------
-# Load GROQ API key
+# Load GROQ API key from env (preferred)
 # ----------------------------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 if not GROQ_API_KEY:
     st.warning("GROQ_API_KEY not found in environment. Set GROQ_API_KEY in env or Streamlit Secrets.")
+client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # ----------------------------
 # Session state defaults
@@ -54,14 +54,13 @@ if "extracted_medical_ref" not in st.session_state:
     st.session_state.extracted_medical_ref = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
-if "language" not in st.session_state:
-    st.session_state.language = "English"  # default
 
 # ----------------------------
-# Assets
+# Assets & styling variables
 # ----------------------------
+# Background image (external URL)
 BACKGROUND_URL = (
-    "https://media.istockphoto.com/id/1317479870/photo/smart-intelligent-caucasian-hispanic-latin-american-young-woman-student-using-digital-tablet.jpg?s=612x612&w=0&k=20&c=tRfn9dj_xCFr_QgL2Md9g5JXZ2_AvX-_1lgm9xXwDTc="
+    "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-09-29T08%3A50%3A13Z&sp=r&sv=2024-08-04&sr=b&scid=61b996f9-1aa8-5450-9322-8df6ba4be66c&skoid=76024c37-11e2-4c92-aa07-7e519fbe2d0f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-09-29T03%3A57%3A08Z&ske=2025-09-30T03%3A57%3A08Z&sks=b&skv=2024-08-04&sig=k8xWpLn%2BpScPIMXS/CBwvn%2Blwsduznv0W2gDvCqsIRM%3D"
 )
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
@@ -88,6 +87,9 @@ CSS = f"""
 .stApp {{
   background: url('{BACKGROUND_URL}') no-repeat top right;
   background-size: calc(100% - var(--sidebar-width)) auto;
+  background-repeat: no-repeat;
+  background-position: top right;
+  min-height: 100vh;
   transition: background-size 0.3s ease;
 }}
 .stSidebar {{
@@ -195,6 +197,9 @@ if (sidebar) observer.observe(sidebar);
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
+# ----------------------------
+# Logo and Title
+# ----------------------------
 st.markdown(f'<div class="gsk-logo"><img src="{GSK_LOGO_URL}" width="140"></div>', unsafe_allow_html=True)
 st.markdown("""
 <div class="title-box">
@@ -203,6 +208,71 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 st.markdown('<p style="text-align:center;font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
+
+# ----------------------------
+# Data definitions
+# ----------------------------
+gsk_brands = {
+    "Shingrix": "https://www.shingrix.com/",
+    "Trelegy": "https://www.trelegy.com/",
+    "Zejula": "https://www.zejula.com/"
+}
+gsk_brands_images = {
+    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
+    "Trelegy": "https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
+    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
+}
+
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+doctor_barriers = [
+    "HCP does not consider HZ a risk",
+    "No time for discussion",
+    "Cost concerns",
+    "Not convinced of efficacy",
+    "Accessibility/Logistics",
+    "Patient reluctance",
+    "Other clinical doubts"
+]
+personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
+gsk_approaches = [
+    "Use data-driven evidence (local + global studies)",
+    "Focus on patient outcomes & quality of life",
+    "Leverage brief storytelling and peer endorsement",
+    "Address practical barriers (access, scheduling, cost solutions)"
+]
+sales_call_flow = ["Prepare", "Engage", "Create opportunity", "Influence", "Impact GSO", "Analyze / Post call analysis"]
+APACT_STEPS = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
+objectives = ["Awareness", "Adoption", "Retention"]
+specialties = [
+    "GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist",
+    "Rheumatologist", "Internal Medicine", "Diabetologist", "Neurologist", "Pneumologist"
+]
+
+# ----------------------------
+# Sidebar filters (white background + bordered controls)
+# ----------------------------
+with st.sidebar.expander("Filters & Options", expanded=True):
+    st.markdown('<div style="font-weight:800; margin-bottom:8px;">Filters & Options</div>', unsafe_allow_html=True)
+    brand = st.selectbox("Select Brand", options=list(gsk_brands.keys()))
+    # brand image under brand name
+    img_path = gsk_brands_images.get(brand)
+    if img_path:
+        try:
+            resp = requests.get(img_path, timeout=6)
+            img = Image.open(BytesIO(resp.content))
+            st.image(img, width=180)
+        except Exception:
+            st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=180)
+
+    segment = st.selectbox("Select RACE Segment", options=race_segments)
+    barrier = st.multiselect("Select Doctor Barrier", options=doctor_barriers, default=[])
+    objective = st.selectbox("Select Objective", options=objectives)
+    specialty = st.selectbox("Select Doctor Specialty", options=specialties)
+    persona = st.selectbox("Select HCP Persona", options=personas)
+    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"])
+    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
+    interface_mode = st.radio("Interface Mode", ["Chatbot", "Card Dashboard", "Flow Visualization"])
+
 # ----------------------------
 # PDF Upload & Summarization (top of interface)
 # ----------------------------
@@ -506,7 +576,7 @@ if user_text:
     # append user
     st.session_state.chat_history.append({"role": "user", "content": user_text, "time": datetime.now().strftime("%H:%M")})
     # build prompt with smart instructions
-    prompt = build_prompt(user_text, st.session_state.language)
+    prompt = build_prompt(user_text, language)
     # call Groq
     ai_output = call_groq_with_retry(prompt, language)
     # synthesize TTS (non-blocking-ish, but we produce base64 synchronously)
