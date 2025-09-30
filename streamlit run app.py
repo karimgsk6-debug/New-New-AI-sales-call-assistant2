@@ -6,7 +6,7 @@ import re
 # ----------------------------
 # Settings
 # ----------------------------
-BACKGROUND_URL = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view"
+BACKGROUND_URL = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view?usp=sharing"
 
 sales_call_steps = [
     "Greet",
