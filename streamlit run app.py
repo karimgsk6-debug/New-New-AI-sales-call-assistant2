@@ -52,8 +52,104 @@ def get_brightness(url: str) -> int:
 
 brightness = get_brightness(BACKGROUND_URL)
 
-# CSS styling (same as before)
-CSS = """..."""  # Keep your previous CSS
+# Updated CSS for larger bubbles and highlighted bold steps
+CSS = f"""
+<style>
+[data-testid="stAppViewContainer"] {{
+  background-image: url("{BACKGROUND_URL}");
+  background-repeat: no-repeat;
+  background-position: right top;
+  background-attachment: fixed;
+  background-size: auto 150%;
+  transition: background-size 0.18s ease;
+}}
+.title-box {{
+  background: rgba(240,240,240,0.6);
+  padding: 20px;
+  border-radius: 14px;
+  text-align: center;
+  max-width: 75%;
+  margin: 12px auto;
+}}
+.title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#000; }}
+.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#000; }}
+.chat-container {{
+  height: 60vh;
+  overflow:auto;
+  padding:16px;
+  border-radius:12px;
+  background: rgba(255,255,255,0.85);
+}}
+.chat-bubble-user, .chat-bubble-ai {{
+  display:block;
+  padding:16px 20px;
+  border-radius:16px;
+  margin:10px 0;
+  max-width: 80%;
+  word-wrap: break-word;
+  font-size:16px;
+}}
+.chat-bubble-user {{
+  background: #e0f7e9;
+  margin-left: auto;
+  border: 2px solid #a8d5ba;
+}}
+.chat-bubble-ai {{
+  background: #f0f4ff;
+  margin-right: auto;
+  border: 2px solid #90b5ff;
+}}
+.pdf-summary-box {{
+  background: #f9f9f9;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #eee;
+}}
+.pdf-summary-inline {{
+  margin-top:8px;
+  background: #f9f9f9;
+  padding:12px;
+  border-radius:10px;
+  border: 1px solid #ddd;
+}}
+.bottom-bar {{
+  position: fixed;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  z-index: 1200;
+  background: rgba(255,255,255,0.98);
+  padding:12px;
+  border-radius:12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  display:flex;
+  gap:12px;
+  align-items:center;
+}}
+.bottom-bar input[type="text"] {{
+  flex:1;
+  padding:12px 14px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  outline:none;
+  font-size:16px;
+}}
+.bottom-bar button {{
+  min-width:100px;
+  padding:10px 14px;
+  border-radius:10px;
+  background:#ff8c00;
+  color:white;
+  border:none;
+  font-weight:600;
+  cursor:pointer;
+  font-size:16px;
+}}
+.highlight-step {{ font-weight:700; color:#d35400; }}
+.highlight-apact {{ font-weight:700; color:#2c3e50; }}
+</style>
+"""
 st.markdown(CSS, unsafe_allow_html=True)
 SCROLL_JS = """<script>function scrollChat(){const el=document.querySelector('.chat-container');if(el) el.scrollTop=el.scrollHeight;}setTimeout(scrollChat,200);</script>"""
 
@@ -62,7 +158,7 @@ st.markdown('<div class="title-box"><h1>💡 AI Sales Call Assistant</h1><p>Powe
 st.markdown('<p style="text-align:center;font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
 # ----------------------------
-# Sidebar filters
+# Sidebar filters (same as before)
 # ----------------------------
 gsk_brands = {"Shingrix": "https://www.shingrix.com/", "Trelegy": "https://www.trelegy.com/", "Zejula": "https://www.zejula.com/"}
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
@@ -91,7 +187,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     tts_lang = st.radio("Voice / الصوت", ["English", "العربية"], index=0)
 
 # ----------------------------
-# PDF upload & informative bullet-point summary using Groq
+# PDF upload & bullet-point summary
 # ----------------------------
 st.markdown("### 📄 Upload Medical Reference PDF (Optional)")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -103,7 +199,7 @@ if uploaded_pdf:
 
         # Summarize using Groq
         if client:
-            summary_prompt = f"Summarize the following medical text into concise, **bullet points**, highlighting key points useful for pharmaceutical sales reps. Include APACT steps and sales call relevance:\n\n{full_text[:4000]}"
+            summary_prompt = f"Summarize the following medical text into concise, **bullet points**, highlighting key points useful for pharmaceutical sales reps. Bold and highlight GSK sales call steps and APACT steps:\n\n{full_text[:4000]}"
             resp = client.chat.completions.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[
@@ -112,9 +208,13 @@ if uploaded_pdf:
                 ],
                 temperature=0.2
             )
-            st.session_state.pdf_summary = resp.choices[0].message.content.strip()
-        else:
-            st.warning("Groq client not configured. PDF summary unavailable.")
+            summary = resp.choices[0].message.content.strip()
+            # Highlight steps in AI output
+            for step in sales_call_steps:
+                summary = summary.replace(step, f'<span class="highlight-step">{step}</span>')
+            for apact in APACT_STEPS:
+                summary = summary.replace(apact, f'<span class="highlight-apact">{apact}</span>')
+            st.session_state.pdf_summary = summary
 
         if st.session_state.pdf_summary:
             with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
@@ -124,15 +224,30 @@ if uploaded_pdf:
         st.error("PDF error: " + str(e))
 
 # ----------------------------
-# TTS helper
+# AI response generation
 # ----------------------------
-async def speak_text(text: str, lang="en"):
-    clean_text = re.sub(r"[^a-zA-Z0-9 .,؟!?]", "", text)
-    if not clean_text.strip():
-        return
-    communicate = edge_tts.Communicate(clean_text, voice="en-US-AriaNeural" if lang=="en" else "ar-EG-SalmaNeural")
-    await communicate.save("tts_output.mp3")
-    os.system("start tts_output.mp3" if os.name=="nt" else "afplay tts_output.mp3")
+def generate_ai_response(prompt, pdf_text=""):
+    if client is None:
+        return "Groq API not configured. AI response unavailable."
+    user_content = f"{prompt}\n\nReference info:\n{pdf_text}" if pdf_text else prompt
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role":"system","content":"You are a helpful sales call assistant for pharmaceutical reps. Highlight all GSK sales call steps and APACT steps in bold and colored text."},
+                {"role":"user","content":user_content}
+            ],
+            temperature=0.5
+        )
+        content = resp.choices[0].message.content.strip()
+        # Highlight steps in AI response
+        for step in sales_call_steps:
+            content = content.replace(step, f'<span class="highlight-step">{step}</span>')
+        for apact in APACT_STEPS:
+            content = content.replace(apact, f'<span class="highlight-apact">{apact}</span>')
+        return content
+    except Exception as e:
+        return f"Error generating AI response: {e}"
 
 # ----------------------------
 # Render chat
@@ -148,26 +263,6 @@ def render_chat_history():
     st.markdown(SCROLL_JS, unsafe_allow_html=True)
 
 render_chat_history()
-
-# ----------------------------
-# AI response using Groq
-# ----------------------------
-def generate_ai_response(prompt, pdf_text=""):
-    if client is None:
-        return "Groq API not configured. AI response unavailable."
-    user_content = f"{prompt}\n\nReference info:\n{pdf_text}" if pdf_text else prompt
-    try:
-        resp = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role":"system","content":"You are a helpful sales call assistant for pharmaceutical reps."},
-                {"role":"user","content":user_content}
-            ],
-            temperature=0.5
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error generating AI response: {e}"
 
 # ----------------------------
 # Bottom input bar
