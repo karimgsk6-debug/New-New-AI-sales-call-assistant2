@@ -67,7 +67,8 @@ if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = None
 
 # ---------------------- GROQ AI ----------------------
-groq_client = Groq(api_key=st.secrets["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"])
+# <-- Insert your GROQ API Key Here -->
+groq_client = Groq(api_key="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")
 
 def generate_ai_response(prompt, pdf_summary=None):
     context = ""
@@ -115,6 +116,7 @@ def speak_text(text):
 # ---------------------- PDF Upload ----------------------
 uploaded_file = st.file_uploader("📄 Upload PDF for Summary", type=["pdf"])
 if uploaded_file:
+    # Replace with your real PDF extraction logic
     st.session_state.pdf_summary = "- Key insight 1\n- Key insight 2\n- Key insight 3"
     with st.expander("📌 PDF Summary (Auto-Extracted)", expanded=False):
         st.markdown(st.session_state.pdf_summary)
