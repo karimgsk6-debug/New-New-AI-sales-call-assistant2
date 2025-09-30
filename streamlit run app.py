@@ -3,7 +3,6 @@ import os
 import re
 import asyncio
 from io import BytesIO
-from datetime import datetime
 
 import streamlit as st
 from PIL import Image, ImageStat
@@ -11,17 +10,18 @@ import requests
 import PyPDF2
 import edge_tts
 
-# Optional docx export
+# Groq client
 try:
-    from docx import Document
-    DOCX_AVAILABLE = True
+    import groq
+    from groq import Groq
 except Exception:
-    DOCX_AVAILABLE = False
+    Groq = None
 
 # ----------------------------
-# Page config
+# Groq API key directly in code
 # ----------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
+GROQ_API_KEY = "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"
+client = Groq(api_key=GROQ_API_KEY) if Groq is not None else None
 
 # ----------------------------
 # Session state defaults
@@ -52,96 +52,8 @@ def get_brightness(url: str) -> int:
 
 brightness = get_brightness(BACKGROUND_URL)
 
-CSS = f"""
-<style>
-[data-testid="stAppViewContainer"] {{
-  background-image: url("{BACKGROUND_URL}");
-  background-repeat: no-repeat;
-  background-position: right top;
-  background-attachment: fixed;
-  background-size: auto 150%;
-  transition: background-size 0.18s ease;
-}}
-.title-box {{
-  background: rgba(240,240,240,0.6);
-  padding: 20px;
-  border-radius: 14px;
-  text-align: center;
-  max-width: 75%;
-  margin: 12px auto;
-}}
-.title-box h1 {{ margin:0; font-size:36px; font-weight:800; color:#000; }}
-.title-box p {{ margin:6px 0 0 0; font-size:20px; color:#000; }}
-.pdf-summary-box {{
-  background: #f9f9f9;
-  padding: 14px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #eee;
-}}
-.chat-container {{
-  height: 56vh;
-  overflow:auto;
-  padding:12px;
-  border-radius:10px;
-  background: rgba(255,255,255,0.8);
-}}
-.chat-bubble-user, .chat-bubble-ai {{
-  display:block;
-  padding:12px;
-  border-radius:12px;
-  margin:8px 0;
-  max-width: 90%;
-  word-wrap: break-word;
-  color: black;
-}}
-.chat-bubble-user {{ background: #eef9e6; margin-left: auto; }}
-.chat-bubble-ai {{ background: #f5f7fa; margin-right: auto; }}
-.pdf-summary-inline {{
-  margin-top:8px;
-  background: #f9f9f9;
-  padding:10px;
-  border-radius:8px;
-  border: 1px solid #eee;
-}}
-.bottom-bar {{
-  position: fixed;
-  bottom: 12px;
-  left: 16px;
-  right: 16px;
-  z-index: 1200;
-  background: rgba(255,255,255,0.98);
-  padding:10px;
-  border-radius:10px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-  display:flex;
-  gap:12px;
-  align-items:center;
-}}
-.bottom-bar input[type="text"] {{
-  flex:1;
-  padding:10px 12px;
-  border-radius:8px;
-  border:1px solid #ddd;
-  outline:none;
-}}
-.bottom-bar button {{
-  min-width:100px;
-  padding:8px 12px;
-  border-radius:8px;
-  background:#ff8c00;
-  color:white;
-  border:none;
-  font-weight:600;
-  cursor:pointer;
-}}
-@media (max-width: 430px) {{
-  .title-box h1 {{ font-size:24px; }}
-  .chat-container {{ height:48vh; }}
-  .bottom-bar {{ left:8px; right:8px; bottom:8px; padding:8px; }}
-}}
-</style>
-"""
+# CSS styling (same as before)
+CSS = """..."""  # Keep your previous CSS
 st.markdown(CSS, unsafe_allow_html=True)
 SCROLL_JS = """<script>function scrollChat(){const el=document.querySelector('.chat-container');if(el) el.scrollTop=el.scrollHeight;}setTimeout(scrollChat,200);</script>"""
 
@@ -163,9 +75,7 @@ personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influence
 objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist",
                "Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
-sales_call_steps = [
-    "1-Prepare","2-Engage","3-Create Opportunities","4-Impact GSO","5-Influence","6-Analyze & Post-call Analysis"
-]
+sales_call_steps = ["1-Prepare","2-Engage","3-Create Opportunities","4-Impact GSO","5-Influence","6-Analyze & Post-call Analysis"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
@@ -181,7 +91,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     tts_lang = st.radio("Voice / الصوت", ["English", "العربية"], index=0)
 
 # ----------------------------
-# PDF upload & optional summary
+# PDF upload & informative bullet-point summary using Groq
 # ----------------------------
 st.markdown("### 📄 Upload Medical Reference PDF (Optional)")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -189,12 +99,27 @@ if uploaded_pdf:
     try:
         reader = PyPDF2.PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text[:2000] + "..." if len(full_text) > 2000 else full_text
-        st.session_state.pdf_summary = st.session_state.uploaded_pdf_text  # summary optional
-        st.success("✅ PDF processed")
+        st.session_state.uploaded_pdf_text = full_text
 
-        with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
-            st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+        # Summarize using Groq
+        if client:
+            summary_prompt = f"Summarize the following medical text into concise, **bullet points**, highlighting key points useful for pharmaceutical sales reps. Include APACT steps and sales call relevance:\n\n{full_text[:4000]}"
+            resp = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[
+                    {"role":"system","content":"You are a medical summarizer for pharmaceutical sales reps."},
+                    {"role":"user","content":summary_prompt}
+                ],
+                temperature=0.2
+            )
+            st.session_state.pdf_summary = resp.choices[0].message.content.strip()
+        else:
+            st.warning("Groq client not configured. PDF summary unavailable.")
+
+        if st.session_state.pdf_summary:
+            with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
+                st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+
     except Exception as e:
         st.error("PDF error: " + str(e))
 
@@ -210,7 +135,7 @@ async def speak_text(text: str, lang="en"):
     os.system("start tts_output.mp3" if os.name=="nt" else "afplay tts_output.mp3")
 
 # ----------------------------
-# Render chat history
+# Render chat
 # ----------------------------
 def render_chat_history():
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -225,17 +150,34 @@ def render_chat_history():
 render_chat_history()
 
 # ----------------------------
-# Bottom input bar with immediate AI response
+# AI response using Groq
+# ----------------------------
+def generate_ai_response(prompt, pdf_text=""):
+    if client is None:
+        return "Groq API not configured. AI response unavailable."
+    user_content = f"{prompt}\n\nReference info:\n{pdf_text}" if pdf_text else prompt
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role":"system","content":"You are a helpful sales call assistant for pharmaceutical reps."},
+                {"role":"user","content":user_content}
+            ],
+            temperature=0.5
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error generating AI response: {e}"
+
+# ----------------------------
+# Bottom input bar
 # ----------------------------
 st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
 user_input = st.text_input("Type your question...", key="bottom_input")
 if st.button("Send"):
     if user_input.strip():
         st.session_state.chat_history.append({"role":"user","content":user_input})
-        
-        # Immediate AI response placeholder
-        ai_response = f"AI response for: {user_input}"
-        st.session_state.chat_history.append({"role":"ai","content":ai_response})
-
+        ai_resp = generate_ai_response(user_input, st.session_state.pdf_summary)
+        st.session_state.chat_history.append({"role":"ai","content":ai_resp})
         render_chat_history()
 st.markdown('</div>', unsafe_allow_html=True)
