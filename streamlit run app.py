@@ -104,7 +104,7 @@ def call_groq(prompt: str):
                       {"role":"user","content":prompt}],
             temperature=0.65
         )
-        return resp.choices[0].message["content"]
+        return resp.choices[0].message.content
     except Exception as e:
         return f"⚠️ AI Error: {e}"
 
