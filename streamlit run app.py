@@ -1,26 +1,15 @@
 # app.py
 import os
 import re
-import time
-import base64
-import tempfile
 import asyncio
-from typing import Optional
-from datetime import datetime
 from io import BytesIO
+from datetime import datetime
 
 import streamlit as st
 from PIL import Image, ImageStat
 import requests
 import PyPDF2
 import edge_tts
-
-# Groq client (optional)
-try:
-    import groq
-    from groq import Groq
-except Exception:
-    Groq = None
 
 # Optional docx export
 try:
@@ -35,21 +24,12 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
 # ----------------------------
-# Sidebar: Groq API key input
-# ----------------------------
-st.sidebar.markdown("### 🔑 Set Groq API Key")
-GROQ_API_KEY = st.sidebar.text_input("Enter your Groq API Key", value=os.getenv("GROQ_API_KEY","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"), type="password")
-client = Groq(api_key=GROQ_API_KEY) if (GROQ_API_KEY and Groq is not None) else None
-
-# ----------------------------
 # Session state defaults
 # ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
-if "extracted_medical_ref" not in st.session_state:
-    st.session_state.extracted_medical_ref = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 if "language" not in st.session_state:
@@ -71,7 +51,6 @@ def get_brightness(url: str) -> int:
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
 
 CSS = f"""
 <style>
@@ -82,20 +61,6 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 150%;
   transition: background-size 0.18s ease;
-}}
-[data-testid="stSidebar"] > div:first-child {{
-  background: #ffffff;
-  padding: 10px;
-  border-left: 0;
-}}
-[data-testid="stSidebar"] .stSelectbox, [data-testid="stSidebar"] .stMultiselect,
-[data-testid="stSidebar"] .stRadio, [data-testid="stSidebar"] .stCheckbox,
-[data-testid="stSidebar"] .stFileUploader {{
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  padding: 8px;
-  margin-bottom: 10px;
-  background-color: #dddd;
 }}
 .title-box {{
   background: rgba(240,240,240,0.6);
@@ -175,8 +140,6 @@ CSS = f"""
   .chat-container {{ height:48vh; }}
   .bottom-bar {{ left:8px; right:8px; bottom:8px; padding:8px; }}
 }}
-.highlight-step {{ font-weight:700; color:#000; }}
-.highlight-figure {{ font-weight:700; color:#d35400; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -187,14 +150,9 @@ st.markdown('<div class="title-box"><h1>💡 AI Sales Call Assistant</h1><p>Powe
 st.markdown('<p style="text-align:center;font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
 
 # ----------------------------
-# Sidebar: GSK filters
+# Sidebar filters
 # ----------------------------
 gsk_brands = {"Shingrix": "https://www.shingrix.com/", "Trelegy": "https://www.trelegy.com/", "Zejula": "https://www.zejula.com/"}
-gsk_brands_images = {
-    "Shingrix":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Trelegy":"https://www.1uphealth.com/wp-content/uploads/2020/11/trelegy.png",
-    "Zejula":"https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png"
-}
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = [
     "HCP does not consider HZ a risk", "No time for discussion", "Cost concerns",
@@ -212,14 +170,6 @@ APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
-    img_path = gsk_brands_images.get(brand)
-    if img_path:
-        try:
-            resp = requests.get(img_path, timeout=6)
-            img = Image.open(BytesIO(resp.content))
-            st.image(img, width=180)
-        except:
-            st.image("https://via.placeholder.com/180x90.png?text=No+Image", width=180)
     segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", options=race_segments)
     barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
     objective = st.selectbox("Select Objective / اختر الهدف", options=objectives)
@@ -231,67 +181,20 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     tts_lang = st.radio("Voice / الصوت", ["English", "العربية"], index=0)
 
 # ----------------------------
-# PDF upload & summarization
+# PDF upload & optional summary
 # ----------------------------
-st.markdown("### 📄 Upload Medical Reference PDF")
+st.markdown("### 📄 Upload Medical Reference PDF (Optional)")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
 if uploaded_pdf:
     try:
         reader = PyPDF2.PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text[:2000] + "..." if len(full_text) > 2000 else full_text
-
-        matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
-        st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
+        st.session_state.pdf_summary = st.session_state.uploaded_pdf_text  # summary optional
         st.success("✅ PDF processed")
 
-        # Chunk summarization
-        chunk_size = 2000
-        chunks = [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size)]
-        summaries = []
-        if client is None:
-            st.warning("Groq client not configured: PDF auto-summarize unavailable. Set GROQ_API_KEY.")
-            st.session_state.pdf_summary = ""
-        else:
-            for i, chunk in enumerate(chunks):
-                summary_prompt = f"Concise medical summary for sales reps including APACT steps and sales call flow: {', '.join(sales_call_steps)}.\n\n{chunk[:2000]}"
-                try:
-                    resp = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
-                        messages=[{"role":"system","content":"You are a concise medical summarizer including APACT & sales call steps."},
-                                  {"role":"user","content":summary_prompt}],
-                        temperature=0.2
-                    )
-                    summaries.append(resp.choices[0].message.content)
-                except Exception as e:
-                    err_msg = str(e).lower()
-                    if "rate_limit" in err_msg or "429" in err_msg:
-                        st.warning(f"Chunk {i+1} skipped due to rate limit.")
-                        continue
-                    else:
-                        st.warning(f"Chunk {i+1} summarization error: {e}")
-            st.session_state.pdf_summary = "\n".join(summaries).strip()
-
-        # Collapsible summary + search
-        if st.session_state.pdf_summary:
-            with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
-                search_term = st.text_input("🔎 Search inside summary", key="summary_search")
-                summary_text = st.session_state.pdf_summary.splitlines()
-
-                if search_term:
-                    filtered = [line for line in summary_text if search_term.lower() in line.lower()]
-                    if filtered:
-                        st.markdown("### 🔍 Search Results:")
-                        for line in filtered:
-                            st.markdown(f"- **{line.strip()}**")
-                    else:
-                        st.info("No matches found.")
-                else:
-                    st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-
-        if st.session_state.extracted_medical_ref:
-            st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
-
+        with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
+            st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
     except Exception as e:
         st.error("PDF error: " + str(e))
 
@@ -307,7 +210,7 @@ async def speak_text(text: str, lang="en"):
     os.system("start tts_output.mp3" if os.name=="nt" else "afplay tts_output.mp3")
 
 # ----------------------------
-# Render chat & PDF summaries
+# Render chat history
 # ----------------------------
 def render_chat_history():
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -316,20 +219,23 @@ def render_chat_history():
         content = entry.get("content","")
         bubble_class = "chat-bubble-user" if role=="user" else "chat-bubble-ai"
         st.markdown(f'<div class="{bubble_class}">{content.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-    if st.session_state.pdf_summary:
-        st.markdown(f'<div class="pdf-summary-inline">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(SCROLL_JS, unsafe_allow_html=True)
 
 render_chat_history()
 
 # ----------------------------
-# Bottom input bar
+# Bottom input bar with immediate AI response
 # ----------------------------
 st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
 user_input = st.text_input("Type your question...", key="bottom_input")
 if st.button("Send"):
     if user_input.strip():
         st.session_state.chat_history.append({"role":"user","content":user_input})
+        
+        # Immediate AI response placeholder
+        ai_response = f"AI response for: {user_input}"
+        st.session_state.chat_history.append({"role":"ai","content":ai_response})
+
         render_chat_history()
 st.markdown('</div>', unsafe_allow_html=True)
