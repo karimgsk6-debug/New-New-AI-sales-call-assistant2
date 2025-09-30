@@ -15,13 +15,13 @@ import PyPDF2
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------- STYLING ----------------------
-BACKGROUND_URL = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view?usp=sharing"
+BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png"
 
 st.markdown(f"""
 <style>
 .title-box {{
-    background: rgba(245,245,245,0.8);
+    background: rgba(245,245,245,0.85);
     padding: 20px;
     border-radius: 12px;
     text-align: center;
@@ -86,6 +86,15 @@ st.markdown(f"""
     font-weight:600;
     cursor:pointer;
 }}
+.filter-section {{
+    background: rgba(245,245,245,0.8);
+    padding:12px;
+    border-radius:12px;
+    margin-bottom:10px;
+}}
+.filter-section select, .filter-section multiselect {{
+    margin-bottom:6px;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,6 +107,22 @@ if "pdf_refs" not in st.session_state:
     st.session_state.pdf_refs = ""
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "Male Neural"
+if "brand" not in st.session_state:
+    st.session_state.brand = "Shingrix"
+if "segment" not in st.session_state:
+    st.session_state.segment = "R – Reach"
+if "barrier" not in st.session_state:
+    st.session_state.barrier = []
+if "objective" not in st.session_state:
+    st.session_state.objective = "Awareness"
+if "specialty" not in st.session_state:
+    st.session_state.specialty = "GP"
+if "persona" not in st.session_state:
+    st.session_state.persona = "Uncommitted Vaccinator"
+if "response_tone" not in st.session_state:
+    st.session_state.response_tone = "Formal"
+if "response_length" not in st.session_state:
+    st.session_state.response_length = "Medium"
 
 # ---------------------- GROQ CLIENT ----------------------
 GROQ_API_KEY = "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"
@@ -105,6 +130,17 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------- TITLE + LOGO ----------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140" /><h1>💡 GSK AI Sales Call Assistant</h1><p>Powered by AI to equip sales reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
+
+# ---------------------- FILTER/SELECTION ----------------------
+with st.expander("Filters & Options", expanded=True):
+    st.session_state.brand = st.selectbox("Select Brand", options=["Shingrix","Trelegy","Zejula"], index=0)
+    st.session_state.segment = st.selectbox("RACE Segment", options=["R – Reach","A – Acquisition","C – Conversion","E – Engagement"])
+    st.session_state.barrier = st.multiselect("Doctor Barrier", options=["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"])
+    st.session_state.objective = st.selectbox("Objective", options=["Awareness","Adoption","Retention"])
+    st.session_state.specialty = st.selectbox("Doctor Specialty", options=["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"])
+    st.session_state.persona = st.selectbox("HCP Persona", options=["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"])
+    st.session_state.response_tone = st.selectbox("Response Tone", options=["Formal","Casual","Friendly","Persuasive"])
+    st.session_state.response_length = st.selectbox("Response Length", options=["Short","Medium","Long"])
 
 # ---------------------- PDF UPLOAD ----------------------
 st.markdown("### 📄 Upload Medical Reference PDF")
@@ -131,16 +167,16 @@ if st.session_state.pdf_summary:
         st.markdown(st.session_state.pdf_refs)
 
 # ---------------------- HELPER FUNCTIONS ----------------------
+sales_call_flow = ["Prepare the call","Engage","Create opportunities","Impact GSO","Influence","Analyze and post call"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
+
 def render_chat_history():
     html_out = ""
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             html_out += f"<div class='chat-bubble-user'>{msg['content']}</div>"
         else:
-            audio_html = ""
-            if msg.get("audio"):
-                audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg['audio']}' type='audio/mp3'></audio>"
-            html_out += f"<div class='chat-bubble-ai'>{msg['content']}{audio_html}</div>"
+            html_out += f"<div class='chat-bubble-ai'>{msg['content']}</div>"
     st.markdown(f"<div class='chat-container' id='chat-container'>{html_out}</div>", unsafe_allow_html=True)
     # Auto-scroll JS
     st.markdown("""
@@ -154,11 +190,10 @@ def render_chat_history():
 
 def generate_ai_response(user_input: str) -> str:
     context = (
-        "You are a GSK sales assistant. Follow Sales Call Flow: Prepare, Engage, Create Opportunities, "
-        "Impact GSO, Influence, Post-call Analysis. Use APACT for objections. Provide structured responses and references."
+        f"You are a GSK sales assistant for {st.session_state.brand}. Follow Sales Call Flow: {', '.join(sales_call_flow)}. "
+        f"Use APACT for objections: {', '.join(APACT_STEPS)}. Provide structured responses and include references if possible.\n"
+        f"PDF Summary:\n{'\n'.join(st.session_state.pdf_summary)}"
     )
-    if st.session_state.pdf_summary:
-        context += "\nPDF Summary:\n" + "\n".join(st.session_state.pdf_summary)
     try:
         response = groq_client.chat.completions.create(
             messages=[{"role":"system","content":context},{"role":"user","content":user_input}],
