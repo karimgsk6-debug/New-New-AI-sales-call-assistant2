@@ -34,7 +34,7 @@ st.markdown(f"""
 <style>
 .stApp {{
     background: url("{BACKGROUND_URL}") no-repeat right top fixed;
-    background-size: auto 150%;
+    background-size: auto 120%;
 }}
 
 .title-box {{
