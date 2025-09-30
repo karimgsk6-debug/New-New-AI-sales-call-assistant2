@@ -11,7 +11,7 @@ from docx import Document
 st.set_page_config(page_title="GSK Sales Call Assistant", layout="wide")
 
 # Background setup with Google Drive image
-bg_url = "https://drive.google.com/uc?id=1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b"
+bg_url = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view?usp=sharing"
 st.markdown(f"""
     <style>
     .stApp {{
