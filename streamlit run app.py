@@ -15,7 +15,7 @@ import PyPDF2
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------- STYLING ----------------------
-BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
+BACKGROUND_URL = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view?usp=sharing"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png"
 
 st.markdown(f"""
