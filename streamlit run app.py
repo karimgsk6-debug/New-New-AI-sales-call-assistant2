@@ -41,13 +41,12 @@ GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicala
 # ---------------------- STYLING ----------------------
 st.markdown(f"""
 <style>
-/* Background & title */
 body {{
     background: url("{BACKGROUND_URL}") no-repeat right top fixed;
     background-size: auto 150%;
 }}
 .title-box {{
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.95);
     padding: 20px;
     border-radius: 15px;
     text-align: center;
@@ -140,16 +139,22 @@ if uploaded_pdf:
     st.session_state.extracted_medical_ref = ", ".join(refs) if refs else "None"
     
     # Summarize PDF
-    prompt = f"Summarize the following medical PDF into concise bullet points:\n\n{full_text[:5000]}"
+    summary_prompt = f"Summarize the following medical PDF into concise, informative bullet points:\n\n{full_text[:5000]}"
     summary_resp = groq_client.chat.completions.create(
         messages=[{"role":"system","content":"You are a concise medical summarizer for sales reps."},
-                  {"role":"user","content":prompt}],
+                  {"role":"user","content":summary_prompt}],
         model="llama-3.3-70b-versatile"
     )
     st.session_state.pdf_summary = summary_resp.choices[0].message.content if summary_resp.choices else ""
-    
-    st.markdown(f'<div class="pdf-summary-box">{"<br>".join(["- "+line.strip() for line in st.session_state.pdf_summary.splitlines() if line.strip()])}</div>', unsafe_allow_html=True)
-    
+
+    # Search box for PDF summary
+    search_term = st.text_input("🔍 Search PDF Summary")
+    summary_lines = [line.strip() for line in st.session_state.pdf_summary.splitlines() if line.strip()]
+    if search_term:
+        summary_lines = [line for line in summary_lines if search_term.lower() in line.lower()]
+    st.markdown(f'<div class="pdf-summary-box">{"<br>".join(["- "+line for line in summary_lines])}</div>', unsafe_allow_html=True)
+
+    # Collapsible extracted references
     st.markdown(f"""
     <button class="collapsible">📚 Extracted References</button>
     <div class="content">{st.session_state.extracted_medical_ref}</div>
@@ -166,13 +171,13 @@ if uploaded_pdf:
     </script>
     """, unsafe_allow_html=True)
 
-# ---------------------- UPDATED FILTER/SELECTION SECTION ----------------------
+# ---------------------- FILTER/SELECTION ----------------------
 st.sidebar.markdown("### Filters & Options")
 gsk_brands = ["Shingrix","Trelegy","Zejula"]
 segment_list = ["Reach","Acquisition","Conversion","Engagement"]
 barriers = ["No risk perceived","No time","Cost","Efficacy doubts","Accessibility","Patient reluctance","Other"]
 objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
 personas = ["Uncommitted","Reluctant","Patient influenced","Committed"]
 response_tones = ["Formal","Casual","Friendly","Persuasive"]
 
@@ -208,6 +213,7 @@ def generate_ai_response(prompt):
     You are a GSK medical sales assistant. Use PDF summary if available.
     Follow sales call flow: {', '.join(sales_call_flow)}
     Handle objections with APACT: {', '.join(APACT_STEPS)}
+    Filter settings: Brand={brand}, Segment={segment}, Barrier={barrier}, Objective={objective}, Specialty={specialty}, Persona={persona}, Tone={response_tone}, Length={response_length}
     """
     resp = groq_client.chat.completions.create(
         messages=[{"role":"system","content":context},{"role":"user","content":prompt}],
