@@ -53,7 +53,7 @@ if "voice_pref" not in st.session_state:
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
-GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
+GSK_LOGO_URL = "https://www.stevenagecatalyst.com/wp-content/uploads/2024/04/MicrosoftTeams-image-14.png"
 
 def get_brightness(url: str) -> int:
     try:
