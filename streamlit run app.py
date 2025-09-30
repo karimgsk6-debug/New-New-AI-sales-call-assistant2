@@ -1,7 +1,6 @@
 # app.py
 import os
 import re
-import base64
 import asyncio
 from io import BytesIO
 from datetime import datetime
@@ -101,15 +100,6 @@ CSS = f"""
 }}
 .chat-bubble-user {{ background: #eef9e6; margin-left: auto; border:1px solid #c2e0b0; max-width:40%; }}
 .chat-bubble-ai {{ background: #f5f7fa; margin-right: auto; border:1px solid #a0c4ff; max-width:100%; }}
-.pdf-summary-inline {{
-  margin-top:8px;
-  background: #f9f9f9;
-  padding:10px;
-  border-radius:8px;
-  border: 1px solid #eee;
-}}
-.highlight-step {{ font-weight:700; color:#d35400; }}
-.highlight-apact {{ font-weight:700; color:#2980b9; }}
 .bottom-bar {{
   position: fixed;
   bottom: 12px;
@@ -124,6 +114,8 @@ CSS = f"""
 }}
 .bottom-bar input[type="text"] {{ flex:1; padding:10px 12px; border-radius:20px; border:1px solid #ddd; }}
 .bottom-bar button {{ min-width:80px; padding:8px 12px; border-radius:20px; background:#ff8c00; color:white; border:none; font-weight:600; cursor:pointer; }}
+.highlight-step {{ font-weight:700; color:#d35400; }}
+.highlight-apact {{ font-weight:700; color:#2980b9; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -177,7 +169,7 @@ if uploaded_pdf:
         st.session_state.uploaded_pdf_text = full_text
 
         if client:
-            summary_prompt = f"Summarize the following medical text into concise bullet points, highlighting key points for pharmaceutical sales reps. Bold and highlight GSK sales call steps and APACT steps:\n\n{full_text[:4000]}"
+            summary_prompt = f"Summarize the following medical text into concise bullet points for sales reps, highlighting key points, integrating GSK sales call steps and APACT technique:\n\n{full_text[:4000]}"
             resp = client.chat.completions.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[{"role":"system","content":"You are a medical summarizer for sales reps."},
@@ -210,7 +202,7 @@ async def speak_text(text: str, lang="en"):
 # ----------------------------
 # Render chat
 # ----------------------------
-def render_chat_history(show_user=True):
+def render_chat_history():
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for entry in st.session_state.chat_history:
         role = entry.get("role","user")
@@ -220,7 +212,7 @@ def render_chat_history(show_user=True):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(SCROLL_JS, unsafe_allow_html=True)
 
-render_chat_history(show_user=False)
+render_chat_history()
 
 # ----------------------------
 # Bottom input bar (integrated)
@@ -233,22 +225,38 @@ with col2:
     if st.button("Send"):
         if user_input.strip():
             st.session_state.chat_history.append({"role":"user","content":user_input})
-            # AI response always generated
-            ai_prompt = f"Answer this question for pharmaceutical sales reps: {user_input}\nReference PDF:\n{st.session_state.uploaded_pdf_text}"
+
+            # AI response prompt (product + medical references)
+            ai_prompt = f"""
+            Answer this question specifically for the product {brand} for HCPs.
+            Include scientific evidence or references if PDF uploaded, else general medical references.
+            Structure response according to GSK sales call flow: {', '.join(sales_call_steps)}.
+            Integrate APACT technique {', '.join(APACT_STEPS)} to handle HCP concerns.
+            Tone: {response_tone}, Length: {response_length}.
+            Question: {user_input}
+            Reference PDF content: {st.session_state.uploaded_pdf_text[:4000]}
+            """
             if client:
                 resp = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
-                    messages=[{"role":"system","content":"You are a helpful pharma sales AI."},
+                    messages=[{"role":"system","content":"You are a pharma sales AI expert, creating product-specific responses with medical references."},
                               {"role":"user","content":ai_prompt}],
                     temperature=0.2
                 )
                 ai_resp = resp.choices[0].message.content.strip()
             else:
                 ai_resp = "AI client not configured. Set GROQ_API_KEY to generate responses."
+
+            # Highlight steps
             for step in sales_call_steps: ai_resp = ai_resp.replace(step, f'<span class="highlight-step">{step}</span>')
             for apact in APACT_STEPS: ai_resp = ai_resp.replace(apact, f'<span class="highlight-apact">{apact}</span>')
+
             st.session_state.chat_history.append({"role":"ai","content":ai_resp})
-            render_chat_history(show_user=False)
+            render_chat_history()
+
+            # Voice TTS
+            asyncio.run(speak_text(ai_resp, lang="en" if tts_lang=="English" else "ar"))
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ----------------------------
@@ -258,7 +266,7 @@ col1, col2 = st.columns([1,1])
 with col1:
     if st.button("Clear Chat"):
         st.session_state.chat_history = []
-        render_chat_history(show_user=False)
+        render_chat_history()
 with col2:
     if DOCX_AVAILABLE and st.session_state.chat_history:
         last_ai = next((c["content"] for c in reversed(st.session_state.chat_history) if c["role"]=="ai"), None)
