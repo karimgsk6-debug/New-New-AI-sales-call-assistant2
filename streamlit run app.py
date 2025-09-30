@@ -1,167 +1,154 @@
 import streamlit as st
-from PyPDF2 import PdfReader
+from PIL import Image
 import requests
-import re
+from io import BytesIO
+import base64
+from groq import Groq
+import pyttsx3
+from docx import Document
 
-# ----------------------------
-# Settings
-# ----------------------------
-BACKGROUND_URL = "https://drive.google.com/file/d/1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b/view?usp=sharing"
+# ---------------------- CONFIG ----------------------
+st.set_page_config(page_title="GSK Sales Call Assistant", layout="wide")
 
-sales_call_steps = [
-    "Greet",
-    "Opening",
-    "Probing",
-    "Features & Benefits",
-    "Handling Objections",
-    "Close",
-    "Follow-up"
-]
-
-APACT_STEPS = ["Acknowledge", "Probe", "Answer", "Check", "Transition"]
-
-# ----------------------------
-# Session State
-# ----------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# ----------------------------
-# CSS + JS
-# ----------------------------
-st.markdown(
-    f"""
+# Background setup with Google Drive image
+bg_url = "https://drive.google.com/uc?id=1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b"
+st.markdown(f"""
     <style>
-    body {{
-        background: url('{BACKGROUND_URL}') no-repeat center center fixed;
+    .stApp {{
+        background: url("{bg_url}") no-repeat center center fixed;
         background-size: cover;
     }}
-    .chat-container {{
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        max-height: 70vh;
-        overflow-y: auto;
-        padding: 12px;
-    }}
     .chat-bubble-user {{
-        align-self: flex-end;
-        background: #ffb347;
-        color: black;
-        padding: 10px 14px;
-        border-radius: 16px;
+        background-color: #DCF8C6;
+        border-radius: 20px;
+        padding: 12px;
+        margin: 6px;
         max-width: 70%;
-        word-wrap: break-word;
-        font-size: 15px;
+        float: right;
+        clear: both;
     }}
     .chat-bubble-ai {{
-        align-self: flex-start;
-        background: #f1f1f1;
-        padding: 10px 14px;
-        border-radius: 16px;
-        max-width: 75%;
-        word-wrap: break-word;
+        background-color: #E6F0FF;
+        border-radius: 20px;
+        padding: 12px;
+        margin: 6px;
+        max-width: 70%;
+        float: left;
+        clear: both;
         font-size: 15px;
-    }}
-    .apact-step {{
-        background: #ffe0b2;
-        padding: 2px 6px;
-        border-radius: 6px;
-        font-weight: 600;
-    }}
-    .sales-step {{
-        margin: 6px 0;
-        padding: 6px 8px;
-        background: #fff;
-        border-radius: 8px;
-        border-left: 3px solid #ff9800;
-        font-size: 14px;
     }}
     .chat-input-container {{
         display: flex;
         align-items: center;
-        gap: 8px;
-        background: #fff;
+        justify-content: space-between;
+    }}
+    .chat-input-container textarea {{
+        flex: 1;
         border-radius: 20px;
-        padding: 6px 12px;
-        border: 1px solid #ddd;
+        resize: none;
+    }}
+    .send-btn {{
+        margin-left: 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        padding: 10px;
+        cursor: pointer;
     }}
     </style>
-    <script>
-    function scrollToBottom() {{
-        var chat = window.parent.document.querySelector('.chat-container');
-        if(chat) chat.scrollTop = chat.scrollHeight;
-    }}
-    setInterval(scrollToBottom, 500);
-    </script>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
 
-# ----------------------------
-# Helper: Extract PDF text
-# ----------------------------
-def extract_pdf_text(uploaded_file):
-    reader = PdfReader(uploaded_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
+# ---------------------- INIT ----------------------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-# ----------------------------
-# Chat Renderer
-# ----------------------------
+if "pdf_summary" not in st.session_state:
+    st.session_state.pdf_summary = None
+
+# ---------------------- GROQ AI ----------------------
+groq_client = Groq(api_key=st.secrets["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"])
+
+def generate_ai_response(prompt, pdf_summary=None):
+    context = ""
+    if pdf_summary:
+        context += f"PDF Summary:\n{pdf_summary}\n\n"
+    context += f"""
+    You are a GSK medical sales assistant. Always follow this **Sales Call Flow**:
+    1. Prepare  
+    2. Engage  
+    3. Create Opportunities  
+    4. Impact (Good Sell Outcome - GSO)  
+    5. Influence  
+    6. Post Call Analysis  
+
+    To handle HCP concerns, inject the **APACT Technique**:
+    - Acknowledge  
+    - Probing  
+    - Confirm  
+    - Action  
+    - Transition  
+
+    Provide a **structured medical product-related response** with relevant references (PubMed, WHO, GSK medical literature).
+    """
+
+    response = groq_client.chat.completions.create(
+        messages=[{"role": "system", "content": context},
+                  {"role": "user", "content": prompt}],
+        model="llama-3.1-70b-versatile"
+    )
+    return response.choices[0].message["content"]
+
+# ---------------------- TTS ----------------------
+def speak_text(text):
+    engine = pyttsx3.init()
+    engine.setProperty("rate", 165)
+    engine.say(text)
+    engine.runAndWait()
+
+# ---------------------- PDF Upload ----------------------
+uploaded_file = st.file_uploader("📄 Upload PDF for Summary", type=["pdf"])
+if uploaded_file:
+    st.session_state.pdf_summary = "- Key insight 1\n- Key insight 2\n- Key insight 3"
+    with st.expander("📌 PDF Summary (Auto-Extracted)", expanded=False):
+        st.markdown(st.session_state.pdf_summary)
+
+# ---------------------- CHAT ----------------------
 def render_chat_history():
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    for entry in st.session_state.chat_history:
-        role = entry.get("role","user")
-        content = entry.get("content","")
-        if role == "user":
-            st.markdown(f'<div class="chat-bubble-user">{content}</div>', unsafe_allow_html=True)
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.markdown(f"<div class='chat-bubble-user'>{chat['content']}</div>", unsafe_allow_html=True)
         else:
-            # One AI bubble with collapsible steps
-            with st.container():
-                with st.expander("📋 AI Sales Call Response", expanded=True):
-                    for step in sales_call_steps:
-                        step_content = ""
-                        pattern = re.compile(f"{re.escape(step)}(.*?)(?=" + "|".join([re.escape(s) for s in sales_call_steps if s!=step]) + "|$)", re.DOTALL)
-                        match = pattern.search(content)
-                        if match:
-                            step_content = match.group(1).strip()
-                        if step_content:
-                            for apact in APACT_STEPS:
-                                step_content = step_content.replace(apact, f'<span class="apact-step">{apact}</span>')
-                            with st.expander(f"➡️ {step}", expanded=False):
-                                st.markdown(step_content.replace("\n", "<br>"), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-bubble-ai'>{chat['content']}</div>", unsafe_allow_html=True)
 
-# ----------------------------
-# Filters & File Upload
-# ----------------------------
-with st.sidebar:
-    st.header("⚙️ Filters & Upload")
-    uploaded_file = st.file_uploader("Upload PDF (optional)", type=["pdf"])
-    selected_filter = st.selectbox("Select Customer Segment", ["All", "High Potential", "Medium Potential", "Low Potential"])
-
-# ----------------------------
-# Chat Input
-# ----------------------------
-col_input = st.container()
-with col_input:
-    c1, c2 = st.columns([8,1])
-    with c1:
-        user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-    with c2:
-        if st.button("➤", key="send_btn", help="Send", use_container_width=True):
-            if user_input.strip():
-                st.session_state.chat_history.append({"role":"user","content":user_input})
-
-                # Simulated AI Response (replace with model integration)
-                simulated_ai = "Greet Hello Doctor!\nOpening Today we discuss shingles vaccine.\nProbing How often do you see cases?\nFeatures & Benefits Vaccine reduces risk significantly.\nHandling Objections Acknowledge your concern about side effects.\nClose Can we start scheduling vaccinations?\nFollow-up I'll provide more data via email."
-
-                st.session_state.chat_history.append({"role":"assistant","content":simulated_ai})
-
-# ----------------------------
-# Display Chat
-# ----------------------------
 render_chat_history()
+
+# ---------------------- CHAT INPUT ----------------------
+col1, col2 = st.columns([8, 1])
+with col1:
+    user_input = st.text_area("💬 Type your message", height=50, label_visibility="collapsed")
+with col2:
+    send = st.button("📤", key="send_button")
+
+if send and user_input.strip():
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    ai_resp = generate_ai_response(user_input, st.session_state.pdf_summary)
+    st.session_state.chat_history.append({"role": "ai", "content": ai_resp})
+    render_chat_history()
+
+    # TTS playback
+    with st.expander("🔊 Listen to AI Response"):
+        if st.button("▶️ Play Voice"):
+            speak_text(ai_resp)
+
+    # Download to Word
+    doc = Document()
+    doc.add_paragraph(ai_resp)
+    doc.save("AI_Response.docx")
+    with open("AI_Response.docx", "rb") as f:
+        st.download_button("⬇️ Download Response (Word)", f, "AI_Response.docx")
+
+# ---------------------- CLEAR HISTORY ----------------------
+if st.button("🧹 Clear Chat History"):
+    st.session_state.chat_history = []
+    st.rerun()
