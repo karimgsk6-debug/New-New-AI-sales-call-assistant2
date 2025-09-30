@@ -35,9 +35,10 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layout="wide")
 
 # ----------------------------
-# Groq API key
+# Sidebar: Groq API key input
 # ----------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+st.sidebar.markdown("### 🔑 Set Groq API Key")
+GROQ_API_KEY = st.sidebar.text_input("Enter your Groq API Key", value=os.getenv("GROQ_API_KEY","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"), type="password")
 client = Groq(api_key=GROQ_API_KEY) if (GROQ_API_KEY and Groq is not None) else None
 
 # ----------------------------
@@ -201,11 +202,13 @@ doctor_barriers = [
     "Other clinical doubts"
 ]
 personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
-sales_call_flow = ["Prepare the call","Engage","Create opportunities","Impact GSO","Influence","Analyze and post call analysis"]
-APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist",
                "Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
+sales_call_steps = [
+    "1-Prepare","2-Engage","3-Create Opportunities","4-Impact GSO","5-Influence","6-Analyze & Post-call Analysis"
+]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
@@ -251,11 +254,11 @@ if uploaded_pdf:
             st.session_state.pdf_summary = ""
         else:
             for i, chunk in enumerate(chunks):
-                summary_prompt = "Concise medical summary for sales reps. Bullet points only.\n\n" + chunk[:2000]
+                summary_prompt = f"Concise medical summary for sales reps including APACT steps and sales call flow: {', '.join(sales_call_steps)}.\n\n{chunk[:2000]}"
                 try:
                     resp = client.chat.completions.create(
                         model="meta-llama/llama-4-scout-17b-16e-instruct",
-                        messages=[{"role":"system","content":"You are a concise medical summarizer."},
+                        messages=[{"role":"system","content":"You are a concise medical summarizer including APACT & sales call steps."},
                                   {"role":"user","content":summary_prompt}],
                         temperature=0.2
                     )
@@ -269,16 +272,13 @@ if uploaded_pdf:
                         st.warning(f"Chunk {i+1} summarization error: {e}")
             st.session_state.pdf_summary = "\n".join(summaries).strip()
 
-        # ----------------------------
         # Collapsible summary + search
-        # ----------------------------
         if st.session_state.pdf_summary:
             with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
                 search_term = st.text_input("🔎 Search inside summary", key="summary_search")
                 summary_text = st.session_state.pdf_summary.splitlines()
 
                 if search_term:
-                    # Case-insensitive filtering
                     filtered = [line for line in summary_text if search_term.lower() in line.lower()]
                     if filtered:
                         st.markdown("### 🔍 Search Results:")
@@ -287,7 +287,6 @@ if uploaded_pdf:
                     else:
                         st.info("No matches found.")
                 else:
-                    # Show full summary in styled bubble
                     st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
         if st.session_state.extracted_medical_ref:
@@ -295,6 +294,7 @@ if uploaded_pdf:
 
     except Exception as e:
         st.error("PDF error: " + str(e))
+
 # ----------------------------
 # TTS helper
 # ----------------------------
