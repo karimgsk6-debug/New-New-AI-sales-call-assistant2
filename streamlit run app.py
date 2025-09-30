@@ -55,14 +55,6 @@ st.markdown(f"""
 .title-box h1 {{ margin:0; font-size:34px; font-weight:800; color:#000; }}
 .title-box p {{ margin:6px 0 0 0; font-size:16px; color:#333; }}
 
-.chat-container {{
-    height: 60vh;
-    overflow-y: auto;
-    padding: 12px;
-    border-radius: 10px;
-    background: rgba(220,220,220,0.4);
-}}
-
 .chat-bubble-user {{
     background-color: #DCF8C6;
     border-radius: 20px;
