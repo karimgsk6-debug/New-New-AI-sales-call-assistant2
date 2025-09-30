@@ -3,194 +3,215 @@ from PIL import Image
 import requests
 from io import BytesIO
 import base64
+from docx import Document
 import tempfile
 import asyncio
+import os
 import re
-from datetime import datetime
-import PyPDF2
-from docx import Document
-
-# ---------------------------- GROQ Setup ----------------------------
 from groq import Groq
-# Replace with your key
-GROQ_API_KEY = "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"
-client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Page config ----------------------------
+# ---------------------- CONFIG ----------------------
 st.set_page_config(page_title="GSK Sales Call Assistant", layout="wide")
 
-# ---------------------------- Session State ----------------------------
-if "chat_history" not in st.session_state: st.session_state.chat_history = []
-if "uploaded_pdf_text" not in st.session_state: st.session_state.uploaded_pdf_text = ""
-if "pdf_summary" not in st.session_state: st.session_state.pdf_summary = ""
-if "extracted_medical_ref" not in st.session_state: st.session_state.extracted_medical_ref = ""
-if "language" not in st.session_state: st.session_state.language = "English"
-if "voice_pref" not in st.session_state: st.session_state.voice_pref = "English Neural"
+# ---------------------- GROQ API ----------------------
+GROQ_API_KEY = "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"
+groq_client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Assets ----------------------------
+# ---------------------- ASSETS ----------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
-GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png"
+GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
-# ---------------------------- Styling ----------------------------
-CSS = f"""
+# ---------------------- SESSION STATE ----------------------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "pdf_summary" not in st.session_state:
+    st.session_state.pdf_summary = ""
+if "extracted_refs" not in st.session_state:
+    st.session_state.extracted_refs = ""
+
+# ---------------------- STYLING ----------------------
+st.markdown(f"""
 <style>
 .stApp {{
-  background-image: url("{BACKGROUND_URL}");
-  background-repeat: no-repeat;
-  background-position: right top;
-  background-attachment: fixed;
-  background-size: auto 150%;
+    background: url("{BACKGROUND_URL}") no-repeat right top fixed;
+    background-size: auto 150%;
 }}
-.chat-bubble-user {{ background-color: #DCF8C6; border-radius:20px; padding:12px; margin:6px; max-width:70%; float:right; clear:both; }}
-.chat-bubble-ai {{ background-color: #E6F0FF; border-radius:20px; padding:12px; margin:6px; max-width:70%; float:left; clear:both; }}
-.pdf-summary-inline {{ background-color: #FAFAFA; padding:10px; border-radius:8px; border:1px solid #DDD; margin-top:6px; }}
+.title-box {{
+    border: 3px solid #ff8c00;
+    background: rgba(245,245,245,0.8);
+    padding: 25px;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 80%;
+    margin: 12px auto;
+}}
+.title-box h1 {{ margin:0; font-size:34px; font-weight:800; color:#000; }}
+.title-box p {{ margin:6px 0 0 0; font-size:16px; color:#333; }}
+
+.chat-bubble-user {{
+    background-color: #DCF8C6;
+    border-radius: 20px;
+    padding: 12px;
+    margin: 6px;
+    max-width: 70%;
+    float: right;
+    clear: both;
+}}
+.chat-bubble-ai {{
+    background-color: #fdfdf5; /* off-white PDF bubble style */
+    border-radius: 20px;
+    padding: 12px;
+    margin: 6px;
+    max-width: 70%;
+    float: left;
+    clear: both;
+    font-size: 15px;
+}}
+.pdf-summary-inline {{
+    margin-top:8px;
+    background: #fdfdf5;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #ccc;
+}}
 </style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# ---------------------------- Title Box ----------------------------
-st.markdown(f'<div style="display:flex;align-items:center;gap:12px;"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1></div>', unsafe_allow_html=True)
-st.markdown('<p style="font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
+# ---------------------- TITLE ----------------------
+st.markdown(f'<div style="position:auto; top:80px; left:18px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
+st.markdown('<div class="title-box"><h1>💡 GSK AI Sales Call Assistant</h1><p>Equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload ----------------------------
+# ---------------------- SIDEBAR FILTERS ----------------------
+st.sidebar.header("Filters & Options")
+# Brand selection
+brands = ["Shingrix", "Trelegy", "Zejula"]
+brand = st.sidebar.selectbox("Select Brand", brands)
+# RACE segment
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+segment = st.sidebar.selectbox("RACE Segment", race_segments)
+# Doctor barriers
+doctor_barriers = [
+    "HCP does not consider HZ a risk","No time for discussion","Cost concerns",
+    "Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"
+]
+barrier = st.sidebar.multiselect("Doctor Barrier", doctor_barriers, default=[])
+# Objective
+objectives = ["Awareness","Adoption","Retention"]
+objective = st.sidebar.selectbox("Objective", objectives)
+# Specialty
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
+specialty = st.sidebar.selectbox("Doctor Specialty", specialties)
+# Persona
+personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+persona = st.sidebar.selectbox("HCP Persona", personas)
+# Response Tone
+response_tone = st.sidebar.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
+# Response Length
+response_length = st.sidebar.selectbox("Response Length", ["Short","Medium","Long"])
+
+# ---------------------- PDF UPLOAD ----------------------
 st.markdown("### 📄 Upload Medical Reference PDF")
-uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
-if uploaded_pdf:
+uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+if uploaded_file:
     try:
-        reader = PyPDF2.PdfReader(uploaded_pdf)
+        from PyPDF2 import PdfReader
+        reader = PdfReader(uploaded_file)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text
-
+        st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in full_text.splitlines() if line.strip()])
         # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
-        st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-
-        # PDF summary bullet points
-        lines = [f"- {line.strip()}" for line in full_text.splitlines() if line.strip()]
-        st.session_state.pdf_summary = "\n".join(lines[:10])
-
-        with st.expander("📑 PDF Summary", expanded=True):
-            st.markdown(f"<div class='pdf-summary-inline'>{st.session_state.pdf_summary.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
-
-        with st.expander("📚 Extracted References", expanded=False):
-            st.info(st.session_state.extracted_medical_ref)
-
+        st.session_state.extracted_refs = ", ".join(matches) if matches else "None"
     except Exception as e:
-        st.error(f"PDF error: {e}")
+        st.error(f"PDF processing error: {e}")
 
-# ---------------------------- Filters / Sidebar ----------------------------
-st.sidebar.markdown("### Filters & Options")
-brands = ["Shingrix","Trelegy","Zejula"]
-segment_list = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-barriers_list = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"]
-personas_list = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-objectives_list = ["Awareness","Adoption","Retention"]
-specialties_list = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
+if st.session_state.pdf_summary:
+    with st.expander("📑 PDF Summary", expanded=False):
+        st.markdown(f"<div class='pdf-summary-inline'>{st.session_state.pdf_summary}</div>", unsafe_allow_html=True)
+if st.session_state.extracted_refs:
+    with st.expander("📚 Extracted References", expanded=False):
+        st.markdown(st.session_state.extracted_refs)
 
-brand = st.sidebar.selectbox("Brand", brands)
-segment = st.sidebar.selectbox("RACE Segment", segment_list)
-barrier = st.sidebar.multiselect("Doctor Barrier(s)", barriers_list)
-objective = st.sidebar.selectbox("Objective", objectives_list)
-specialty = st.sidebar.selectbox("Doctor Specialty", specialties_list)
-persona = st.sidebar.selectbox("HCP Persona", personas_list)
-response_length = st.sidebar.selectbox("Response Length", ["Short","Medium","Long"])
-response_tone = st.sidebar.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
-st.session_state.language = st.sidebar.radio("Language", ["English","العربية"])
-st.session_state.voice_pref = st.sidebar.selectbox("Voice preference", ["English Neural","Arabic Neural","Default"])
+# ---------------------- SALES CALL FLOW ----------------------
+sales_call_flow = [
+    "Prepare the call","Engage","Create opportunities",
+    "Impact GSO","Influence","Analyze and post call analysis"
+]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
-# ---------------------------- Helper: TTS ----------------------------
-async def _edge_save_async(ssml_text: str, voice: str, outpath: str):
+# ---------------------- CHAT HISTORY ----------------------
+def render_chat_history():
+    for chat in st.session_state.chat_history:
+        if chat["role"]=="user":
+            st.markdown(f"<div class='chat-bubble-user'>{chat['content']}</div>", unsafe_allow_html=True)
+        else:
+            bubble_html = chat["content"]
+            if chat.get("audio"):
+                bubble_html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{chat['audio']}' type='audio/mp3'></audio>"
+            st.markdown(f"<div class='chat-bubble-ai'>{bubble_html}</div>", unsafe_allow_html=True)
+
+# ---------------------- TTS ----------------------
+async def _edge_save_async(text, voice, outpath):
     import edge_tts
-    comm = edge_tts.Communicate(ssml_text, voice=voice)
+    comm = edge_tts.Communicate(text, voice=voice)
     await comm.save(outpath)
 
-def synthesize_tts(text, voice_pref):
+def generate_tts(text: str, voice="en-US-GuyNeural"):
     if not text: return None
-    text_clean = re.sub(r'[.,/!?;:*]', '', text)
-    ssml = "<speak>" + text_clean + "</speak>"
-    voice = {"English Neural":"en-US-GuyNeural","Arabic Neural":"ar-EG-AdamNeural"}.get(voice_pref,"en-US-GuyNeural")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tmp_name = tmp.name
     tmp.close()
     try:
-        asyncio.run(_edge_save_async(ssml, voice, tmp_name))
-        with open(tmp_name,"rb") as f:
+        asyncio.run(_edge_save_async(text, voice, tmp.name))
+        with open(tmp.name, "rb") as f:
             return base64.b64encode(f.read()).decode()
     finally:
-        try: os.remove(tmp_name)
-        except: pass
+        os.remove(tmp.name)
 
-# ---------------------------- Helper: Chat ----------------------------
-def render_chat():
-    html_out = ""
-    for msg in st.session_state.chat_history:
-        content = msg["content"]
-        if msg["role"]=="user":
-            html_out += f"<div class='chat-bubble-user'>{content}</div>"
-        else:
-            audio_html = f"<br><audio controls style='margin-top:8px;'><source src='data:audio/mp3;base64,{msg.get('audio','')}' type='audio/mp3'></audio>" if msg.get('audio') else ""
-            html_out += f"<div class='chat-bubble-ai'>{content}{audio_html}</div>"
-    st.markdown(html_out, unsafe_allow_html=True)
-
-def build_prompt(user_input):
-    pdf_text = st.session_state.pdf_summary or ""
-    refs = st.session_state.extracted_medical_ref or "None"
-    return f"""You are a GSK sales assistant AI.
-Language: {st.session_state.language}
+# ---------------------- AI RESPONSE ----------------------
+def generate_ai_response(user_input):
+    filters = f"""
 Brand: {brand}
 RACE Segment: {segment}
-HCP Persona: {persona}
 Doctor Barrier(s): {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
-Specialty: {specialty}
-Tone: {response_tone}, Length: {response_length}
-
-Instructions:
-- Use PDF summary and references when possible.
-- Handle objections using APACT steps: Acknowledge, Probing, Action, Confirm, Transition.
-- Bold steps and numeric figures.
-PDF Summary:
-{pdf_text}
-References:
-{refs}
-User Query:
-{user_input}
+Doctor Specialty: {specialty}
+HCP Persona: {persona}
+Response Tone: {response_tone}
+Response Length: {response_length}
 """
-
-def call_groq(prompt):
+    context = f"""
+You are a GSK medical sales assistant. Follow Sales Call Flow:
+{', '.join(sales_call_flow)}
+Handle objections using APACT steps: {', '.join(APACT_STEPS)}
+Use PDF Summary and References. Provide structured, actionable responses.
+Filters: {filters}
+"""
+    prompt = f"{context}\nUser question: {user_input}\nPDF Summary:\n{st.session_state.pdf_summary}"
     try:
-        resp = client.chat.completions.create(
-            messages=[{"role":"system","content":"You are a helpful sales assistant."},
-                      {"role":"user","content":prompt}],
-            model="meta-llama/llama-4-scout-13b-instruct"
+        response = groq_client.chat.completions.create(
+            messages=[{"role":"system","content":context},{"role":"user","content":prompt}],
+            model="llama-3.3-70b-versatile"
         )
-        return resp.choices[0].message.content
+        return response.choices[0].message.content
     except Exception as e:
         return f"⚠️ AI Error: {e}"
 
-# ---------------------------- Chat Input ----------------------------
-st.markdown("### 💬 Chat")
-user_text = st.text_input("Type your message...")
-if st.button("Send") and user_text.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_text})
-    prompt = build_prompt(user_text)
-    ai_resp = call_groq(prompt)
-    audio_b64 = synthesize_tts(ai_resp, st.session_state.voice_pref)
-    st.session_state.chat_history.append({"role":"ai","content":ai_resp,"audio":audio_b64})
-    render_chat()
+# ---------------------- CHAT INPUT ----------------------
+user_input = st.text_area("💬 Type your message", height=50)
+if st.button("Send") and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input})
+    ai_text = generate_ai_response(user_input)
+    audio_b64 = generate_tts(ai_text)
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"audio":audio_b64})
+    render_chat_history()
 
-# ---------------------------- Export to Word ----------------------------
-if st.button("📥 Export Chat + PDF Summary (.docx)"):
+    # Export to Word
     doc = Document()
-    doc.add_heading("AI Sales Call Assistant Chat History", 0)
-    if st.session_state.pdf_summary:
-        doc.add_heading("PDF Summary",1)
-        doc.add_paragraph(st.session_state.pdf_summary)
     for msg in st.session_state.chat_history:
         role = "User" if msg["role"]=="user" else "AI"
         doc.add_paragraph(f"{role}: {msg['content']}")
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-    doc.save(tmp.name)
-    tmp.close()
-    with open(tmp.name,"rb") as f:
-        st.download_button("⬇️ Download Word File", f, file_name="chat_export.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    doc_path = "AI_Response.docx"
+    doc.save(doc_path)
+    with open(doc_path,"rb") as f:
+        st.download_button("⬇️ Download Chat History (.docx)", f, "AI_Response.docx")
+
+render_chat_history()
