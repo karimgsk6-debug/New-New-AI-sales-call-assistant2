@@ -18,7 +18,7 @@ GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------- ASSETS ----------------------
-BACKGROUND_URL = "https://images.squarespace-cdn.com/content/v1/60d51acf6162d82cde9a5d73/1645125271525-E72ILE4G9742M8B6PLSQ/shutterstock_1186256377.jpg"
+BACKGROUND_URL = "https://pathwaytoaus.com/wp-content/uploads/2025/04/Asian-girl-pointing-up-towards-course-eligibility-form-on-the-Pathway-to-Aus-website.webp"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 # ---------------------- SESSION STATE ----------------------
