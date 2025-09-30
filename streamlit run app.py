@@ -269,15 +269,32 @@ if uploaded_pdf:
                         st.warning(f"Chunk {i+1} summarization error: {e}")
             st.session_state.pdf_summary = "\n".join(summaries).strip()
 
-        # Show summary in off-white bubble
+        # ----------------------------
+        # Collapsible summary + search
+        # ----------------------------
         if st.session_state.pdf_summary:
-            st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+            with st.expander("📄 PDF Summary (expand/collapse)", expanded=False):
+                search_term = st.text_input("🔎 Search inside summary", key="summary_search")
+                summary_text = st.session_state.pdf_summary.splitlines()
+
+                if search_term:
+                    # Case-insensitive filtering
+                    filtered = [line for line in summary_text if search_term.lower() in line.lower()]
+                    if filtered:
+                        st.markdown("### 🔍 Search Results:")
+                        for line in filtered:
+                            st.markdown(f"- **{line.strip()}**")
+                    else:
+                        st.info("No matches found.")
+                else:
+                    # Show full summary in styled bubble
+                    st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+
         if st.session_state.extracted_medical_ref:
             st.info(f"📚 Extracted references: {st.session_state.extracted_medical_ref}")
 
     except Exception as e:
         st.error("PDF error: " + str(e))
-
 # ----------------------------
 # TTS helper
 # ----------------------------
