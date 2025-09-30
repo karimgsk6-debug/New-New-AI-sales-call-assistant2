@@ -11,17 +11,19 @@ import re
 import asyncio
 import tempfile
 import edge_tts
+import PyPDF2
 
 # ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="💡 GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- GROQ API ----------------------------
-# Highlight the place to add your GROQ API Key
 groq_client = Groq(api_key="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")
 
 # ---------------------------- SESSION STATE ----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "pdf_text" not in st.session_state:
+    st.session_state.pdf_text = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 if "extracted_refs" not in st.session_state:
@@ -33,7 +35,7 @@ if "voice_pref" not in st.session_state:
 BACKGROUND_URL = "https://drive.google.com/uc?id=1WlvNx4MqufxuGUw9ilLxGJLsuozbX17b"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png"
 
-# ---------------------------- FILTERS & DATA ----------------------------
+# ---------------------------- FILTERS ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = [
@@ -41,14 +43,7 @@ doctor_barriers = [
     "Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"
 ]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-sales_call_flow = [
-    "Prepare the call",
-    "Engage",
-    "Create opportunities",
-    "Impact GSO (Good sell outcome)",
-    "Influence",
-    "Analyze and post call"
-]
+sales_call_flow = ["Prepare the call","Engage","Create opportunities","Impact GSO","Influence","Analyze and post call"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
@@ -118,25 +113,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------- PDF UPLOAD ----------------------------
-st.markdown("### 📄 Upload PDF for Reference")
-uploaded_pdf = st.file_uploader("Upload medical PDF", type=["pdf"])
-if uploaded_pdf:
-    try:
-        import PyPDF2
-        reader = PyPDF2.PdfReader(uploaded_pdf)
-        text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in text.splitlines() if line.strip()][:10])
-        refs = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", text, flags=re.I)
-        st.session_state.extracted_refs = ", ".join(refs) if refs else "None"
-        # PDF summary box
-        st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary}</div>', unsafe_allow_html=True)
-        # Collapsible references
-        with st.expander("📚 Extracted References", expanded=False):
-            st.write(st.session_state.extracted_refs)
-    except Exception as e:
-        st.error(f"PDF error: {e}")
-
 # ---------------------------- FILTERS ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", gsk_brands)
@@ -149,7 +125,33 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.voice_pref = st.selectbox("Voice preference", ["en-US-GuyNeural","en-US-AriaNeural"])
 
-# ---------------------------- HELPER FUNCTIONS ----------------------------
+# ---------------------------- PDF SECTION COLLAPSIBLE ----------------------------
+with st.expander("📄 PDF Upload & Summary", expanded=False):
+    uploaded_pdf = st.file_uploader("Upload medical PDF", type=["pdf"])
+    if uploaded_pdf:
+        try:
+            reader = PyPDF2.PdfReader(uploaded_pdf)
+            text = "".join([p.extract_text() or "" for p in reader.pages])
+            st.session_state.pdf_text = text
+            st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in text.splitlines() if line.strip()][:20])
+            refs = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", text, flags=re.I)
+            st.session_state.extracted_refs = ", ".join(refs) if refs else "None"
+            
+            # Search box
+            keyword = st.text_input("Search PDF Summary")
+            filtered_summary = st.session_state.pdf_summary
+            if keyword:
+                filtered_summary = "\n".join([line for line in st.session_state.pdf_summary.splitlines() if keyword.lower() in line.lower()])
+            st.markdown(f'<div class="pdf-summary-box">{filtered_summary}</div>', unsafe_allow_html=True)
+
+            # Collapsible references
+            with st.expander("📚 Extracted References", expanded=False):
+                st.write(st.session_state.extracted_refs)
+
+        except Exception as e:
+            st.error(f"PDF error: {e}")
+
+# ---------------------------- CHAT & HELPER FUNCTIONS ----------------------------
 def add_user_message(msg):
     st.session_state.chat_history.append({"role":"user","content":msg})
 
@@ -190,13 +192,14 @@ def synthesize_tts(text):
         return None
 
 def render_chat():
+    chat_container = st.container()
     for chat in st.session_state.chat_history:
         content = html.escape(chat["content"])
         if chat["role"]=="user":
-            st.markdown(f'<div class="chat-bubble-user">{content}</div>', unsafe_allow_html=True)
+            chat_container.markdown(f'<div class="chat-bubble-user">{content}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="chat-bubble-ai">{content}</div>', unsafe_allow_html=True)
-    st.markdown("""
+            chat_container.markdown(f'<div class="chat-bubble-ai">{content}</div>', unsafe_allow_html=True)
+    chat_container.markdown("""
     <script>
     var chatDiv = window.parent.document.querySelectorAll('.chat-container')[0];
     if(chatDiv) chatDiv.scrollTop = chatDiv.scrollHeight;
@@ -217,23 +220,15 @@ def call_groq_ai(prompt):
 st.markdown('<div class="chat-container"></div>', unsafe_allow_html=True)
 render_chat()
 
-st.markdown(f"""
-<div class="bottom-bar">
-<input type="text" id="chat_input" placeholder="Type your message...">
-<button onclick="document.getElementById('chat_send').click()">Send</button>
-</div>
-""", unsafe_allow_html=True)
-
 user_input = st.text_input("💬 Type your message here", key="chat_input_box")
 if st.button("Send", key="chat_send") and user_input:
     add_user_message(user_input)
     ai_resp = call_groq_ai(build_ai_prompt(user_input))
     add_ai_message(ai_resp)
-    # Generate TTS
     audio_b64 = synthesize_tts(ai_resp)
     if audio_b64:
         st.markdown(f"<audio controls src='data:audio/mp3;base64,{audio_b64}'></audio>", unsafe_allow_html=True)
-    st.experimental_rerun()
+    st.experimental_rerun()  # Safe rerun, replaces previous crash method
 
 # ---------------------------- EXPORT CHAT ----------------------------
 if st.session_state.chat_history:
