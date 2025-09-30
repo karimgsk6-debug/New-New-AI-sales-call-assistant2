@@ -122,8 +122,8 @@ CSS = f"""
   gap:12px;
   align-items:center;
 }}
-.bottom-bar input[type="text"] {{ flex:1; padding:10px 12px; border-radius:8px; border:1px solid #ddd; }}
-.bottom-bar button {{ min-width:100px; padding:8px 12px; border-radius:8px; background:#ff8c00; color:white; border:none; font-weight:600; cursor:pointer; }}
+.bottom-bar input[type="text"] {{ flex:1; padding:10px 12px; border-radius:20px; border:1px solid #ddd; }}
+.bottom-bar button {{ min-width:80px; padding:8px 12px; border-radius:20px; background:#ff8c00; color:white; border:none; font-weight:600; cursor:pointer; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -165,7 +165,7 @@ sales_call_steps = [
 APACT_STEPS = ["Acknowledge", "Probing", "Confirm", "Action", "Transition to next step"]
 
 # ----------------------------
-# PDF upload & bullet-point summary
+# PDF upload & summary (collapsed only if uploaded)
 # ----------------------------
 st.markdown("### 📄 Upload Medical Reference PDF (Optional)")
 uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
@@ -198,7 +198,7 @@ if uploaded_pdf:
         st.error("PDF error: " + str(e))
 
 # ----------------------------
-# TTS helper (humanized)
+# TTS helper
 # ----------------------------
 async def speak_text(text: str, lang="en"):
     clean_text = re.sub(r"[^a-zA-Z0-9 .,؟!?]", "", text)
@@ -208,14 +208,13 @@ async def speak_text(text: str, lang="en"):
     os.system("start tts_output.mp3" if os.name=="nt" else "afplay tts_output.mp3")
 
 # ----------------------------
-# Render chat & PDF summary
+# Render chat
 # ----------------------------
 def render_chat_history(show_user=True):
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for entry in st.session_state.chat_history:
         role = entry.get("role","user")
         content = entry.get("content","")
-        if role=="user" and not show_user: continue
         bubble_class = "chat-bubble-user" if role=="user" else "chat-bubble-ai"
         st.markdown(f'<div class="{bubble_class}">{content.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -224,18 +223,19 @@ def render_chat_history(show_user=True):
 render_chat_history(show_user=False)
 
 # ----------------------------
-# Bottom input bar
+# Bottom input bar (integrated)
 # ----------------------------
 st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([6,1,1])
+col1, col2 = st.columns([6,1])
 with col1:
     user_input = st.text_input("Type your question...", key="bottom_input")
 with col2:
     if st.button("Send"):
         if user_input.strip():
             st.session_state.chat_history.append({"role":"user","content":user_input})
+            # AI response always generated
+            ai_prompt = f"Answer this question for pharmaceutical sales reps: {user_input}\nReference PDF:\n{st.session_state.uploaded_pdf_text}"
             if client:
-                ai_prompt = f"Answer this question for pharmaceutical sales reps: {user_input}\nReference PDF:\n{st.session_state.uploaded_pdf_text}"
                 resp = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role":"system","content":"You are a helpful pharma sales AI."},
@@ -243,26 +243,29 @@ with col2:
                     temperature=0.2
                 )
                 ai_resp = resp.choices[0].message.content.strip()
-                for step in sales_call_steps: ai_resp = ai_resp.replace(step, f'<span class="highlight-step">{step}</span>')
-                for apact in APACT_STEPS: ai_resp = ai_resp.replace(apact, f'<span class="highlight-apact">{apact}</span>')
-                st.session_state.chat_history.append({"role":"ai","content":ai_resp})
+            else:
+                ai_resp = "AI client not configured. Set GROQ_API_KEY to generate responses."
+            for step in sales_call_steps: ai_resp = ai_resp.replace(step, f'<span class="highlight-step">{step}</span>')
+            for apact in APACT_STEPS: ai_resp = ai_resp.replace(apact, f'<span class="highlight-apact">{apact}</span>')
+            st.session_state.chat_history.append({"role":"ai","content":ai_resp})
             render_chat_history(show_user=False)
-with col3:
-    if st.button("Clear Chat"):
-        st.session_state.chat_history = []
-        render_chat_history(show_user=False)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ----------------------------
-# Download AI response as Word
+# Clear chat & download Word
 # ----------------------------
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    last_ai = next((c["content"] for c in reversed(st.session_state.chat_history) if c["role"]=="ai"), None)
-    if last_ai:
-        if st.button("Download AI Response as Word"):
+col1, col2 = st.columns([1,1])
+with col1:
+    if st.button("Clear Chat"):
+        st.session_state.chat_history = []
+        render_chat_history(show_user=False)
+with col2:
+    if DOCX_AVAILABLE and st.session_state.chat_history:
+        last_ai = next((c["content"] for c in reversed(st.session_state.chat_history) if c["role"]=="ai"), None)
+        if last_ai:
             doc = Document()
             doc.add_paragraph(last_ai)
             doc_name = f"AI_Response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
             doc.save(doc_name)
             with open(doc_name, "rb") as f:
-                st.download_button("Download Word", f.read(), file_name=doc_name)
+                st.download_button("Download AI Response as Word", f.read(), file_name=doc_name)
