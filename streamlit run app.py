@@ -136,12 +136,11 @@ if uploaded_pdf:
     reader = PyPDF2.PdfReader(uploaded_pdf)
     full_text = "".join([p.extract_text() or "" for p in reader.pages])
     st.session_state.uploaded_pdf_text = full_text[:3000] + ("..." if len(full_text) > 3000 else "")
-    # Extract references
     refs = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
     st.session_state.extracted_medical_ref = ", ".join(refs) if refs else "None"
     
-    # Summarize into concise bullets using GROQ
-    prompt = f"Summarize the following medical PDF into concise, informative bullet points:\n\n{full_text[:5000]}"
+    # Summarize PDF
+    prompt = f"Summarize the following medical PDF into concise bullet points:\n\n{full_text[:5000]}"
     summary_resp = groq_client.chat.completions.create(
         messages=[{"role":"system","content":"You are a concise medical summarizer for sales reps."},
                   {"role":"user","content":prompt}],
@@ -149,10 +148,8 @@ if uploaded_pdf:
     )
     st.session_state.pdf_summary = summary_resp.choices[0].message.content if summary_resp.choices else ""
     
-    # Display PDF summary
     st.markdown(f'<div class="pdf-summary-box">{"<br>".join(["- "+line.strip() for line in st.session_state.pdf_summary.splitlines() if line.strip()])}</div>', unsafe_allow_html=True)
     
-    # Collapsible references
     st.markdown(f"""
     <button class="collapsible">📚 Extracted References</button>
     <div class="content">{st.session_state.extracted_medical_ref}</div>
@@ -169,7 +166,7 @@ if uploaded_pdf:
     </script>
     """, unsafe_allow_html=True)
 
-# ---------------------- FILTERS ----------------------
+# ---------------------- UPDATED FILTER/SELECTION SECTION ----------------------
 st.sidebar.markdown("### Filters & Options")
 gsk_brands = ["Shingrix","Trelegy","Zejula"]
 segment_list = ["Reach","Acquisition","Conversion","Engagement"]
@@ -250,20 +247,6 @@ function sendMessage(){{
 }}
 </script>
 """, unsafe_allow_html=True)
-
-# ---------------------- HANDLE JS INPUT ----------------------
-def handle_js_input():
-    if st.session_state.get("chat_input_js"):
-        user_text = st.session_state.chat_input_js.strip()
-        st.session_state.chat_input_js = ""
-        if user_text:
-            st.session_state.chat_history.append({"role":"user","content":user_text})
-            ai_resp = generate_ai_response(user_text)
-            audio_b64 = synthesize_tts(ai_resp)
-            st.session_state.chat_history.append({"role":"ai","content":ai_resp,"audio":audio_b64})
-            st.experimental_rerun()
-st.experimental_set_query_params()  # Needed for JS comm
-handle_js_input()
 
 # ---------------------- EXPORT CHAT ----------------------
 if st.button("📥 Download Chat as Word"):
