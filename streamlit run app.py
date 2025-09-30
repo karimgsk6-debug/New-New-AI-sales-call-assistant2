@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import base64
 from groq import Groq
-import pyttsx3
+from gtts import gTTS
 from docx import Document
 
 # ---------------------- CONFIG ----------------------
@@ -89,7 +89,7 @@ def generate_ai_response(prompt, pdf_summary=None):
     - Action  
     - Transition  
 
-    Provide a **structured medical product-related response** with relevant references (PubMed, WHO, GSK medical literature).
+    Provide a **structured, product-related response** linked to **medical references** (PubMed, WHO, GSK scientific literature).
     """
 
     response = groq_client.chat.completions.create(
@@ -99,12 +99,18 @@ def generate_ai_response(prompt, pdf_summary=None):
     )
     return response.choices[0].message["content"]
 
-# ---------------------- TTS ----------------------
+# ---------------------- TTS (gTTS) ----------------------
 def speak_text(text):
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 165)
-    engine.say(text)
-    engine.runAndWait()
+    tts = gTTS(text, lang="en")
+    tts.save("ai_response.mp3")
+    with open("ai_response.mp3", "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+        audio_html = f"""
+            <audio controls>
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            </audio>
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
 
 # ---------------------- PDF Upload ----------------------
 uploaded_file = st.file_uploader("📄 Upload PDF for Summary", type=["pdf"])
@@ -137,9 +143,8 @@ if send and user_input.strip():
     render_chat_history()
 
     # TTS playback
-    with st.expander("🔊 Listen to AI Response"):
-        if st.button("▶️ Play Voice"):
-            speak_text(ai_resp)
+    with st.expander("🔊 Listen to AI Response", expanded=False):
+        speak_text(ai_resp)
 
     # Download to Word
     doc = Document()
