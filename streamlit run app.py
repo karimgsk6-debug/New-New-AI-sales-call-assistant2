@@ -36,17 +36,30 @@ st.markdown(f"""
     background: url("{BACKGROUND_URL}") no-repeat right top fixed;
     background-size: auto 150%;
 }}
+
 .title-box {{
+    position: sticky;
+    top: 0;
+    z-index: 9999;
     border: 3px solid #ff8c00;
-    background: rgba(245,245,245,0.8);
+    background: rgba(245,245,245,0.9);
     padding: 25px;
     border-radius: 20px;
     text-align: center;
     max-width: 80%;
     margin: 12px auto;
 }}
+
 .title-box h1 {{ margin:0; font-size:34px; font-weight:800; color:#000; }}
 .title-box p {{ margin:6px 0 0 0; font-size:16px; color:#333; }}
+
+.chat-container {{
+    height: 60vh;
+    overflow-y: auto;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.85);
+}}
 
 .chat-bubble-user {{
     background-color: #DCF8C6;
@@ -57,8 +70,9 @@ st.markdown(f"""
     float: right;
     clear: both;
 }}
+
 .chat-bubble-ai {{
-    background-color: #fdfdf5; /* off-white PDF bubble style */
+    background-color: #fdfdf5;
     border-radius: 20px;
     padding: 12px;
     margin: 6px;
@@ -67,6 +81,35 @@ st.markdown(f"""
     clear: both;
     font-size: 15px;
 }}
+
+.bottom-bar {{
+    position: sticky;
+    bottom: 0;
+    z-index: 9999;
+    background: rgba(255,255,255,0.95);
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}}
+
+.bottom-bar input {{
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}}
+
+.bottom-bar button {{
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: #ff8c00;
+    color: white;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+}}
+
 .pdf-summary-inline {{
     margin-top:8px;
     background: #fdfdf5;
@@ -78,35 +121,27 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------- TITLE ----------------------
-st.markdown(f'<div style="position:auto; top:80px; left:18px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
+st.markdown(f'<div style="position:auto; top:0; left:18px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
 st.markdown('<div class="title-box"><h1>💡 GSK AI Sales Call Assistant</h1><p>Equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
 # ---------------------- SIDEBAR FILTERS ----------------------
 st.sidebar.header("Filters & Options")
-# Brand selection
 brands = ["Shingrix", "Trelegy", "Zejula"]
 brand = st.sidebar.selectbox("Select Brand", brands)
-# RACE segment
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 segment = st.sidebar.selectbox("RACE Segment", race_segments)
-# Doctor barriers
 doctor_barriers = [
     "HCP does not consider HZ a risk","No time for discussion","Cost concerns",
     "Not convinced of efficacy","Accessibility/Logistics","Patient reluctance","Other clinical doubts"
 ]
 barrier = st.sidebar.multiselect("Doctor Barrier", doctor_barriers, default=[])
-# Objective
 objectives = ["Awareness","Adoption","Retention"]
 objective = st.sidebar.selectbox("Objective", objectives)
-# Specialty
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist","Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
 specialty = st.sidebar.selectbox("Doctor Specialty", specialties)
-# Persona
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
 persona = st.sidebar.selectbox("HCP Persona", personas)
-# Response Tone
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
-# Response Length
 response_length = st.sidebar.selectbox("Response Length", ["Short","Medium","Long"])
 
 # ---------------------- PDF UPLOAD ----------------------
@@ -117,7 +152,13 @@ if uploaded_file:
         from PyPDF2 import PdfReader
         reader = PdfReader(uploaded_file)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in full_text.splitlines() if line.strip()])
+        # Summarize PDF using GROQ into bullet points
+        summary_prompt = f"Summarize the following PDF medical content into concise, informative bullet points suitable for a sales rep:\n{full_text[:10000]}"
+        resp = groq_client.chat.completions.create(
+            messages=[{"role":"system","content":"You are a medical summarizer."},{"role":"user","content":summary_prompt}],
+            model="llama-3.3-70b-versatile"
+        )
+        st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in resp.choices[0].message.content.splitlines() if line.strip()])
         # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_refs = ", ".join(matches) if matches else "None"
@@ -140,14 +181,20 @@ APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 # ---------------------- CHAT HISTORY ----------------------
 def render_chat_history():
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for chat in st.session_state.chat_history:
+        content = chat["content"]
+        # Highlight steps and APACT
+        for step in sales_call_flow+APACT_STEPS:
+            content = re.sub(rf"\b{re.escape(step)}\b", f"<b>{step}</b>", content)
         if chat["role"]=="user":
-            st.markdown(f"<div class='chat-bubble-user'>{chat['content']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-bubble-user'>{content}</div>", unsafe_allow_html=True)
         else:
-            bubble_html = chat["content"]
+            bubble_html = content
             if chat.get("audio"):
                 bubble_html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{chat['audio']}' type='audio/mp3'></audio>"
             st.markdown(f"<div class='chat-bubble-ai'>{bubble_html}</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------- TTS ----------------------
 async def _edge_save_async(text, voice, outpath):
@@ -196,15 +243,18 @@ Filters: {filters}
         return f"⚠️ AI Error: {e}"
 
 # ---------------------- CHAT INPUT ----------------------
-user_input = st.text_area("💬 Type your message", height=50)
+st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
+user_input = st.text_input("Type your message...", key="chat_input")
 if st.button("Send") and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input})
     ai_text = generate_ai_response(user_input)
     audio_b64 = generate_tts(ai_text)
     st.session_state.chat_history.append({"role":"ai","content":ai_text,"audio":audio_b64})
-    render_chat_history()
+render_chat_history()
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # Export to Word
+# ---------------------- EXPORT ----------------------
+if st.session_state.chat_history:
     doc = Document()
     for msg in st.session_state.chat_history:
         role = "User" if msg["role"]=="user" else "AI"
@@ -213,5 +263,3 @@ if st.button("Send") and user_input.strip():
     doc.save(doc_path)
     with open(doc_path,"rb") as f:
         st.download_button("⬇️ Download Chat History (.docx)", f, "AI_Response.docx")
-
-render_chat_history()
