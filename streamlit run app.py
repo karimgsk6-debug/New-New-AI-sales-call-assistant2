@@ -18,23 +18,25 @@ GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------- ASSETS ----------------------
-BACKGROUND_URL = "https://pathwaytoaus.com/wp-content/uploads/2025/04/Asian-girl-pointing-up-towards-course-eligibility-form-on-the-Pathway-to-Aus-website.webp"
+BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 # ---------------------- SESSION STATE ----------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "pdf_summary" not in st.session_state:
-    st.session_state.pdf_summary = ""
+    st.session_state.pdf_summary = []
 if "extracted_refs" not in st.session_state:
     st.session_state.extracted_refs = ""
+if "pdf_search" not in st.session_state:
+    st.session_state.pdf_search = ""
 
 # ---------------------- STYLING ----------------------
 st.markdown(f"""
 <style>
 .stApp {{
     background: url("{BACKGROUND_URL}") no-repeat right top fixed;
-    background-size: auto 100%;
+    background-size: auto 150%;
 }}
 
 .title-box {{
@@ -58,7 +60,7 @@ st.markdown(f"""
     overflow-y: auto;
     padding: 12px;
     border-radius: 10px;
-    background: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.85);
 }}
 
 .chat-bubble-user {{
@@ -117,6 +119,11 @@ st.markdown(f"""
     border-radius:8px;
     border:1px solid #ccc;
 }}
+
+.pdf-summary-item {{
+    margin-bottom: 6px;
+}}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -152,22 +159,28 @@ if uploaded_file:
         from PyPDF2 import PdfReader
         reader = PdfReader(uploaded_file)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        # Summarize PDF using GROQ into bullet points
-        summary_prompt = f"Summarize the following PDF medical content into concise, informative bullet points suitable for a sales rep:\n{full_text[:10000]}"
+        # Summarize PDF into bullet points
+        summary_prompt = f"Summarize the following PDF medical content into concise, informative bullet points for a sales rep:\n{full_text[:10000]}"
         resp = groq_client.chat.completions.create(
             messages=[{"role":"system","content":"You are a medical summarizer."},{"role":"user","content":summary_prompt}],
             model="llama-3.3-70b-versatile"
         )
-        st.session_state.pdf_summary = "\n".join([f"- {line.strip()}" for line in resp.choices[0].message.content.splitlines() if line.strip()])
+        # Keep each bullet point separate line
+        st.session_state.pdf_summary = [line.strip() for line in resp.choices[0].message.content.splitlines() if line.strip()]
         # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_refs = ", ".join(matches) if matches else "None"
     except Exception as e:
         st.error(f"PDF processing error: {e}")
 
+# ---------------------- PDF SUMMARY DISPLAY ----------------------
 if st.session_state.pdf_summary:
-    with st.expander("📑 PDF Summary", expanded=False):
-        st.markdown(f"<div class='pdf-summary-inline'>{st.session_state.pdf_summary}</div>", unsafe_allow_html=True)
+    st.markdown("### 📑 PDF Summary")
+    search_term = st.text_input("🔍 Search PDF Summary", key="pdf_search")
+    with st.expander("View PDF Summary", expanded=False):
+        for item in st.session_state.pdf_summary:
+            if search_term.lower() in item.lower() or search_term=="":
+                st.markdown(f"<div class='pdf-summary-item'>- {item}</div>", unsafe_allow_html=True)
 if st.session_state.extracted_refs:
     with st.expander("📚 Extracted References", expanded=False):
         st.markdown(st.session_state.extracted_refs)
@@ -181,11 +194,10 @@ APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 # ---------------------- CHAT HISTORY ----------------------
 def render_chat_history():
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
     for chat in st.session_state.chat_history:
         content = chat["content"]
-        # Highlight steps and APACT
-        for step in sales_call_flow+APACT_STEPS:
+        for step in sales_call_flow + APACT_STEPS:
             content = re.sub(rf"\b{re.escape(step)}\b", f"<b>{step}</b>", content)
         if chat["role"]=="user":
             st.markdown(f"<div class='chat-bubble-user'>{content}</div>", unsafe_allow_html=True)
@@ -195,6 +207,13 @@ def render_chat_history():
                 bubble_html += f"<br><audio controls style='margin-top:5px;'><source src='data:audio/mp3;base64,{chat['audio']}' type='audio/mp3'></audio>"
             st.markdown(f"<div class='chat-bubble-ai'>{bubble_html}</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+    # auto-scroll
+    st.markdown("""
+        <script>
+        var chat = document.getElementById('chat-container');
+        chat.scrollTop = chat.scrollHeight;
+        </script>
+    """, unsafe_allow_html=True)
 
 # ---------------------- TTS ----------------------
 async def _edge_save_async(text, voice, outpath):
@@ -232,7 +251,7 @@ Handle objections using APACT steps: {', '.join(APACT_STEPS)}
 Use PDF Summary and References. Provide structured, actionable responses.
 Filters: {filters}
 """
-    prompt = f"{context}\nUser question: {user_input}\nPDF Summary:\n{st.session_state.pdf_summary}"
+    prompt = f"{context}\nUser question: {user_input}\nPDF Summary:\n{' '.join(st.session_state.pdf_summary)}"
     try:
         response = groq_client.chat.completions.create(
             messages=[{"role":"system","content":context},{"role":"user","content":prompt}],
@@ -245,7 +264,8 @@ Filters: {filters}
 # ---------------------- CHAT INPUT ----------------------
 st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
 user_input = st.text_input("Type your message...", key="chat_input")
-if st.button("Send") and user_input.strip():
+send_btn = st.button("Send")
+if send_btn and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input})
     ai_text = generate_ai_response(user_input)
     audio_b64 = generate_tts(ai_text)
