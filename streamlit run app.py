@@ -208,7 +208,7 @@ def call_groq_with_retry(prompt:str, language:str)->str:
     if client is None: return "⚠️ GROQ AI not configured."
     try:
         resp=client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model = "groq:llama-3.3-70b-versatile",
             messages=[{"role":"system","content":"You are a helpful sales assistant."},{"role":"user","content":prompt}]
         )
         return resp.choices[0].message["content"]
