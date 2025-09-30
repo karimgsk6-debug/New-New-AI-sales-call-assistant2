@@ -97,11 +97,10 @@ CSS = f"""
   padding:14px;
   border-radius:16px;
   margin:8px 0;
-  max-width: 90%;
   word-wrap: break-word;
 }}
-.chat-bubble-user {{ background: #eef9e6; margin-left: auto; border:1px solid #c2e0b0; }}
-.chat-bubble-ai {{ background: #f5f7fa; margin-right: auto; border:1px solid #a0c4ff; }}
+.chat-bubble-user {{ background: #eef9e6; margin-left: auto; border:1px solid #c2e0b0; max-width:40%; }}
+.chat-bubble-ai {{ background: #f5f7fa; margin-right: auto; border:1px solid #a0c4ff; max-width:100%; }}
 .pdf-summary-inline {{
   margin-top:8px;
   background: #f9f9f9;
@@ -132,6 +131,29 @@ SCROLL_JS = """<script>function scrollChat(){const el=document.querySelector('.c
 st.markdown(f'<div style="position:auto; right:30px; top:80px; z-index:1200;"><img src="{GSK_LOGO_URL}" width="140" /></div>', unsafe_allow_html=True)
 st.markdown('<div class="title-box"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center;font-weight:600;">⚠️ Disclaimer: For training and educational purposes only.</p>', unsafe_allow_html=True)
+
+# ----------------------------
+# Filters & selections sidebar
+# ----------------------------
+gsk_brands = {"Shingrix": "https://www.shingrix.com/", "Trelegy": "https://www.trelegy.com/", "Zejula": "https://www.zejula.com/"}
+race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
+doctor_barriers = ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns",
+                   "Not convinced of efficacy", "Accessibility/Logistics", "Patient reluctance", "Other clinical doubts"]
+personas = ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"]
+objectives = ["Awareness","Adoption","Retention"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Pulmonologist",
+               "Rheumatologist","Internal Medicine","Diabetologist","Neurologist","Pneumologist"]
+
+with st.sidebar.expander("Filters & Options", expanded=True):
+    brand = st.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
+    segment = st.selectbox("Select RACE Segment / اختر شريحة RACE", options=race_segments)
+    barrier = st.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
+    objective = st.selectbox("Select Objective / اختر الهدف", options=objectives)
+    specialty = st.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
+    persona = st.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
+    response_length = st.selectbox("Response Length / اختر طول الرد", ["Short","Medium","Long"])
+    response_tone = st.selectbox("Response Tone / اختر نبرة الرد", ["Formal","Casual","Friendly","Persuasive"])
+    tts_lang = st.radio("Voice / الصوت", ["English", "العربية"], index=0)
 
 # ----------------------------
 # Sales Call & APACT Steps
@@ -188,17 +210,18 @@ async def speak_text(text: str, lang="en"):
 # ----------------------------
 # Render chat & PDF summary
 # ----------------------------
-def render_chat_history():
+def render_chat_history(show_user=True):
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for entry in st.session_state.chat_history:
         role = entry.get("role","user")
         content = entry.get("content","")
+        if role=="user" and not show_user: continue
         bubble_class = "chat-bubble-user" if role=="user" else "chat-bubble-ai"
         st.markdown(f'<div class="{bubble_class}">{content.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(SCROLL_JS, unsafe_allow_html=True)
 
-render_chat_history()
+render_chat_history(show_user=False)
 
 # ----------------------------
 # Bottom input bar
@@ -211,7 +234,6 @@ with col2:
     if st.button("Send"):
         if user_input.strip():
             st.session_state.chat_history.append({"role":"user","content":user_input})
-            # Generate AI response
             if client:
                 ai_prompt = f"Answer this question for pharmaceutical sales reps: {user_input}\nReference PDF:\n{st.session_state.uploaded_pdf_text}"
                 resp = client.chat.completions.create(
@@ -221,15 +243,14 @@ with col2:
                     temperature=0.2
                 )
                 ai_resp = resp.choices[0].message.content.strip()
-                # Highlight steps
                 for step in sales_call_steps: ai_resp = ai_resp.replace(step, f'<span class="highlight-step">{step}</span>')
                 for apact in APACT_STEPS: ai_resp = ai_resp.replace(apact, f'<span class="highlight-apact">{apact}</span>')
                 st.session_state.chat_history.append({"role":"ai","content":ai_resp})
-            render_chat_history()
+            render_chat_history(show_user=False)
 with col3:
     if st.button("Clear Chat"):
         st.session_state.chat_history = []
-        render_chat_history()
+        render_chat_history(show_user=False)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ----------------------------
