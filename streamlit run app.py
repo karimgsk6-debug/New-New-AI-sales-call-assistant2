@@ -93,7 +93,6 @@ for key, value in {
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-10-01T21%3A36%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=e48070e4-6fe8-551d-b151-1591946f0e60&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A07%3A59Z&ske=2025-10-02T19%3A07%3A59Z&sks=b&skv=2024-08-04&sig=3/PGGYaseBkvjJWbMBbuzsZeNyvlAXRSqcswf%2Bm1IZI%3D"
-GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 
 # ---------------------------- CSS ----------------------------
 # ---------------------------- Title Box with AI Logo ----------------------------
