@@ -31,6 +31,8 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "English Neural"
+if "last_ai_audio" not in st.session_state:
+    st.session_state.last_ai_audio = None
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -171,9 +173,11 @@ with st.expander("📄 Upload PDF & Summary", expanded=False):
         st.session_state.uploaded_pdf_text = full_text
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
+        # Informative bullet points with figures and key facts
         bullets = re.findall(r"([A-Z][^.]{10,200}\d{0,4}[^.]*(?:\.)?)", full_text)
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:15]])
-        st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
+        with st.expander("📌 PDF Summary (click to expand)"):
+            st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
         keyword = st.text_input("Search in PDF Summary")
         if keyword:
             highlighted = st.session_state.pdf_summary.replace(keyword, f"**{keyword}**")
@@ -202,8 +206,7 @@ render_chat_history()
 def generate_ai_response(prompt):
     if not client:
         return "⚠️ AI service not configured"
-    
-    # Build context with PDF summary + sales call & APACT
+
     context = f"""
 User: {prompt}
 Brand: {brand}
@@ -228,15 +231,15 @@ Instructions:
     )
     ai_text = response.choices[0].message.content
 
-    # gTTS for Male Neural voice
+    # gTTS male voice always shown
     if "Male" in st.session_state.voice_pref:
-        # Add natural pauses: replace periods and bullets with short pause markers
         tts_text = ai_text.replace(". ",". \n").replace("- ","\n- ")
         tts_text_clean = tts_text.translate(str.maketrans("", "", string.punctuation))
         tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk")
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_mp3.name)
-        st.audio(tmp_mp3.name, format="audio/mp3")
+        st.session_state.last_ai_audio = tmp_mp3.name
+        st.audio(st.session_state.last_ai_audio, format="audio/mp3")
 
     return ai_text
 
