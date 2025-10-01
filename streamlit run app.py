@@ -15,6 +15,25 @@ try:
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
+# AI Logo URL
+AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
+
+# Add in your CSS block
+st.markdown(f"""
+<style>
+/* Top-right AI logo */
+.ai-logo {{
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    width: 120px;   /* adjust size as needed */
+    height: auto;
+    z-index: 1000;
+}}
+</style>
+
+<img src="{AI_LOGO_URL}" class="ai-logo">
+""", unsafe_allow_html=True)
 
 # ---------------------------- TTS Setup (ElevenLabs fallback to gTTS) ----------------------------
 try:
@@ -87,7 +106,7 @@ CSS = f"""
   background-size: auto 120%;
 }}
 .title-box {{
-  background: rgba(245,245,245,0.7);
+  background: rgba(245,245,245,0.6);
   padding: 12px;
   border-radius: 16px;
   text-align: Left;
