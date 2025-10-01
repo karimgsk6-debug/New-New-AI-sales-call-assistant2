@@ -158,7 +158,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 # ---------------------------- GROQ Client ----------------------------
 # <-- Replace this placeholder with your actual Groq API key -->
 GROQ_API_KEY = "Your_Groq_API_KEY_here"
-if not GROQ_API_KEY or GROQ_API_KEY == "Your_Groq_API_KEY_here":
+if not GROQ_API_KEY or GROQ_API_KEY == "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":
     st.error("❌ No Groq API key found! Please add it in .streamlit/secrets.toml or set GROQ_API_KEY in your environment.")
     st.stop()
 
