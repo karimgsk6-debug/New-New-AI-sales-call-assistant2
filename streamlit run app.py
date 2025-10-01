@@ -137,7 +137,7 @@ personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced"
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists""]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands)
