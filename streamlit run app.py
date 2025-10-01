@@ -173,17 +173,6 @@ with st.expander("📄 PDF Summary", expanded=False):
 # ---------------------------- Chat ----------------------------
 st.markdown("<h3>💬 Chat</h3>", unsafe_allow_html=True)
 
-def render_chat_history():
-    html_out = ""
-    for msg in st.session_state.chat_history:
-        if msg["role"]=="user":
-            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
-        else:
-            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
-    html_out += "<div id='chat-bottom'></div>"
-    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
-
 def generate_ai_response(prompt):
     context = f"""
 User: {prompt}
@@ -208,7 +197,19 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
-# ---------------------------- Chat Input / Voice ----------------------------
+def render_chat_history():
+    html_out = ""
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
+        else:
+            html_out += f'<audio controls src="{msg["audio"]}"></audio>'
+            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+    html_out += "<div id='chat-bottom'></div>"
+    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
+    st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
+
+# ---------------------------- Chat Input ----------------------------
 with st.container():
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
@@ -222,21 +223,18 @@ with st.container():
 
     if send and user_input.strip():
         st.session_state.chat_history.append({"role":"user","content":user_input})
-
         ai_resp = generate_ai_response(user_input)
 
         # ---------------- Voice generation ----------------
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
+
         tts = gTTS(text=voice_text, lang="en", slow=False)
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
 
-        # Play voice above AI text
-        st.audio(tmp_file.name, format="audio/mp3")
-
-        st.session_state.chat_history.append({"role":"ai","content":ai_resp})
+        st.session_state.chat_history.append({"role":"ai","content":ai_resp, "audio": tmp_file.name})
 
         render_chat_history()
 
