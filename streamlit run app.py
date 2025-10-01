@@ -16,20 +16,23 @@ try:
 except:
     DOCX_AVAILABLE = False
 
-# ---------------------------- TTS Setup ----------------------------
+# ---------------------------- TTS Setup (ElevenLabs fallback to gTTS) ----------------------------
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
+
+# Always import gTTS for fallback
 from gtts import gTTS
 
+# ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Elderly Male Voice ID
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
-    ELEVENLABS_AVAILABLE = False
+    ELEVENLABS_AVAILABLE = False  # Ensure fallback to gTTS
 
 def generate_audio(text):
     for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
@@ -56,20 +59,18 @@ def generate_audio(text):
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "uploaded_pdf_text" not in st.session_state:
-    st.session_state.uploaded_pdf_text = ""
-if "pdf_summary" not in st.session_state:
-    st.session_state.pdf_summary = ""
-if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Old Male"
-if "language" not in st.session_state:
-    st.session_state.language = "English"
-if "pdf_search_keyword" not in st.session_state:
-    st.session_state.pdf_search_keyword = ""
-if "pdf_summary_size" not in st.session_state:
-    st.session_state.pdf_summary_size = "Normal"
+for key, value in {
+    "chat_history": [],
+    "uploaded_pdf_text": "",
+    "pdf_summary": "",
+    "voice_pref": "Old Male",
+    "language": "English",
+    "pdf_search_keyword": "",
+    "pdf_summary_size": "Normal",
+    "chat_input": ""
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -103,7 +104,7 @@ CSS = f"""
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 20px;
+  padding-bottom: 12px;
   border-radius: 10px;
   background: rgba(255,255,255,0.85);
   margin-bottom: 0;
@@ -119,24 +120,7 @@ CSS = f"""
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
-textarea {{
-    width:100%;
-    min-height:40px;
-    max-height:120px;
-    resize: vertical;
-    border-radius:6px;
-    padding:6px;
-    border:1px solid #ccc;
-    margin-bottom:6px;
-}}
-button.send-btn {{
-    width:100px;
-    height:36px;
-    border-radius:6px;
-    background:#0078D7;
-    color:white;
-    border:none;
-}}
+footer, header {{ z-index: 0; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -180,22 +164,27 @@ with st.expander("📄 PDF Summary", expanded=False):
         st.session_state.uploaded_pdf_text = full_text
 
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-        summary_prompt = f"Summarize the document into {bullets_count} bullets:\n{full_text[:12000]}"
 
         try:
+            summary_prompt = f"""
+            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
+            Document Text:
+            {full_text[:12000]}
+            """
+
             ai_summary = client.chat.completions.create(
-    model="llama-3.3-70b-versatile",
-    messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
-              {"role":"user","content":summary_prompt}],
-    temperature=0.4
+                model="llama-3.3-70b",
+                messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                          {"role":"user","content":summary_prompt}],
+                temperature=0.4
             )
             st.session_state.pdf_summary = ai_summary.choices[0].message.content
+
         except Exception:
-            pattern = r'([A-Z][^.]{20,150}\.)'
-            bullets = re.findall(pattern, full_text)
+            bullets = re.findall(r'([A-Z][^.]{20,200}\.)', full_text)
             st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
-    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
+    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword, key="pdf_search")
     st.session_state.pdf_search_keyword = keyword
     pdf_display = st.session_state.pdf_summary or "No PDF summary yet."
     if keyword:
@@ -220,29 +209,12 @@ Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
-    model="llama-3.3-70b-versatile",
-    messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
-              {"role":"user","content":context}],
-    temperature=0.65
+        model="llama-3.3-70b",
+        messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
+                  {"role":"user","content":context}],
+        temperature=0.65
     )
     return response.choices[0].message.content
-
-# ---------------------------- Normalize Chat History ----------------------------
-def normalize_chat_history():
-    raw = st.session_state.chat_history
-    if not raw: return
-    new = []
-    i = 0
-    while i < len(raw):
-        item = raw[i]
-        user_text = item.get("user","") if "user" in item else ""
-        ai_text = item.get("ai","") if "ai" in item else ""
-        audio = item.get("audio_base64","")
-        new.append({"user":user_text,"ai":ai_text,"audio_base64":audio})
-        i += 1
-    st.session_state.chat_history = new
-
-normalize_chat_history()
 
 # ---------------------------- Chat Rendering ----------------------------
 def _format_content_to_html(text):
@@ -259,7 +231,6 @@ def _format_content_to_html(text):
     return out
 
 def render_chat_history():
-    normalize_chat_history()
     html_out = ""
     for msg in st.session_state.chat_history:
         user_html = _format_content_to_html(msg.get("user",""))
@@ -275,34 +246,30 @@ def render_chat_history():
         </div>'''
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <script>
-    (function(){
-        const chat = document.querySelector('.chat-container');
-        if(chat) chat.scrollTop = chat.scrollHeight;
-        const bottom = document.getElementById('chat-bottom');
-        if(bottom) bottom.scrollIntoView({behavior:'smooth', block:'end'});
-        setTimeout(()=>{document.querySelector('textarea').focus();},100);
-    })();
-    </script>
-    """, unsafe_allow_html=True)
 
-render_chat_history()
+# ---------------------------- Chat Input & Controls ----------------------------
+with st.container():
+    if st.button("🗑️ Clear Conversation", key="clear_chat"):
+        st.session_state.chat_history = []
+        render_chat_history()
 
-# ---------------------------- Chat Input ----------------------------
-user_input = st.text_area("Type your message...", key="chat_input", placeholder="Ask me anything...", height=40)
-send = st.button("Send", key="send_button")
+    render_chat_history()
 
-if send and user_input.strip():
-    ai_resp = generate_ai_response(user_input)
-    audio_base64 = generate_audio(ai_resp)
-    st.session_state.chat_history.append({
-        "user": user_input,
-        "ai": ai_resp,
-        "audio_base64": audio_base64
-    })
-    st.session_state["chat_input"] = ""
-    st.rerun()
+    user_input = st.text_input(
+        "Type your message...", key="chat_input",
+        label_visibility="collapsed", placeholder="Ask me anything..."
+    )
+    send = st.button("Send", key="send_button")
+
+    if send and user_input.strip():
+        ai_resp = generate_ai_response(user_input)
+        audio_base64 = generate_audio(ai_resp)
+        st.session_state.chat_history.append({
+            "user": user_input,
+            "ai": ai_resp,
+            "audio_base64": audio_base64
+        })
+        render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
