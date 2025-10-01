@@ -94,7 +94,7 @@ CSS = f"""
   margin: 12px auto;
 }}
 .pdf-summary-box {{
-  background: rgba(245,245,245,0.7);; 
+  background: rgba(245,245,245,0.8);; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
@@ -106,8 +106,8 @@ CSS = f"""
   padding: 12px;
   padding-bottom: 12px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.85);
-  margin-bottom: 0;
+  background: rgba(255,255,255,0.8);
+  margin-bottom: 1;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
