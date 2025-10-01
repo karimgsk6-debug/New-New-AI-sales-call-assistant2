@@ -84,7 +84,7 @@ CSS = f"""
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 150%;
+  background-size: auto 120%;
 }}
 .title-box {{
   background: rgba(245,245,245,0.7);
