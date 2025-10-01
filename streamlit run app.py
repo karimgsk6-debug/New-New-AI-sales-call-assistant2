@@ -354,12 +354,12 @@ def render_chat_history():
     html = ""
     for msg in st.session_state.chat_history:
         user_html = _format_content_to_html(msg.get("user",""))
-        ai_html = _format_content_to_html(msg.get("ai",""))
+        ai_html = _format_content_to_html(msg.get("ai","")) or "<i>No AI response generated yet.</i>"
         audio_html = ""
         if msg.get("audio_base64"):
             audio_html = f'<div class="audio-box">🔊 AI Voice:<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio></div>'
         html += f'''
-        <div class="chat-bubble ai">
+        <div class="chat-bubble">
             <span class="role-label">🧑 You:</span>
             <div>{user_html}</div>
             <span class="role-label" style="margin-top:8px;">🤖 AI:</span>
@@ -386,14 +386,13 @@ def render_chat_history():
     """
     st.markdown(scroll_js, unsafe_allow_html=True)
 
-# ---------------------------- Clear chat button ----------------------------
+# ---------------------------- Clear chat ----------------------------
 st.markdown('<div class="clear-btn-area">', unsafe_allow_html=True)
 if st.button("🗑️ Clear Conversation", key="clear_convo"):
     st.session_state.chat_history = []
     st.session_state["chat_input"] = ""
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Render chat
 render_chat_history()
 
 # ---------------------------- Bottom input ----------------------------
@@ -409,14 +408,17 @@ def send_message():
     prompt = st.session_state.get("chat_input", "").strip()
     if not prompt:
         return
-    ai_resp = generate_ai_response(prompt)
-    audio_b64 = generate_audio(ai_resp)
-    st.session_state.chat_history.append({
-        "user": prompt,
-        "ai": ai_resp,
-        "audio_base64": audio_b64
-    })
+    # Append user message immediately
+    st.session_state.chat_history.append({"user": prompt, "ai": "", "audio_base64": ""})
     st.session_state["chat_input"] = ""
+    render_chat_history()
+    # Generate AI response
+    ai_resp = generate_ai_response(prompt) or "Sorry, the AI could not generate a response."
+    audio_b64 = generate_audio(ai_resp)
+    # Update the last message with AI response
+    st.session_state.chat_history[-1]["ai"] = ai_resp
+    st.session_state.chat_history[-1]["audio_base64"] = audio_b64
+    render_chat_history()
 
 st.button("📤", key="send_button", help="Send message", on_click=send_message)
 
