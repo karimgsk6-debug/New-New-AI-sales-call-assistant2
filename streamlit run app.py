@@ -5,11 +5,9 @@ from io import BytesIO
 import requests
 import re
 import tempfile
-from datetime import datetime
 from gtts import gTTS
-
-# GROQ API
 from groq import Groq
+from PyPDF2 import PdfReader
 
 # Optional docx export
 try:
@@ -28,12 +26,12 @@ if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
-if "extracted_medical_ref" not in st.session_state:
-    st.session_state.extracted_medical_ref = ""
-if "language" not in st.session_state:
-    st.session_state.language = "English"
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "Male Neural"
+if "language" not in st.session_state:
+    st.session_state.language = "English"
+if "pdf_search_keyword" not in st.session_state:
+    st.session_state.pdf_search_keyword = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -49,7 +47,6 @@ def get_brightness(url: str) -> int:
         return 255
 
 brightness = get_brightness(BACKGROUND_URL)
-text_color = "black" if brightness > 130 else "white"
 
 # ---------------------------- CSS ----------------------------
 CSS = f"""
@@ -73,6 +70,7 @@ CSS = f"""
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
+  white-space: pre-line;
 }}
 .chat-container {{
   height: 60vh;
@@ -90,7 +88,7 @@ CSS = f"""
   max-width: 86%;
   word-wrap: break-word;
 }}
-.chat-bubble-user {{ background: #DCF8C6; margin-left:auto; }}
+.chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; }}
 .bottom-bar {{
   position: fixed;
@@ -139,17 +137,23 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload ----------------------------
+# ---------------------------- PDF Upload & Search ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
     if uploaded_pdf:
-        from PyPDF2 import PdfReader
         reader = PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
         bullets = re.findall(r"([A-Z][^.]{10,150}\.)", full_text)
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:12]])
-        st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
+    
+    # Search
+    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
+    st.session_state.pdf_search_keyword = keyword
+    pdf_display = st.session_state.pdf_summary
+    if keyword:
+        pdf_display = pdf_display.replace(keyword, f"**{keyword}**")
+    st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat ----------------------------
 st.markdown("<h3>💬 Chat</h3>", unsafe_allow_html=True)
@@ -189,8 +193,12 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
-# ---------------------------- Chat Input Fixed ----------------------------
+# ---------------------------- Chat Input / Voice ----------------------------
 with st.container():
+    # Clear conversation
+    if st.button("🗑️ Clear Conversation"):
+        st.session_state.chat_history = []
+
     render_chat_history()
 
     st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
@@ -199,10 +207,10 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        # Append user input
+        # Append user
         st.session_state.chat_history.append({"role":"user","content":user_input})
 
-        # Generate AI response
+        # Generate AI
         ai_resp = generate_ai_response(user_input)
 
         # Generate gTTS voice (male with APACT pauses)
