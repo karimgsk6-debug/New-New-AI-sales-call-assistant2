@@ -118,7 +118,7 @@ CSS = f"""
   word-wrap: break-word;
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: rgba(245,245,245,0.8); margin-right:auto; color:#000; }}
+.chat-bubble-ai {{ background: rgba(245,245,245,0.8); margin-right:auto; color:#0000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
 footer, header {{ z-index: 0; }}
 </style>
