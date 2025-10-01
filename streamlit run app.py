@@ -234,7 +234,7 @@ with st.expander("📄 PDF Summary", expanded=False):
             """
 
             ai_summary = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.3-13b-versatile",
                 messages=[
                     {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
                     {"role":"user","content":summary_prompt}
