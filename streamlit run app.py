@@ -261,17 +261,25 @@ APACT Steps: {', '.join(APACT_STEPS)}
 def render_chat_history():
     html_out = ""
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
-        else:
-            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
-            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice:<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio></div>'
-            html_out += audio_html
+        # Single bubble per conversation turn
+        html_out += f"""
+        <div class="chat-bubble-ai">
+            <b>🧑 You:</b> {msg["user"]}<br><br>
+            <b>🤖 AI:</b> {msg["ai"]}
+            <div class="chat-bubble-audio">
+                🔊 AI Voice:<br>
+                <audio controls src="data:audio/mp3;base64,{msg['audio_base64']}"></audio>
+            </div>
+        </div>
+        """
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
+    st.markdown(
+        "<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>",
+        unsafe_allow_html=True
+    )
 
-# ---------------------------- Chat Input ----------------------------
+# ---------------------------- Chat Input (fixed bottom like WhatsApp/ChatGPT) ----------------------------
 with st.container():
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
@@ -279,15 +287,24 @@ with st.container():
     render_chat_history()
 
     st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-    user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-    send = st.button("Send")
+    user_input = st.text_input(
+        "Type your message...",
+        key="chat_input",
+        label_visibility="collapsed",
+        placeholder="Ask me anything..."
+    )
+    send = st.button("Send", use_container_width=False)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
-        st.session_state.chat_history.append({"role": "ai", "content": ai_resp, "audio_base64": audio_base64})
+        # store as one entry containing both user + AI
+        st.session_state.chat_history.append({
+            "user": user_input,
+            "ai": ai_resp,
+            "audio_base64": audio_base64
+        })
         render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
