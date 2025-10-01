@@ -140,16 +140,51 @@ with st.expander("📄 PDF Summary", expanded=False):
         st.session_state.uploaded_pdf_text = full_text
 
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-        pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
-        bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
-        if len(bullets) < bullets_count:
-            fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
-            for b in fallback_bullets:
-                if b not in bullets:
-                    bullets.append(b)
-                if len(bullets) >= bullets_count:
-                    break
-        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
+
+        # --- Enhanced AI summarization with sub-bullets ---
+        try:
+            summary_prompt = f"""
+            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
+
+            Format rules:
+            - Each main bullet point should be a broad theme or finding.
+            - Under each main bullet, provide 2–4 sub-bullets (•) with elaborative, fact-based details.
+            - Sub-bullets must include supporting evidence if available (percentages, years, clinical trials, guidelines, studies).
+            - Write in a professional, concise, and factual style.
+            - Always structure like this:
+
+            - Main Point
+               • Sub fact 1
+               • Sub fact 2
+               • Sub fact 3
+
+            Document Text:
+            {full_text[:12000]}
+            """
+
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                    {"role":"user","content":summary_prompt}
+                ],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+
+        except Exception:
+            # fallback regex summary if AI fails
+            pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
+            bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
+            if len(bullets) < bullets_count:
+                fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
+                for b in fallback_bullets:
+                    if b not in bullets:
+                        bullets.append(b)
+                    if len(bullets) >= bullets_count:
+                        break
+            # Format as basic bullets with no sub-bullets
+            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
     st.session_state.pdf_search_keyword = keyword
@@ -187,18 +222,25 @@ APACT Steps: {', '.join(APACT_STEPS)}
 def render_chat_history():
     html_out = ""
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
-        else:
-            # Separate audio bubble
-            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice Playing<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}" autoplay></audio></div>'
-            html_out += audio_html
-            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+        # Single bubble per conversation turn
+        html_out += f"""
+        <div class="chat-bubble-ai">
+            <b>🧑 You:</b> {msg["user"]}<br><br>
+            <b>🤖 AI:</b> {msg["ai"]}
+            <div class="chat-bubble-audio">
+                🔊 AI Voice:<br>
+                <audio controls src="data:audio/mp3;base64,{msg['audio_base64']}"></audio>
+            </div>
+        </div>
+        """
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
+    st.markdown(
+        "<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>",
+        unsafe_allow_html=True
+    )
 
-# ---------------------------- Chat Input ----------------------------
+# ---------------------------- Chat Input (fixed bottom like WhatsApp/ChatGPT) ----------------------------
 with st.container():
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
@@ -206,13 +248,25 @@ with st.container():
     render_chat_history()
 
     st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-    user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-    send = st.button("Send")
+    user_input = st.text_input(
+        "Type your message...",
+        key="chat_input",
+        label_visibility="collapsed",
+        placeholder="Ask me anything..."
+    )
+    send = st.button("Send", use_container_width=False)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input})
         ai_resp = generate_ai_response(user_input)
+        audio_base64 = generate_audio(ai_resp)
+        # store as one entry containing both user + AI
+        st.session_state.chat_history.append({
+            "user": user_input,
+            "ai": ai_resp,
+            "audio_base64": audio_base64
+        })
+        render_chat_history()
 
         # ----------------- Male Old TTS with APACT pauses -----------------
         voice_text = ai_resp
