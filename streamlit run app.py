@@ -174,8 +174,7 @@ footer, header {{
 """
 st.markdown(CSS, unsafe_allow_html=True)
 /* Reduce chat container width */
-.chat-container {
-    max-height: 65vh;
+.chat-container {max-height: 65vh;
     overflow-y: auto;
     padding: 12px;
     padding-bottom: 70px; /* leave room for fixed input */
