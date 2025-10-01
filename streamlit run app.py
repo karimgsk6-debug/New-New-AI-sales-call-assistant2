@@ -80,7 +80,6 @@ if "pdf_summary_size" not in st.session_state:
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
-# ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
 /* Background */
@@ -108,15 +107,16 @@ CSS = f"""
   white-space: pre-line;
 }}
 
-/* Chat area */
+/* Chat area - reduced width */
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 120px; /* leave room for fixed input */
+  padding-bottom: 80px; /* leave room for input */
   border-radius: 10px;
   background: rgba(255,255,255,0.85);
   margin-bottom: 0;
+  max-width: 650px;
 }}
 
 /* Bubbles */
@@ -132,37 +132,43 @@ CSS = f"""
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
 
-/* Fixed chat input */
-div[data-testid="stTextInput"]:last-of-type {{
-    position: fixed !important;
-    bottom: 30px;
-    left: 30px;
-    right: 100px;
-    z-index: 10002;
-    background: rgba(255,255,255,0.95);
+/* Chat input + send button inside same box */
+.chat-input-container {{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 650px;  /* match chat box width */
+    display: flex;
     border-radius: 10px;
-    padding: 6px 10px;
+    background: rgba(255,255,255,0.95);
+    padding: 5px 10px;
+    z-index: 10002;
 }}
 
-/* Fixed send button */
-div[data-testid="stButton"][data-key="send_button"] {{
-    position: fixed !important;
-    bottom: 18px;
-    right: 20px;
-    z-index: 10003;
-    width: 100px;
+.chat-input-container input[type="text"] {{
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    padding: 10px;
+    border-radius: 8px 0 0 8px;
 }}
 
-/* Clear chat button */
-div[data-testid="stButton"][data-key="clear_chat"] {{
-    margin-bottom: 8px;
+.chat-input-container button {{
+    background-color: #0078D7;
+    color: white;
+    border: none;
+    padding: 0 16px;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 0 8px 8px 0;
 }}
 
 /* small responsiveness */
 @media (max-width: 800px) {{
-  div[data-testid="stTextInput"]:last-of-type {{
-    left: 12px;
-    right: 100px;
+  .chat-container, .chat-input-container {{
+      width: calc(100% - 40px);
+      left: 10px;
   }}
 }}
 
@@ -173,48 +179,6 @@ footer, header {{
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
-/* Reduce chat container width */
-.chat-container {max-height: 65vh;
-    overflow-y: auto;
-    padding: 12px;
-    padding-bottom: 70px; /* leave room for fixed input */
-    border-radius: 10px;
-    background: rgba(255,255,255,0.85);
-    margin-bottom: 0;
-    max-width: 650px;       /* reduced width */
-}
-
-/* Chat input + Send button inside same box */
-.chat-input-container {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    width: 650px; /* match chat box width */
-    z-index: 10002;
-    display: flex;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.95);
-    padding: 5px 10px;
-}
-
-.chat-input-container input[type="text"] {
-    flex: 1;
-    border: none;
-    outline: none;
-    font-size: 1rem;
-    padding: 10px;
-    border-radius: 8px 0 0 8px;
-}
-
-.chat-input-container button {
-    background-color: #0078D7;
-    color: white;
-    border: none;
-    padding: 0 16px;
-    font-size: 1rem;
-    cursor: pointer;
-    border-radius: 0 8px 8px 0;
-}
 
 
 # ---------------------------- GROQ Client ----------------------------
@@ -416,41 +380,42 @@ def render_chat_history():
     """, unsafe_allow_html=True)
 
 # ---------------------------- Chat Input & Controls ----------------------------
+render_chat_history()  # render chat above
+
 with st.container():
     # Clear chat button
-    st.markdown('<div style="margin-bottom: 10px;">', unsafe_allow_html=True)
     if st.button("🗑️ Clear Conversation", key="clear_chat"):
         st.session_state.chat_history = []
-    st.markdown('</div>', unsafe_allow_html=True)
+        render_chat_history()  # refresh after clearing
 
-    # Render chat history
-    render_chat_history()
-
-    # Chat input
-    user_input = st.text_input(
-        "Type your message...",
-        value="",  # always start empty
-        key="chat_input",
-        label_visibility="collapsed",
-        placeholder="Ask me anything..."
-    )
-    send = st.button("Send", key="send_button")
+    # Chat input + send button inline using columns
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        user_input = st.text_input(
+            "",
+            value="",
+            key="chat_input",
+            placeholder="Type your message..."
+        )
+    with col2:
+        send = st.button("Send", key="send_button")
 
     if send and user_input.strip():
-        # Generate AI response and audio
+        # Generate AI response + audio
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
 
-        # Append to chat history
+        # Append new turn
         st.session_state.chat_history.append({
             "user": user_input,
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
 
-        # No need to manually reset session_state key; text_input starts empty on next run
+        # Clear input automatically
+        st.session_state.chat_input = ""
 
-        # Re-render chat history to show the new message
+        # Re-render chat
         render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
