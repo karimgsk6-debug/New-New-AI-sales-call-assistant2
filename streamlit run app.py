@@ -395,6 +395,7 @@ with st.container():
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
+        st.session_state.setdefault("chat_input", "")
         st.session_state["chat_input"] = ""
         render_chat_history()
 
