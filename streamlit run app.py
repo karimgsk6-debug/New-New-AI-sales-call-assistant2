@@ -7,8 +7,9 @@ import base64
 import os
 import re
 import tempfile
-import asyncio
 from datetime import datetime
+from gtts import gTTS
+import string
 
 # GROQ API
 from groq import Groq
@@ -79,6 +80,7 @@ CSS = f"""
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
+  white-space: pre-line;
 }}
 .chat-container {{
   height: 60vh;
@@ -86,7 +88,8 @@ CSS = f"""
   padding:12px;
   border-radius:10px;
   background: rgba(255,255,255,0.76);
-  margin-bottom: 80px; /* leave space for bottom bar */
+  display:flex;
+  flex-direction:column-reverse; /* Always show latest messages at bottom */
 }}
 .chat-bubble-user, .chat-bubble-ai {{
   display:inline-block;
@@ -174,9 +177,9 @@ with st.expander("📄 Upload PDF & Summary", expanded=False):
         # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-        # Simple concise bullet points
-        bullets = re.findall(r"([A-Z][^.]{10,150}\.)", full_text)
-        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:10]])
+        # More informative bullet points, focus on figures and key info
+        bullets = re.findall(r"([A-Z][^.]{10,200}\d{1,4}[^.]*(?:\.)?)", full_text)
+        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:15]])
         st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
         # Search box
         keyword = st.text_input("Search in PDF Summary")
@@ -188,19 +191,22 @@ with st.expander("📄 Upload PDF & Summary", expanded=False):
 
 # ---------------------------- Chat History ----------------------------
 st.markdown("<h3>💬 Chat</h3>", unsafe_allow_html=True)
+chat_container = st.container()
+
 def render_chat_history():
-    html_out = ""
-    for msg in st.session_state.chat_history:
-        content = msg["content"]
-        if msg["role"]=="user":
-            html_out += f'<div class="chat-bubble-user">{content}</div>'
-        else:
-            html_out += f'<div class="chat-bubble-ai">{content}</div>'
-    st.markdown(html_out, unsafe_allow_html=True)
+    with chat_container:
+        html_out = ""
+        for msg in st.session_state.chat_history:
+            content = msg["content"]
+            if msg["role"]=="user":
+                html_out += f'<div class="chat-bubble-user">{content}</div>'
+            else:
+                html_out += f'<div class="chat-bubble-ai">{content}</div>'
+        st.markdown(html_out, unsafe_allow_html=True)
 
 render_chat_history()
 
-# ---------------------------- Bottom Chat Input ----------------------------
+# ---------------------------- AI Response & gTTS ----------------------------
 def generate_ai_response(prompt):
     if not client:
         return "⚠️ AI service not configured"
@@ -210,8 +216,18 @@ def generate_ai_response(prompt):
         messages=[{"role":"system","content":"You are a helpful GSK medical sales assistant."},{"role":"user","content":context}],
         temperature=0.65
     )
-    return response.choices[0].message.content
+    ai_text = response.choices[0].message.content
+    # Optional: convert to male voice gTTS if selected
+    if "Male" in st.session_state.voice_pref:
+        # Remove punctuation for humanized reading
+        clean_text = ai_text.translate(str.maketrans("", "", string.punctuation))
+        tts = gTTS(text=clean_text, lang="en", tld="co.uk")
+        tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(tmp_mp3.name)
+        st.audio(tmp_mp3.name, format="audio/mp3")
+    return ai_text
 
+# ---------------------------- Bottom Chat Input ----------------------------
 with st.container():
     col1, col2 = st.columns([8,1])
     with col1:
