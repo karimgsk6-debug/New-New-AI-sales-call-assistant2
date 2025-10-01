@@ -141,11 +141,11 @@ objectives = ["Awareness","Adoption","Retention"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands, key="select_brand")
+    specialty = st.selectbox("Select Doctor Specialty", specialties, key="select_specialty")
     segment = st.selectbox("Select RACE Segment", race_segments, key="select_segment")
+    persona = st.selectbox("Select HCP Persona", personas, key="select_persona")
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers, key="select_barrier")
     objective = st.selectbox("Select Objective", objectives, key="select_objective")
-    specialty = st.selectbox("Select Doctor Specialty", specialties, key="select_specialty")
-    persona = st.selectbox("Select HCP Persona", personas, key="select_persona")
     response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_response_length")
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_response_tone")
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="radio_language")
