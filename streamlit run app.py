@@ -7,6 +7,7 @@ import tempfile
 import base64
 from groq import Groq
 from PyPDF2 import PdfReader
+from html import escape
 
 # Optional docx export
 try:
@@ -37,7 +38,7 @@ def generate_audio(text):
     # Add APACT pauses
     for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
         text = text.replace(step, f"{step} ...")
-    # Remove punctuation for smoother reading
+    # Remove punctuation for smoother reading (optional)
     text = re.sub(r'[.,*]', '', text)
 
     if ELEVENLABS_AVAILABLE:
@@ -61,6 +62,7 @@ st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
 if "chat_history" not in st.session_state:
+    # canonical format: list of {"user": str, "ai": str, "audio_base64": str}
     st.session_state.chat_history = []
 if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
@@ -82,6 +84,7 @@ GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicala
 # ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
+/* Background */
 [data-testid="stAppViewContainer"] {{
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
@@ -89,6 +92,8 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 150%;
 }}
+
+/* Title and PDF summary boxes */
 .title-box {{
   background: rgba(245,245,245,0.7);
   padding: 20px;
@@ -103,16 +108,21 @@ CSS = f"""
   margin-bottom: 12px;
   white-space: pre-line;
 }}
+
+/* Chat area */
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
+  padding-bottom: 160px; /* leave room for fixed input */
   border-radius: 10px;
   background: rgba(255,255,255,0.8);
   margin-bottom: 0;
 }}
+
+/* Bubbles */
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
-  display:inline-block;
+  display:block;
   padding:12px;
   border-radius:12px;
   margin:8px 0;
@@ -120,22 +130,43 @@ CSS = f"""
   word-wrap: break-word;
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; }}
-.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; }}
-.bottom-bar {{
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(255,255,255,0.98);
-  padding: 10px 16px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
-  display:flex;
-  gap:12px;
-  align-items:center;
-  z-index: 1000;
+.chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
+.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
+
+/* Make last Streamlit text input and button fixed to bottom
+   (we render the chat_input as the last input in the page so :last-of-type targets it) */
+div[data-testid="stTextInput"]:last-of-type,
+div[data-testid="stTextArea"]:last-of-type {{
+  position: fixed !important;
+  bottom: 18px;
+  left: 20px;
+  right: 160px;
+  z-index: 10002;
+  background: rgba(255,255,255,0.9);
+  border-radius: 10px;
+  padding: 6px;
+}}
+
+/* fix the last button (Send) to the right */
+div[data-testid="stButton"]:last-of-type {{
+  position: fixed !important;
+  bottom: 16px;
+  right: 20px;
+  z-index: 10003;
+}}
+
+/* small responsiveness */
+@media (max-width: 800px) {{
+  div[data-testid="stTextInput"]:last-of-type,
+  div[data-testid="stTextArea"]:last-of-type {{
+    left: 12px;
+    right: 100px;
+  }}
+}}
+
+/* ensure fixed input overlays properly */
+footer, header {{
+  z-index: 0;
 }}
 </style>
 """
@@ -226,12 +257,13 @@ with st.expander("📄 PDF Summary", expanded=False):
             # Format as basic bullets with no sub-bullets
             st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
-    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
+    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword, key="pdf_search")
     st.session_state.pdf_search_keyword = keyword
-    pdf_display = st.session_state.pdf_summary
+    pdf_display = st.session_state.pdf_summary or "No PDF summary yet."
     if keyword:
         pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
     st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
+
 # ---------------------------- AI Response Function ----------------------------
 def generate_ai_response(prompt):
     context = f"""
@@ -257,54 +289,157 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
+# ---------------------------- Normalize existing chat history formats ----------------------------
+def normalize_chat_history():
+    """
+    Converts older message pairs like [{"role":"user","content":..},{"role":"ai","content":..}, ...]
+    into canonical form: [{"user":..,"ai":..,"audio_base64":..}, ...]
+    """
+    raw = st.session_state.chat_history
+    # if already canonical, nothing to do
+    if not raw:
+        return
+    # detect a likely legacy format by checking first element keys
+    first = raw[0]
+    if isinstance(first, dict) and ("role" in first or "content" in first) and not ("user" in first and "ai" in first):
+        new = []
+        i = 0
+        while i < len(raw):
+            item = raw[i]
+            if item.get("role") == "user":
+                user_text = item.get("content", "")
+                # look ahead for next AI message
+                ai_text = ""
+                audio = ""
+                j = i + 1
+                while j < len(raw):
+                    if raw[j].get("role") == "ai":
+                        ai_text = raw[j].get("content", "")
+                        audio = raw[j].get("audio_base64", "")
+                        break
+                    j += 1
+                new.append({"user": user_text, "ai": ai_text, "audio_base64": audio})
+                if j > i:
+                    i = j + 1
+                else:
+                    i += 1
+            elif item.get("role") == "ai":
+                new.append({"user": "", "ai": item.get("content", ""), "audio_base64": item.get("audio_base64", "")})
+                i += 1
+            else:
+                # unknown structure: try to salvage
+                if "content" in item:
+                    new.append({"user": "", "ai": item.get("content", ""), "audio_base64": item.get("audio_base64", "")})
+                i += 1
+        st.session_state.chat_history = new
+    else:
+        # already canonical or different but fine - leave as is
+        return
+
+# run normalization once
+normalize_chat_history()
+
 # ---------------------------- Chat Rendering ----------------------------
+def _format_content_to_html(text):
+    """Escape text then convert simple bullets and newlines into HTML-friendly representation."""
+    if not text:
+        return ""
+    esc = escape(text)
+    # Normalize newlines
+    esc = esc.replace('\r\n', '\n').replace('\r', '\n')
+    lines = esc.split('\n')
+    out = ""
+    for ln in lines:
+        ln = ln.strip()
+        if ln.startswith('- '):
+            out += f'&bull;&nbsp;{ln[2:]}<br>'
+        elif ln.startswith('• '):
+            out += f'&bull;&nbsp;{ln[2:]}<br>'
+        else:
+            # preserve blank lines
+            if ln == "":
+                out += '<br>'
+            else:
+                out += f'{ln}<br>'
+    return out
+
 def render_chat_history():
+    # ensure normalization in case session mutated
+    normalize_chat_history()
+
     html_out = ""
     for msg in st.session_state.chat_history:
-        # Single bubble per conversation turn
-        html_out += f"""
+        user_html = _format_content_to_html(msg.get("user", ""))
+        ai_html = _format_content_to_html(msg.get("ai", ""))
+        audio_html = ""
+        if msg.get("audio_base64"):
+            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice:<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio></div>'
+
+        # Combined single bubble per turn (user + ai)
+        html_out += f'''
         <div class="chat-bubble-ai">
-            <b>🧑 You:</b> {msg["user"]}<br><br>
-            <b>🤖 AI:</b> {msg["ai"]}
-            <div class="chat-bubble-audio">
-                🔊 AI Voice:<br>
-                <audio controls src="data:audio/mp3;base64,{msg['audio_base64']}"></audio>
-            </div>
+            <div style="color:#0b61a4;"><b>🧑 You:</b></div>
+            <div style="margin:6px 0 10px 0;">{user_html}</div>
+            <div style="color:#333;"><b>🤖 AI:</b></div>
+            <div style="margin:6px 0 8px 0;">{ai_html}</div>
+            {audio_html}
         </div>
-        """
+        '''
+
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown(
-        "<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>",
-        unsafe_allow_html=True
-    )
 
-# ---------------------------- Chat Input (fixed bottom like WhatsApp/ChatGPT) ----------------------------
+    # Auto-scroll & focus helper (scroll chat and focus the last input)
+    scroll_js = """
+    <script>
+    (function(){
+        const chat = document.querySelector('.chat-container');
+        if(chat) { chat.scrollTop = chat.scrollHeight; }
+        const bottom = document.getElementById('chat-bottom');
+        if(bottom) { bottom.scrollIntoView({behavior:'auto', block:'end'}); }
+        // focus last text input (the pinned chat input)
+        setTimeout(()=> {
+            const inputs = document.querySelectorAll('input[type="text"], textarea');
+            if(inputs.length) {
+                const last = inputs[inputs.length - 1];
+                try { last.focus(); } catch(e) {}
+            }
+        }, 120);
+    })();
+    </script>
+    """
+    st.markdown(scroll_js, unsafe_allow_html=True)
+
+# ---------------------------- Chat Input ----------------------------
+# We render the chat history first, then the Streamlit text_input (which our CSS pins to the bottom).
 with st.container():
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
+        # after clearing, re-render
+        render_chat_history()
 
     render_chat_history()
 
-    st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-    user_input = st.text_input(
-        "Type your message...",
-        key="chat_input",
-        label_visibility="collapsed",
-        placeholder="Ask me anything..."
-    )
-    send = st.button("Send", use_container_width=False)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Chat input - kept as the *last* text input on the page so CSS :last-of-type pins it
+    user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed", placeholder="Ask me anything...")
+    send = st.button("Send", key="send_button")
 
-    if send and user_input.strip():
+    if send and user_input and user_input.strip():
+        # call the model and audio
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
-        # store as one entry containing both user + AI
+
+        # append as a single turn
         st.session_state.chat_history.append({
             "user": user_input,
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
+
+        # clear input widget by resetting the session_state key
+        st.session_state["chat_input"] = ""
+
+        # re-render to show the new message and scroll
         render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
@@ -313,7 +448,9 @@ if DOCX_AVAILABLE and st.session_state.chat_history:
         doc = Document()
         doc.add_heading("AI Sales Call Assistant Chat History", 0)
         for msg in st.session_state.chat_history:
-            doc.add_paragraph(f'{msg["role"].capitalize()}: {msg["content"]}')
+            doc.add_paragraph(f'User: {msg.get("user", "")}')
+            doc.add_paragraph(f'AI: {msg.get("ai", "")}')
+            doc.add_paragraph('')  # spacing
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         doc.save(tmp.name)
         with open(tmp.name,"rb") as f:
