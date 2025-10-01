@@ -23,10 +23,8 @@ try:
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
 
-# Always import gTTS for fallback
 from gtts import gTTS
 
-# ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
@@ -57,20 +55,13 @@ def generate_audio(text):
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "uploaded_pdf_text" not in st.session_state:
-    st.session_state.uploaded_pdf_text = ""
-if "pdf_summary" not in st.session_state:
-    st.session_state.pdf_summary = ""
-if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Old Male"
-if "language" not in st.session_state:
-    st.session_state.language = "English"
-if "pdf_search_keyword" not in st.session_state:
-    st.session_state.pdf_search_keyword = ""
-if "pdf_summary_size" not in st.session_state:
-    st.session_state.pdf_summary_size = "Normal"
+for key, default in {
+    "chat_history": [], "uploaded_pdf_text": "", "pdf_summary": "", 
+    "voice_pref": "Old Male", "language": "English", 
+    "pdf_search_keyword": "", "pdf_summary_size": "Normal"
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -79,7 +70,6 @@ GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicala
 # ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
-/* Background */
 [data-testid="stAppViewContainer"] {{
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
@@ -87,8 +77,6 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 150%;
 }}
-
-/* Title and PDF summary boxes */
 .title-box {{
   background: rgba(245,245,245,0.7);
   padding: 20px;
@@ -103,8 +91,6 @@ CSS = f"""
   margin-bottom: 12px;
   white-space: pre-line;
 }}
-
-/* Chat area - reduced width */
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
@@ -115,8 +101,6 @@ CSS = f"""
   margin-bottom: 0;
   max-width: 650px;
 }}
-
-/* Bubbles */
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
@@ -128,8 +112,6 @@ CSS = f"""
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
-
-/* Chat input + send button inside same box */
 .chat-input-container {{
     position: fixed;
     bottom: 20px;
@@ -158,18 +140,13 @@ CSS = f"""
     cursor: pointer;
     border-radius: 0 8px 8px 0;
 }}
-
-/* small responsiveness */
 @media (max-width: 800px) {{
   .chat-container, .chat-input-container {{
       width: calc(100% - 40px);
       left: 10px;
   }}
 }}
-
-footer, header {{
-  z-index: 0;
-}}
+footer, header {{ z-index: 0; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -214,10 +191,7 @@ with st.expander("📄 PDF Summary", expanded=False):
 
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
         try:
-            summary_prompt = f"""
-            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
-            {full_text[:12000]}
-            """
+            summary_prompt = f"Summarize into {bullets_count} bullets:\n{full_text[:12000]}"
             ai_summary = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
@@ -249,10 +223,7 @@ Objective: {objective}
 Doctor Barrier: {barrier}
 Persona: {persona}
 Specialty: {specialty}
-
-PDF Summary:
-{st.session_state.pdf_summary}
-
+PDF Summary: {st.session_state.pdf_summary}
 Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
@@ -266,17 +237,9 @@ APACT Steps: {', '.join(APACT_STEPS)}
 
 # ---------------------------- Chat Rendering ----------------------------
 def _format_content_to_html(text):
-    if not text:
-        return ""
+    if not text: return ""
     esc = escape(text).replace('\r\n','\n').replace('\r','\n')
-    lines = esc.split('\n')
-    out = ""
-    for ln in lines:
-        ln = ln.strip()
-        if ln.startswith('- ') or ln.startswith('• '):
-            out += f'&bull;&nbsp;{ln[2:]}<br>'
-        else:
-            out += f'{ln}<br>' if ln else '<br>'
+    out = "".join(f"&bull;&nbsp;{ln[2:]}<br>" if ln.strip().startswith(('-','•')) else (ln+'<br>' if ln else '<br>') for ln in esc.split('\n'))
     return out
 
 def render_chat_history():
@@ -296,12 +259,7 @@ def render_chat_history():
         '''
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <script>
-    const chat = document.querySelector('.chat-container');
-    if(chat) chat.scrollTop = chat.scrollHeight;
-    </script>
-    """, unsafe_allow_html=True)
+    st.markdown("<script>const chat=document.querySelector('.chat-container'); if(chat) chat.scrollTop = chat.scrollHeight;</script>", unsafe_allow_html=True)
 
 # ---------------------------- Chat Input & Send ----------------------------
 render_chat_history()
@@ -311,31 +269,22 @@ with st.container():
         st.session_state.chat_history = []
         render_chat_history()
 
+    if "chat_input" not in st.session_state:
+        st.session_state.chat_input = ""
+
     col1, col2 = st.columns([5,1])
     with col1:
-        if "chat_input" not in st.session_state:
-            st.session_state.chat_input = ""
-        user_input = st.text_input(
-            "", 
-            value=st.session_state.chat_input,
-            key="chat_input",
-            placeholder="Type your message..."
-        )
+        user_input = st.text_input("", value=st.session_state.chat_input, key="chat_input", placeholder="Type your message...")
     with col2:
         send = st.button("Send", key="send_button")
 
     if send and user_input.strip():
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
-        st.session_state.chat_history.append({
-            "user": user_input,
-            "ai": ai_resp,
-            "audio_base64": audio_base64
-        })
-        # Safely clear input
+        st.session_state.chat_history.append({"user": user_input, "ai": ai_resp, "audio_base64": audio_base64})
         st.session_state["chat_input"] = ""
         render_chat_history()
-        
+
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
     if st.button("📥 Export Chat (.docx)"):
@@ -348,5 +297,4 @@ if DOCX_AVAILABLE and st.session_state.chat_history:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         doc.save(tmp.name)
         with open(tmp.name,"rb") as f:
-            data = f.read()
-        st.download_button("⬇️ Download Chat History (.docx)", data=data, file_name="chat_history.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+           
