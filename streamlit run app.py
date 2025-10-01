@@ -201,8 +201,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
 
 # ---------------------------- Title Box ----------------------------
-st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 
-AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
+st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
