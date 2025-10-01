@@ -224,8 +224,6 @@ APACT Steps: {', '.join(APACT_STEPS)}
     messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
               {"role":"user","content":context}],
     temperature=0.65
-)
-
     )
     return response.choices[0].message.content
 
