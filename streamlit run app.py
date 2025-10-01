@@ -26,25 +26,25 @@ except ModuleNotFoundError:
 from gtts import gTTS
 
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "") 
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
     ELEVENLABS_AVAILABLE = False
 
 def generate_audio(text):
+    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+        text = text.replace(step, f"{step} ...")
     text = re.sub(r'[.,*]', '', text)
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     if ELEVENLABS_AVAILABLE:
         audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
-        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         with open(tmp_file.name, "wb") as f:
             for chunk in audio_stream:
                 f.write(chunk)
     else:
         tts = gTTS(text=text, lang="en", slow=True)
-        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
-
     with open(tmp_file.name, "rb") as f:
         audio_bytes = f.read()
         audio_base64 = base64.b64encode(audio_bytes).decode()
@@ -77,7 +77,6 @@ AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b
 # ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
-/* Background */
 [data-testid="stAppViewContainer"] {{
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
@@ -85,52 +84,46 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 150%;
 }}
-
-/* Title Box */
 .title-box {{
-    background: rgba(245,245,245,0.7);
-    padding: 20px;
-    border-radius: 16px;
-    margin: 12px auto;
-    max-width: 800px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+  background: rgba(245,245,245,0.85);
+  padding: 15px;
+  border-radius: 16px;
+  text-align: left;
+  margin: 12px auto;
+  width: 75%;
+  position: relative;
 }}
-.title-box .left {{
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.title-box img.ai-logo {{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 100px;
+  height: auto;
 }}
-.title-box img.gsk-logo {{ width: 140px; height: auto; }}
-.title-box img.ai-logo {{ width: 100px; height: auto; }}
-.title-box .title-text {{ flex-grow: 1; }}
-.title-box h1, .title-box p {{ margin: 0; }}
-
-/* Chat area */
+.pdf-summary-box {{
+  background: #E6F0FF; 
+  padding: 12px; 
+  border-radius: 14px; 
+  margin-bottom: 12px;
+  white-space: pre-line;
+}}
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 80px;
+  padding-bottom: 20px;
   border-radius: 10px;
   background: rgba(255,255,255,0.85);
-  margin-bottom: 0;
 }}
-
-/* Bubbles */
-.chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
-  display:block;
-  padding:14px;
-  border-radius:16px;
-  margin:12px 0;
-  max-width: 86%;
-  word-wrap: break-word;
+.chat-bubble-user {{
+  background: #0078D7; color:white; margin-left:auto; margin-bottom:16px; padding:12px; border-radius:12px; max-width:80%;
 }}
-.chat-bubble-user {{ background: #005A9E; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #CCE5FF; color:#000; margin-right:auto; }}
-.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:12px; margin-top:12px; }}
+.chat-bubble-ai {{
+  background: #D9F0FF; color:#000; margin-right:auto; margin-bottom:16px; padding:12px; border-radius:12px; max-width:80%;
+}}
+.chat-bubble-audio {{
+  background: #f0f0f0; margin-right:auto; font-size:0.9em; padding:10px; margin-bottom:16px; border-radius:10px;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -139,11 +132,13 @@ st.markdown(CSS, unsafe_allow_html=True)
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Sidebar Filters ----------------------------
+# ---------------------------- Filters / Sidebar ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
 
@@ -159,61 +154,17 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="select_language")
 
 # ---------------------------- Title Box ----------------------------
-st.markdown(f"""
+st.markdown(f'''
 <div class="title-box">
-    <div class="left">
-        <img src="{GSK_LOGO_URL}" class="gsk-logo">
-        <div class="title-text">
-            <h1>💡 AI Sales Call Assistant</h1>
-            <p>Powered by AI to equip reps for smarter HCP conversations</p>
-        </div>
-    </div>
-    <img src="{AI_LOGO_URL}" class="ai-logo">
+    <img src="{GSK_LOGO_URL}" width="140">
+    <h1>💡 AI Sales Call Assistant</h1>
+    <p>Powered by AI to equip reps for smarter HCP conversations</p>
+    <img class="ai-logo" src="{AI_LOGO_URL}">
 </div>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload & Summary ----------------------------
-with st.expander("📄 PDF Summary", expanded=False):
-    uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
-    
-    if uploaded_pdf:
-        reader = PdfReader(uploaded_pdf)
-        full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text
-
-        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-
-        try:
-            summary_prompt = f"""
-            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
-            Document Text:
-            {full_text[:12000]}
-            """
-
-            ai_summary = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
-                    {"role":"user","content":summary_prompt}
-                ],
-                temperature=0.4
-            )
-            st.session_state.pdf_summary = ai_summary.choices[0].message.content
-
-        except Exception:
-            bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
-            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
-
-        st.text_area("📌 PDF Summary", value=st.session_state.pdf_summary, height=250)
-
-# ---------------------------- Chat Area ----------------------------
-st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
-
-# Chat input
-user_input = st.text_input("Type your question:", key="chat_input")
-
-# Send button
+# ---------------------------- Chat Input and Rendering ----------------------------
+user_input = st.text_input("Type your message:", key="chat_input")
 send = st.button("Send")
 
 if send and user_input.strip():
@@ -227,44 +178,28 @@ if send and user_input.strip():
             temperature=0.65
         )
         ai_resp = response.choices[0].message.content
+        audio_base64 = generate_audio(ai_resp)
 
-        # Append to chat history
         st.session_state.chat_history.append(("user", user_input))
         st.session_state.chat_history.append(("ai", ai_resp))
-
-        # Generate audio
-        audio_base64 = generate_audio(ai_resp)
         st.session_state.chat_history.append(("audio", audio_base64))
 
     except Exception as e:
         st.error(f"Error generating AI response: {e}")
 
-# Render chat history
+st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
 for item in st.session_state.chat_history:
     role, msg = item
     if role == "user":
-        cls = "chat-bubble-user"
-        st.markdown(f'<div class="{cls}">{escape(msg)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-user">{escape(msg)}</div>', unsafe_allow_html=True)
     elif role == "ai":
-        cls = "chat-bubble-ai"
-        st.markdown(f'<div class="{cls}">{escape(msg)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">{escape(msg)}</div>', unsafe_allow_html=True)
     elif role == "audio":
-        st.markdown(f"""
+        st.markdown(f'''
         <div class="chat-bubble-audio">
             🔊 <audio controls>
             <source src="data:audio/mp3;base64,{msg}" type="audio/mp3">
             </audio>
         </div>
-        """, unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-
-    except Exception as e:
-        st.error(f"Error generating AI response: {e}")
-
-for role, msg in st.session_state.chat_history:
-    cls = "chat-bubble-user" if role=="user" else "chat-bubble-ai"
-    st.markdown(f'<div class="{cls}">{escape(msg)}</div>', unsafe_allow_html=True)
-
+        ''', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
