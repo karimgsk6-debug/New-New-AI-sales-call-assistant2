@@ -231,15 +231,24 @@ Instructions:
     )
     ai_text = response.choices[0].message.content
 
-    # gTTS male voice always shown
-    if "Male" in st.session_state.voice_pref:
-        tts_text = ai_text.replace(". ",". \n").replace("- ","\n- ")
-        tts_text_clean = tts_text.translate(str.maketrans("", "", string.punctuation))
-        tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk")
+    # ---------- gTTS voice with pauses after APACT steps ----------
+    tts_text = ai_text
+    # Insert pauses after APACT steps
+    for step in APACT_STEPS:
+        tts_text = tts_text.replace(step, f"{step}... ")
+
+    # Clean for gTTS
+    tts_text_clean = tts_text.replace(". ", ".\n")
+
+    try:
+        tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk", slow=False)
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_mp3.name)
         st.session_state.last_ai_audio = tmp_mp3.name
+        # 🎧 Always show player
         st.audio(st.session_state.last_ai_audio, format="audio/mp3")
+    except Exception as e:
+        st.warning(f"Voice generation error: {e}")
 
     return ai_text
 
