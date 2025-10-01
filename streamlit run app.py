@@ -184,10 +184,11 @@ with st.expander("📄 PDF Summary", expanded=False):
 
         try:
             ai_summary = client.chat.completions.create(
-                model="mistral-7b-chat",
-                messages=[{"role":"system","content":"You are a helpful medical summarizer."},
-                          {"role":"user","content":summary_prompt}],
-                temperature=0.4
+    model="llama-3.3-70b",
+    messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+              {"role":"user","content":summary_prompt}],
+    temperature=0.4
+)
             )
             st.session_state.pdf_summary = ai_summary.choices[0].message.content
         except Exception:
@@ -220,10 +221,12 @@ Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
-        model="mistral-7b-chat",
-        messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
-                  {"role":"user","content":context}],
-        temperature=0.65
+    model="llama-3.3-70b",
+    messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
+              {"role":"user","content":context}],
+    temperature=0.65
+)
+
     )
     return response.choices[0].message.content
 
