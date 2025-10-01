@@ -103,7 +103,7 @@ CSS = f"""
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 140px;
+  padding-bottom: 20px;
   border-radius: 10px;
   background: rgba(255,255,255,0.85);
   margin-bottom: 0;
@@ -119,30 +119,18 @@ CSS = f"""
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
-.fixed-chat-input {{
-    position: fixed !important;
-    bottom: 20px;
-    left: 20px;
-    right: 20px;
-    z-index: 10002;
-    display:flex;
-    gap:8px;
-    align-items:center;
-    background: rgba(255,255,255,0.95);
-    border-radius: 10px;
-    padding: 6px 10px;
-}}
-.fixed-chat-input textarea {{
-    flex:1;
-    resize: vertical;
-    min-height:36px;
+textarea {{
+    width:100%;
+    min-height:40px;
     max-height:120px;
+    resize: vertical;
     border-radius:6px;
     padding:6px;
     border:1px solid #ccc;
+    margin-bottom:6px;
 }}
-.fixed-chat-input button {{
-    width: 100px;
+button.send-btn {{
+    width:100px;
     height:36px;
     border-radius:6px;
     background:#0078D7;
@@ -301,23 +289,8 @@ def render_chat_history():
 
 render_chat_history()
 
-# ---------------------------- Chat Input & Send Button ----------------------------
-st.markdown("""
-<div class="fixed-chat-input">
-    <textarea id="chat_input" placeholder="Type your message..."></textarea>
-    <button id="send_button">Send</button>
-</div>
-<script>
-const sendBtn = document.getElementById('send_button');
-const inputBox = document.getElementById('chat_input');
-sendBtn.onclick = () => {{
-    const e = new Event('input', {{ bubbles: true }});
-    inputBox.value && inputBox.dispatchEvent(e);
-}};
-</script>
-""", unsafe_allow_html=True)
-
-user_input = st.text_area("Type your message...", key="chat_input", placeholder="Ask me anything...", height=36)
+# ---------------------------- Chat Input ----------------------------
+user_input = st.text_area("Type your message...", key="chat_input", placeholder="Ask me anything...", height=40)
 send = st.button("Send", key="send_button")
 
 if send and user_input.strip():
