@@ -71,7 +71,7 @@ if "pdf_summary_size" not in st.session_state:
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
-GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
+GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
 
 # ---------------------------- CSS ----------------------------
@@ -156,7 +156,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'''
 <div class="title-box">
-    <img src="{GSK_LOGO_URL}" width="140">
+    <img src="{GSK_LOGO_URL}" width="160">
     <h1>💡 AI Sales Call Assistant</h1>
     <p>Powered by AI to equip reps for smarter HCP conversations</p>
     <img class="ai-logo" src="{AI_LOGO_URL}">
