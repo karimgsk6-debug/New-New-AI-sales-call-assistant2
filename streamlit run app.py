@@ -96,7 +96,7 @@ CSS = f"""
   border-radius: 16px;
   text-align: left;
   margin: 12px auto;
-  max-width: 800px;
+  max-width: 1000px;
   position: relative;
 }}
 .pdf-summary-box {{
@@ -124,7 +124,7 @@ CSS = f"""
   padding:12px;
   border-radius:12px;
   margin:8px 0;
-  max-width: 86%;
+  max-width: 90%;
   word-wrap: break-word;
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
@@ -136,7 +136,7 @@ CSS = f"""
     position: absolute;
     top: 10px;
     right: 10px;
-    width: 100px;
+    width: 150px;
     height: auto;
 }}
 .title-box img.gsk-logo {{
@@ -144,7 +144,7 @@ CSS = f"""
     width: 140px;
 }}
 .title-box h1, .title-box p {{
-    margin-left: 160px;
+    margin-right: 160px;
 }}
 </style>
 """
