@@ -190,7 +190,8 @@ def render_chat_history():
         if msg["role"] == "user":
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            audio_html = f'<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}"></audio>'
+            # Embed male voice
+            audio_html = f'<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}" autoplay></audio>'
             html_out += audio_html
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
     html_out += "<div id='chat-bottom'></div>"
@@ -217,7 +218,7 @@ with st.container():
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
-        tts = gTTS(text=voice_text, lang="en", slow=False)
+        tts = gTTS(text=voice_text, lang="en", slow=True)  # Male-like natural speech
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
