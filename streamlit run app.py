@@ -3,25 +3,19 @@ import streamlit as st
 from PIL import Image, ImageStat
 from io import BytesIO
 import requests
-import base64
-import os
-import re
 import tempfile
-from datetime import datetime
-from gtts import gTTS
 import string
+import re
 
-# GROQ API
+from gtts import gTTS
 from groq import Groq
 
-# Optional docx export
 try:
     from docx import Document
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
 
-# ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
@@ -89,7 +83,7 @@ CSS = f"""
   border-radius:10px;
   background: rgba(255,255,255,0.76);
   display:flex;
-  flex-direction:column-reverse; /* Always show latest messages at bottom */
+  flex-direction:column-reverse;
 }}
 .chat-bubble-user, .chat-bubble-ai {{
   display:inline-block;
@@ -146,10 +140,11 @@ gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
-APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+
+sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands)
@@ -174,14 +169,11 @@ with st.expander("📄 Upload PDF & Summary", expanded=False):
         reader = PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
-        # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-        # More informative bullet points, focus on figures and key info
-        bullets = re.findall(r"([A-Z][^.]{10,200}\d{1,4}[^.]*(?:\.)?)", full_text)
+        bullets = re.findall(r"([A-Z][^.]{10,200}\d{0,4}[^.]*(?:\.)?)", full_text)
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:15]])
         st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
-        # Search box
         keyword = st.text_input("Search in PDF Summary")
         if keyword:
             highlighted = st.session_state.pdf_summary.replace(keyword, f"**{keyword}**")
@@ -210,21 +202,42 @@ render_chat_history()
 def generate_ai_response(prompt):
     if not client:
         return "⚠️ AI service not configured"
-    context = f"User: {prompt}\nBrand: {brand}\nRACE Segment: {segment}\nObjective: {objective}\nDoctor Barrier: {barrier}\nPersona: {persona}\nSpecialty: {specialty}\nPDF Summary:\n{st.session_state.pdf_summary}\n"
+    
+    # Build context with PDF summary + sales call & APACT
+    context = f"""
+User: {prompt}
+Brand: {brand}
+RACE Segment: {segment}
+Objective: {objective}
+Doctor Barrier: {barrier}
+Persona: {persona}
+Specialty: {specialty}
+PDF Summary:
+{st.session_state.pdf_summary}
+
+Instructions:
+- Structure response along sales call steps: {', '.join(sales_call_flow)}
+- For each step, inject APACT actions: {', '.join(APACT_STEPS)}
+- Make responses actionable and concise.
+"""
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role":"system","content":"You are a helpful GSK medical sales assistant."},{"role":"user","content":context}],
+        messages=[{"role":"system","content":"You are a helpful GSK medical sales assistant."},
+                  {"role":"user","content":context}],
         temperature=0.65
     )
     ai_text = response.choices[0].message.content
-    # Optional: convert to male voice gTTS if selected
+
+    # gTTS for Male Neural voice
     if "Male" in st.session_state.voice_pref:
-        # Remove punctuation for humanized reading
-        clean_text = ai_text.translate(str.maketrans("", "", string.punctuation))
-        tts = gTTS(text=clean_text, lang="en", tld="co.uk")
+        # Add natural pauses: replace periods and bullets with short pause markers
+        tts_text = ai_text.replace(". ",". \n").replace("- ","\n- ")
+        tts_text_clean = tts_text.translate(str.maketrans("", "", string.punctuation))
+        tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk")
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_mp3.name)
         st.audio(tmp_mp3.name, format="audio/mp3")
+
     return ai_text
 
 # ---------------------------- Bottom Chat Input ----------------------------
