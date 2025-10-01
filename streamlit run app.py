@@ -94,7 +94,7 @@ CSS = f"""
   margin: 12px auto;
 }}
 .pdf-summary-box {{
-  background: #11111; 
+  background: #111; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
