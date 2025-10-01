@@ -3,8 +3,6 @@ import streamlit as st
 from PIL import Image, ImageStat
 from io import BytesIO
 import requests
-import base64
-import os
 import re
 import tempfile
 from datetime import datetime
@@ -163,7 +161,6 @@ def render_chat_history():
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
-    # Auto-scroll
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
     st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
@@ -181,11 +178,8 @@ Specialty: {specialty}
 PDF Summary:
 {st.session_state.pdf_summary}
 
-Please structure the response around the Sales Call Flow:
-{', '.join(sales_call_flow)}
-
-And embed APACT steps:
-{', '.join(APACT_STEPS)}
+Sales Call Flow: {', '.join(sales_call_flow)}
+APACT Steps: {', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -205,10 +199,13 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
+        # Append user input
         st.session_state.chat_history.append({"role":"user","content":user_input})
+
+        # Generate AI response
         ai_resp = generate_ai_response(user_input)
 
-        # Generate voice (male with pauses at APACT)
+        # Generate gTTS voice (male with APACT pauses)
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
@@ -216,8 +213,9 @@ with st.container():
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
 
-        # Play voice before showing text
+        # Play voice above AI text
         st.audio(tmp_file.name)
 
+        # Append AI response
         st.session_state.chat_history.append({"role":"ai","content":ai_resp})
-        st.rerun()   # ✅ FIX: replace experimental_rerun()
+        st.rerun()
