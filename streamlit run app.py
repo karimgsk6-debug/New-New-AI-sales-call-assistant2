@@ -34,18 +34,11 @@ else:
     ELEVENLABS_AVAILABLE = False
 
 def generate_audio(text):
-    """
-    Generate base64 mp3 from ElevenLabs or gTTS.
-    Returns empty string on failure to avoid blocking UI.
-    """
     try:
         text_proc = text
-        # Add APACT pauses for nicer TTS rhythm
         for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
             text_proc = text_proc.replace(step, f"{step} ...")
-        # optional smoothing
         text_proc = re.sub(r'[,*]', '', text_proc)
-
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         if ELEVENLABS_AVAILABLE:
             audio_stream = elevenlabs.generate(text=text_proc, voice=ELEVENLABS_VOICE_ID, stream=True)
@@ -55,12 +48,10 @@ def generate_audio(text):
         else:
             tts = gTTS(text=text_proc, lang="en", slow=True)
             tts.save(tmp_file.name)
-
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
         return base64.b64encode(audio_bytes).decode()
-    except Exception as e:
-        # Fail silently and return empty audio to avoid breaking the chat flow
+    except Exception:
         return ""
 
 # ---------------------------- CONFIG ----------------------------
@@ -68,7 +59,6 @@ st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
 if "chat_history" not in st.session_state:
-    # canonical format: [{"user": str, "ai": str, "audio_base64": str}, ...]
     st.session_state.chat_history = []
 if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
@@ -82,13 +72,15 @@ if "pdf_search_keyword" not in st.session_state:
     st.session_state.pdf_search_keyword = ""
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
+if "chat_input" not in st.session_state:
+    st.session_state.chat_input = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 client = None
 if GROQ_API_KEY:
     try:
@@ -96,7 +88,7 @@ if GROQ_API_KEY:
     except Exception:
         client = None
 
-# ---------------------------- CSS (layout + fixed bottom input) ----------------------------
+# ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
 /* Page background */
@@ -107,7 +99,6 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 150%;
 }}
-
 .title-box {{
   background: rgba(245,245,245,0.9);
   padding: 16px;
@@ -115,20 +106,16 @@ CSS = f"""
   text-align: center;
   margin: 10px auto;
 }}
-
-/* Chat container */
 .chat-container {{
-  height: calc(100vh - 260px); /* responsive to viewport - gives room for header & bottom bar */
+  height: calc(100vh - 260px);
   min-height: 300px;
   overflow-y: auto;
   padding: 16px;
-  padding-bottom: 160px; /* leave room for the fixed bottom input */
+  padding-bottom: 160px;
   border-radius: 10px;
   background: rgba(255,255,255,0.88);
   border: 1px solid rgba(0,0,0,0.06);
 }}
-
-/* Bubbles */
 .chat-bubble {{
   display: block;
   padding: 12px 14px;
@@ -141,15 +128,12 @@ CSS = f"""
 .chat-bubble .role-label {{ font-weight:600; margin-bottom:4px; display:block; }}
 .chat-bubble.ai {{ background:#f0f7ff; color:#000; margin-left:0; }}
 .chat-bubble.user {{ background:#e6f3ff; color:#000; margin-left:auto; text-align:left; }}
-
 .audio-box {{
   margin-top:8px;
   padding:8px;
   background:#efefef;
   border-radius:8px;
 }}
-
-/* Fixed bottom bar */
 .bottom-bar-wrapper {{
   position: fixed;
   left: 20px;
@@ -160,10 +144,10 @@ CSS = f"""
   gap:10px;
   align-items:center;
   justify-content:space-between;
-  pointer-events: none; /* allow child elements to control pointer-events */
+  pointer-events: none;
 }}
 .bottom-bar {{
-  pointer-events: auto; /* enable interaction */
+  pointer-events: auto;
   background: rgba(255,255,255,0.98);
   border-radius: 10px;
   padding: 8px;
@@ -174,22 +158,18 @@ CSS = f"""
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
   border: 1px solid rgba(0,0,0,0.06);
 }}
-
-/* style for Streamlit text area container */
 div[data-testid="stTextArea"]:last-of-type {{
   margin: 0;
   width: 100%;
 }}
-
-/* small compact send button */
 .compact-send {{
   padding: 6px 10px !important;
-  min-width: 62px !important;
+  min-width: 40px !important;
   height: 40px !important;
-  border-radius: 8px !important;
-  font-size: 14px !important;
+  border-radius: 50% !important;
+  font-size: 18px !important;
+  cursor:pointer;
 }}
-
 .clear-btn-area {{
   margin-bottom: 8px;
   display:flex;
@@ -199,7 +179,7 @@ div[data-testid="stTextArea"]:last-of-type {{
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# ---------------------------- Filters / Sidebar ----------------------------
+# ---------------------------- Sidebar Filters ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
@@ -223,149 +203,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h2 style="margin:0">💡 AI Sales Call Assistant</h2><div style="font-size:13px;color:#333">Powered by AI to equip reps for smarter HCP conversations</div></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload & Summary ----------------------------
-with st.expander("📄 PDF Summary", expanded=False):
-    uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
-    if uploaded_pdf:
-        try:
-            reader = PdfReader(uploaded_pdf)
-            full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        except Exception:
-            full_text = ""
-        st.session_state.uploaded_pdf_text = full_text
-
-        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-
-        if full_text.strip():
-            # AI summarization prompt
-            prompt = f"""
-Summarize the following document into {bullets_count} main bullet points.
-For each main bullet provide 1-3 sub-bullets with fact-based details (percentages, study names, years, clinical-trial phases, guidelines).
-Format exactly as:
-- Main point
-   • sub point 1
-   • sub point 2
-
-Document:
-{full_text[:12000]}
-"""
-            summary_text = ""
-            if client:
-                try:
-                    resp = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
-                                  {"role":"user","content":prompt}],
-                        temperature=0.3
-                    )
-                    summary_text = resp.choices[0].message.content
-                except Exception:
-                    summary_text = ""
-            if not summary_text:
-                # fallback basic regex
-                pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
-                bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
-                if len(bullets) < bullets_count:
-                    fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
-                    for b in fallback_bullets:
-                        if b not in bullets:
-                            bullets.append(b)
-                        if len(bullets) >= bullets_count:
-                            break
-                summary_text = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
-            st.session_state.pdf_summary = summary_text
-
-    keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword, key="pdf_search")
-    st.session_state.pdf_search_keyword = keyword
-    pdf_display = st.session_state.pdf_summary or "No PDF summary yet."
-    if keyword:
-        pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
-    st.markdown('<div style="margin-top:10px" class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
-
-# ---------------------------- AI response function (defined before usage) ----------------------------
-def generate_ai_response(prompt: str) -> str:
-    """
-    Send the prompt + context to the model. If Groq client is not available or fails,
-    return a concise fallback response to keep the UI alive.
-    """
-    context = f"""
-User: {prompt}
-Brand: {brand}
-RACE Segment: {segment}
-Objective: {objective}
-Doctor Barrier: {barrier}
-Persona: {persona}
-Specialty: {specialty}
-
-PDF Summary:
-{st.session_state.pdf_summary}
-
-Sales Call Flow: {', '.join(sales_call_flow)}
-APACT Steps: {', '.join(APACT_STEPS)}
-"""
-    if client:
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
-                          {"role":"user","content":context}],
-                temperature=0.65
-            )
-            return response.choices[0].message.content
-        except Exception:
-            # Fall through to simple fallback
-            pass
-
-    # Simple fallback if model call fails
-    fallback = (
-        "Sorry — I couldn't reach the model. Here's a concise guidance based on the provided context:\n\n"
-        f"- User question: {prompt}\n"
-        "- Suggested approach: Acknowledge the concern, ask a clarifying question, present the relevant evidence from PDF summary (if present), and propose a next action.\n"
-    )
-    return fallback
-
-# ---------------------------- Normalize legacy chat history ----------------------------
-def normalize_chat_history():
-    raw = st.session_state.chat_history
-    if not raw:
-        return
-    first = raw[0]
-    if isinstance(first, dict) and ("role" in first or "content" in first) and not ("user" in first and "ai" in first):
-        # Convert list of role-based messages to canonical form
-        new = []
-        i = 0
-        while i < len(raw):
-            item = raw[i]
-            if item.get("role") == "user":
-                user_text = item.get("content", "")
-                ai_text = ""
-                audio = ""
-                j = i + 1
-                while j < len(raw):
-                    if raw[j].get("role") == "ai":
-                        ai_text = raw[j].get("content", "")
-                        audio = raw[j].get("audio_base64", "")
-                        break
-                    j += 1
-                new.append({"user": user_text, "ai": ai_text, "audio_base64": audio})
-                if j > i:
-                    i = j + 1
-                else:
-                    i += 1
-            elif item.get("role") == "ai":
-                new.append({"user": "", "ai": item.get("content", ""), "audio_base64": item.get("audio_base64","")})
-                i += 1
-            else:
-                # salvage any unknown content
-                if "content" in item:
-                    new.append({"user":"", "ai": item.get("content",""), "audio_base64": item.get("audio_base64","")})
-                i += 1
-        st.session_state.chat_history = new
-
-normalize_chat_history()
-
-# ---------------------------- content to safe HTML formatter ----------------------------
+# ---------------------------- Functions for Chat ----------------------------
 def _format_content_to_html(text):
     if not text:
         return ""
@@ -386,7 +224,15 @@ def _format_content_to_html(text):
                 out += f'{ln}<br>'
     return out
 
-# ---------------------------- Chat rendering ----------------------------
+def normalize_chat_history():
+    raw = st.session_state.chat_history
+    if not raw: return
+    new = []
+    for msg in raw:
+        if "user" in msg and "ai" in msg:
+            new.append(msg)
+    st.session_state.chat_history = new
+
 def render_chat_history():
     normalize_chat_history()
     html = ""
@@ -405,88 +251,44 @@ def render_chat_history():
             {audio_html}
         </div>
         '''
-    # bottom spacer anchor to scroll to
     html += '<div id="chat-bottom"></div>'
     st.markdown(f'<div class="chat-container" id="chat-container">{html}</div>', unsafe_allow_html=True)
-
-    # auto-scroll and focus input
-    scroll_js = """
+    st.markdown("""
     <script>
     (function(){
         const container = document.getElementById('chat-container');
         if(container) { container.scrollTop = container.scrollHeight; }
         setTimeout(()=> {
             const inputs = document.querySelectorAll('textarea, input[type="text"]');
-            if(inputs.length) {
-                const last = inputs[inputs.length - 1];
-                try { last.focus(); } catch(e) {}
-            }
+            if(inputs.length) { inputs[inputs.length - 1].focus(); }
         }, 100);
     })();
     </script>
-    """
-    st.markdown(scroll_js, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# ---------------------------- PAGE: Clear button (not fixed) + Chat ----------------------------
-# Clear button is placed above chat so it doesn't overlay content
+# ---------------------------- Clear chat button ----------------------------
 st.markdown('<div class="clear-btn-area">', unsafe_allow_html=True)
 if st.button("🗑️ Clear Conversation", key="clear_convo"):
     st.session_state.chat_history = []
-    # Clear chat input and re-run so UI updates instantly
     st.session_state["chat_input"] = ""
     st.experimental_rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Render chat messages
+# ---------------------------- Render chat ----------------------------
 render_chat_history()
 
-# ---------------------------- BOTTOM FIXED INPUT (text area + small send button) ----------------------------
-# The text_area and button are placed last in the script so CSS selects them for the fixed bottom bar.
-# Using a moderate-height text_area to support multi-line messages.
-user_input = st.text_area("", value=st.session_state.get("chat_input",""), key="chat_input", placeholder="Type your message (Shift+Enter for newline). Then press Send.", height=80)
-
-# Add a small inline send button (compact)
-# We create the button in a narrow column to make it visually compact.
-col1, col2 = st.columns([0.02, 0.98])  # trick: small empty column to influence rendering order/DOM
+# ---------------------------- Bottom fixed input ----------------------------
+st.markdown('<div class="bottom-bar-wrapper"><div class="bottom-bar">', unsafe_allow_html=True)
+col1, col2 = st.columns([0.92,0.08])
 with col1:
-    # create a small send button — CSS gives compact look
-    send_clicked = st.button("Send", key="send_button", help="Send message", on_click=None)
+    user_input = st.text_area("", value=st.session_state.get("chat_input",""), key="chat_input", placeholder="Type your message (Shift+Enter for newline)", height=60)
 with col2:
-    # this column keeps DOM order with the text_area as last-of-type, but the button above is rendered before — CSS still pins last textarea and button selectors work
-    pass
+    send_clicked = st.button("✈️", key="send_icon", help="Send message", args=(), kwargs={}, use_container_width=True, )
+st.markdown('</div></div>', unsafe_allow_html=True)
 
-# When send is clicked
-if send_clicked and user_input and user_input.strip():
-    # call model
+if send_clicked and user_input.strip():
     ai_resp = generate_ai_response(user_input)
-    # audio generation (non-fatal)
-    audio_b64 = ""
-    try:
-        audio_b64 = generate_audio(ai_resp)
-    except Exception:
-        audio_b64 = ""
-    # append canonical chat turn (single bubble)
-    st.session_state.chat_history.append({
-        "user": user_input,
-        "ai": ai_resp,
-        "audio_base64": audio_b64
-    })
-    # clear input for next turn
-    st.session_state["chat_input"] = ""
-    # re-run so pinned input clears and chat scrolls
+    audio_b64 = generate_audio(ai_resp)
+    st.session_state.chat_history.append({"user": user_input, "ai": ai_resp, "audio_base64": audio_b64})
+    st.session_state.chat_input = ""
     st.experimental_rerun()
-
-# ---------------------------- Export Chat (.docx) ----------------------------
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    if st.button("📥 Export Chat (.docx)"):
-        doc = Document()
-        doc.add_heading("AI Sales Call Assistant Chat History", 0)
-        for msg in st.session_state.chat_history:
-            doc.add_paragraph(f'User: {msg.get("user","")}')
-            doc.add_paragraph(f'AI: {msg.get("ai","")}')
-            doc.add_paragraph('')
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-        doc.save(tmp.name)
-        with open(tmp.name,"rb") as f:
-            data = f.read()
-        st.download_button("⬇️ Download Chat History (.docx)", data=data, file_name="chat_history.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
