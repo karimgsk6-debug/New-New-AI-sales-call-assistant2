@@ -173,7 +173,7 @@ with st.expander("📄 PDF Summary", expanded=False):
             """
 
             ai_summary = client.chat.completions.create(
-                model="llama-3.3-70b",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
                           {"role":"user","content":summary_prompt}],
                 temperature=0.4
@@ -209,7 +209,7 @@ Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
-        model="llama-3.3-70b",
+        model="llama-3.3-70b-versatile",
         messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
                   {"role":"user","content":context}],
         temperature=0.65
