@@ -313,17 +313,29 @@ with st.container():
 
     col1, col2 = st.columns([5,1])
     with col1:
-        user_input = st.text_input("", value="", key="chat_input", placeholder="Type your message...")
+        if "chat_input" not in st.session_state:
+            st.session_state.chat_input = ""
+        user_input = st.text_input(
+            "", 
+            value=st.session_state.chat_input,
+            key="chat_input",
+            placeholder="Type your message..."
+        )
     with col2:
         send = st.button("Send", key="send_button")
 
     if send and user_input.strip():
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
-        st.session_state.chat_history.append({"user":user_input,"ai":ai_resp,"audio_base64":audio_base64})
-        st.session_state.chat_input = ""
+        st.session_state.chat_history.append({
+            "user": user_input,
+            "ai": ai_resp,
+            "audio_base64": audio_base64
+        })
+        # Safely clear input
+        st.session_state["chat_input"] = ""
         render_chat_history()
-
+        
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
     if st.button("📥 Export Chat (.docx)"):
