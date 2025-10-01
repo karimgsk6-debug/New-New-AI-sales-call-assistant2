@@ -382,21 +382,29 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 render_chat_history()
 
-# ---------------------------- Bottom Bar Input ----------------------------
-user_input = st.text_area("", value="", key="chat_input", placeholder="Type message (Shift+Enter for newline)", height=80)
-col1, col2 = st.columns([0.08,0.92])
-with col1:
-    send_clicked = st.button("📤", key="send_button", help="Send message", use_container_width=False)
-with col2: pass
+# Bottom input + send button
+user_input = st.text_area("", value=st.session_state.get("chat_input", ""), key="chat_input",
+                          placeholder="Type your message (Shift+Enter for newline)", height=80)
+
+send_clicked = st.button("📤", key="send_button", help="Send message")
 
 if send_clicked and user_input.strip():
     ai_resp = generate_ai_response(user_input)
     audio_b64 = generate_audio(ai_resp)
-    st.session_state.chat_history.append({
+    
+    # Append to chat history safely
+    chat_history = st.session_state.get("chat_history", [])
+    chat_history.append({
         "user": user_input,
         "ai": ai_resp,
         "audio_base64": audio_b64
     })
+    st.session_state["chat_history"] = chat_history
+
+    # Clear input safely
+    st.session_state["chat_input"] = ""
+
+    # Re-run after state is updated
     st.experimental_rerun()
 
 # ---------------------------- Export Chat ----------------------------
