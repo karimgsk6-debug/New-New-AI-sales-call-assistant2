@@ -1,13 +1,13 @@
 # app.py
 import streamlit as st
 from PIL import Image
-from io import BytesIO
 import re
 import tempfile
 import base64
 from groq import Groq
 from PyPDF2 import PdfReader
 from html import escape
+from gtts import gTTS
 
 # Optional docx export
 try:
@@ -16,14 +16,12 @@ try:
 except:
     DOCX_AVAILABLE = False
 
-# ---------------------------- TTS Setup (ElevenLabs fallback to gTTS) ----------------------------
+# ---------------------------- TTS Setup ----------------------------
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
-
-from gtts import gTTS
 
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "") 
@@ -60,14 +58,6 @@ if "uploaded_pdf_text" not in st.session_state:
     st.session_state.uploaded_pdf_text = ""
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
-if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Old Male"
-if "language" not in st.session_state:
-    st.session_state.language = "English"
-if "pdf_search_keyword" not in st.session_state:
-    st.session_state.pdf_search_keyword = ""
-if "pdf_summary_size" not in st.session_state:
-    st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-10-01T21%3A36%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=e48070e4-6fe8-551d-b151-1591946f0e60&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A07%3A59Z&ske=2025-10-02T19%3A07%3A59Z&sks=b&skv=2024-08-04&sig=3/PGGYaseBkvjJWbMBbuzsZeNyvlAXRSqcswf%2Bm1IZI%3D"
@@ -85,12 +75,12 @@ CSS = f"""
   background-size: auto 150%;
 }}
 .title-box {{
-  background: rgba(245,245,245,0.7);
+  background: rgba(245,245,245,0.85);
   padding: 15px;
   border-radius: 16px;
   text-align: left;
   margin: 12px auto;
-  width: 85%;
+  width: 70%;
   position: relative;
 }}
 .title-box img.ai-logo {{
@@ -100,29 +90,29 @@ CSS = f"""
   width: 100px;
   height: auto;
 }}
+.chat-container {{
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.85);
+  margin-bottom: 10px;
+}}
+.chat-bubble-user {{
+  background: #0078D7; color:white; margin-left:auto; margin-bottom:20px; padding:12px; border-radius:12px; max-width:80%;
+}}
+.chat-bubble-ai {{
+  background: #D9F0FF; color:#000; margin-right:auto; margin-bottom:20px; padding:12px; border-radius:12px; max-width:80%;
+}}
+.chat-bubble-audio {{
+  background: #f0f0f0; margin-right:auto; font-size:0.9em; padding:10px; margin-bottom:20px; border-radius:10px;
+}}
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
   white-space: pre-line;
-}}
-.chat-container {{
-  max-height: 65vh;
-  overflow-y: auto;
-  padding: 12px;
-  padding-bottom: 20px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.85);
-}}
-.chat-bubble-user {{
-  background: #0078D7; color:white; margin-left:auto; margin-bottom:16px; padding:12px; border-radius:12px; max-width:80%;
-}}
-.chat-bubble-ai {{
-  background: #D9F0FF; color:#000; margin-right:auto; margin-bottom:16px; padding:12px; border-radius:12px; max-width:80%;
-}}
-.chat-bubble-audio {{
-  background: #f0f0f0; margin-right:auto; font-size:0.9em; padding:10px; margin-bottom:16px; border-radius:10px;
 }}
 </style>
 """
@@ -132,109 +122,105 @@ st.markdown(CSS, unsafe_allow_html=True)
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Filters / Sidebar ----------------------------
+# ---------------------------- Sidebar Filters ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
-sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
-APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands, key="select_brand")
-    specialty = st.selectbox("Select Doctor Specialty", specialties, key="select_specialty")
+    specialty = st.selectbox("Select Specialty", specialties, key="select_specialty")
     segment = st.selectbox("Select RACE Segment", race_segments, key="select_segment")
     persona = st.selectbox("Select HCP Persona", personas, key="select_persona")
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers, key="select_barrier")
     objective = st.selectbox("Select Objective", objectives, key="select_objective")
-    response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_response_length")
-    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_response_tone")
-    st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="radio_language")
+    response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_length")
+    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_tone")
+    language = st.radio("Language", ["English","Arabic"], horizontal=True, key="select_lang")
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'''
 <div class="title-box">
-    <img src="{GSK_LOGO_URL}" width="120">
+    <img src="{GSK_LOGO_URL}" width="140">
     <h1>💡 AI Sales Call Assistant</h1>
     <p>Powered by AI to equip reps for smarter HCP conversations</p>
     <img class="ai-logo" src="{AI_LOGO_URL}">
 </div>
 ''', unsafe_allow_html=True)
-# ---------------------------- PDF Upload & Summary ----------------------------
-with st.expander("📄 PDF Summary", expanded=False):
-    uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
-    
-    if uploaded_pdf:
-        reader = PdfReader(uploaded_pdf)
-        full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text
 
-        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
+# ---------------------------- Sales Flow / APACT ----------------------------
+sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
+APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 
-        try:
-            summary_prompt = f"""
-            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
-            Document Text:
-            {full_text[:12000]}
-            """
+# ---------------------------- PDF Upload ----------------------------
+uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
+if uploaded_pdf:
+    reader = PdfReader(uploaded_pdf)
+    full_text = "".join([p.extract_text() or "" for p in reader.pages])
+    st.session_state.uploaded_pdf_text = full_text
+    st.session_state.pdf_summary = "\n".join(full_text.split("\n")[:10])
 
-            ai_summary = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
-                    {"role":"user","content":summary_prompt}
-                ],
-                temperature=0.4
-            )
-            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+# Collapsible PDF Summary
+with st.expander("📄 PDF Summary (click to expand/collapse)", expanded=False):
+    if st.session_state.pdf_summary:
+        st.markdown(f'<div class="pdf-summary-box">{st.session_state.pdf_summary}</div>', unsafe_allow_html=True)
+    else:
+        st.write("No PDF uploaded.")
 
-        except Exception:
-            bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
-            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
-
-        st.text_area("📌 PDF Summary", value=st.session_state.pdf_summary, height=250)
-
-
-# ---------------------------- Chat Input and Rendering ----------------------------
-user_input = st.text_input("Type your message:", key="chat_input")
+# ---------------------------- Chat Input & Handling ----------------------------
+user_input = st.text_input("Type your message below:", key="chat_input")
 send = st.button("Send")
 
+def highlight_keywords(text, keywords):
+    for kw in keywords:
+        text = re.sub(f"(?i)({re.escape(kw)})", r'<mark>\1</mark>', text)
+    return text
+
+def generate_ai_response(prompt):
+    if "sales call flow" in prompt.lower():
+        context = f"Use Sales Call Flow steps: {', '.join(sales_call_flow)}.\nInclude relevant points from the PDF:\n{st.session_state.pdf_summary}"
+    elif "handling objection" in prompt.lower():
+        context = f"Use APACT steps: {', '.join(APACT_STEPS)}.\nInclude relevant points from the PDF:\n{st.session_state.pdf_summary}"
+    else:
+        context = f"Include relevant points from the PDF:\n{st.session_state.pdf_summary}"
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
+                  {"role":"user","content":context + "\nUser: " + prompt}],
+        temperature=0.65
+    )
+    return response.choices[0].message.content
+
+# ---------------------------- Chat History ----------------------------
 if send and user_input.strip():
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role":"system","content":"You are a pharma sales AI assistant."},
-                {"role":"user","content":user_input}
-            ],
-            temperature=0.65
-        )
-        ai_resp = response.choices[0].message.content
-        audio_base64 = generate_audio(ai_resp)
+    ai_resp = generate_ai_response(user_input)
+    audio_base64 = generate_audio(ai_resp)
+    st.session_state.chat_history.append((user_input, ai_resp, audio_base64))
 
-        st.session_state.chat_history.append(("user", user_input))
-        st.session_state.chat_history.append(("ai", ai_resp))
-        st.session_state.chat_history.append(("audio", audio_base64))
-
-    except Exception as e:
-        st.error(f"Error generating AI response: {e}")
-
-st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
-for item in st.session_state.chat_history:
-    role, msg = item
-    if role == "user":
-        st.markdown(f'<div class="chat-bubble-user">{escape(msg)}</div>', unsafe_allow_html=True)
-    elif role == "ai":
-        st.markdown(f'<div class="chat-bubble-ai">{escape(msg)}</div>', unsafe_allow_html=True)
-    elif role == "audio":
-        st.markdown(f'''
+# ---------------------------- Render Chat ----------------------------
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+for user_msg, ai_msg, audio in st.session_state.chat_history:
+    st.markdown(f'<div class="chat-bubble-user">{user_msg}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="chat-bubble-ai">{highlight_keywords(ai_msg, ["Shingrix","HZ","vaccine"])}</div>', unsafe_allow_html=True)
+    st.markdown(f'''
         <div class="chat-bubble-audio">
-            🔊 <audio controls>
-            <source src="data:audio/mp3;base64,{msg}" type="audio/mp3">
-            </audio>
+        🔊 AI Voice:<br>
+        <audio controls src="data:audio/mp3;base64,{audio}"></audio>
         </div>
-        ''', unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------- Download Chat as Word ----------------------------
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    doc = Document()
+    for user_msg, ai_msg, _ in st.session_state.chat_history:
+        doc.add_paragraph(f"User: {user_msg}")
+        doc.add_paragraph(f"AI: {ai_msg}")
+        doc.add_paragraph("")
+    tmp_doc = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+    doc.save(tmp_doc.name)
+    with open(tmp_doc.name, "rb") as f:
+        st.download_button("📄 Download Chat as Word", f, file_name="AI_SalesCall_Chat.docx")
