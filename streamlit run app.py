@@ -6,6 +6,7 @@ import requests
 import re
 import tempfile
 from gtts import gTTS
+import base64
 from groq import Groq
 from PyPDF2 import PdfReader
 
@@ -139,7 +140,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload & Smart Summary ----------------------------
+# ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
     st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
@@ -170,9 +171,7 @@ with st.expander("📄 PDF Summary", expanded=False):
         pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
     st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
 
-# ---------------------------- Chat ----------------------------
-st.markdown("<h3>💬 Chat</h3>", unsafe_allow_html=True)
-
+# ---------------------------- AI Response Function ----------------------------
 def generate_ai_response(prompt):
     context = f"""
 User: {prompt}
@@ -197,13 +196,15 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
+# ---------------------------- Chat Rendering ----------------------------
 def render_chat_history():
     html_out = ""
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            html_out += f'<audio controls src="{msg["audio"]}"></audio>'
+            audio_html = f'<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}"></audio>'
+            html_out += audio_html
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
@@ -222,21 +223,26 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
+        # Add user message
         st.session_state.chat_history.append({"role":"user","content":user_input})
         ai_resp = generate_ai_response(user_input)
 
-        # ---------------- Voice generation ----------------
+        # Voice generation (male + APACT pauses)
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
-
         tts = gTTS(text=voice_text, lang="en", slow=False)
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
+        with open(tmp_file.name, "rb") as f:
+            audio_bytes = f.read()
 
-        st.session_state.chat_history.append({"role":"ai","content":ai_resp, "audio": tmp_file.name})
+        # Add AI message with audio
+        st.session_state.chat_history.append({"role":"ai","content":ai_resp, "audio_bytes": audio_bytes})
 
+        # Re-render chat
         render_chat_history()
+        st.session_state.chat_input = ""
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
