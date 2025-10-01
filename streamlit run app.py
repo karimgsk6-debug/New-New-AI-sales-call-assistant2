@@ -229,9 +229,16 @@ def render_chat_history():
             </div>
         </div>
         """
-    st.markdown(f'<div class="chat-container">{chat_html}<div id="chat-bottom"></div></div>', unsafe_allow_html=True)
+    # Place the chat container under PDF summary
+    st.markdown(f'<div class="chat-container" id="chat-container">{chat_html}</div>', unsafe_allow_html=True)
+    # Auto-scroll to bottom
     st.markdown(
-        "<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>",
+        """
+        <script>
+        var chat = document.getElementById('chat-container');
+        if(chat) { chat.scrollTop = chat.scrollHeight; }
+        </script>
+        """,
         unsafe_allow_html=True
     )
 
@@ -240,17 +247,21 @@ def send_message():
     user_input = st.session_state.get("chat_input", "").strip()
     if not user_input:
         return
+    # Generate AI response
     ai_resp = generate_ai_response(user_input)
     audio_b64 = generate_audio(ai_resp)
+    # Append new chat entry
     st.session_state.chat_history.append({
         "user": user_input,
         "ai": ai_resp,
         "audio_base64": audio_b64
     })
+    # Clear input field
     st.session_state.chat_input = ""
     render_chat_history()
 
 # ---------------------------- Bottom Input ----------------------------
+# Fixed bottom input
 st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
 st.text_input("Type your message...", key="chat_input", label_visibility="collapsed", placeholder="Ask me anything...")
 st.button("Send", on_click=send_message)
@@ -259,8 +270,11 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ---------------------------- Clear Chat ----------------------------
 if st.button("🗑️ Clear Conversation"):
     st.session_state.chat_history = []
+    render_chat_history()
 
+# ---------------------------- Initial Render ----------------------------
 render_chat_history()
+
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
