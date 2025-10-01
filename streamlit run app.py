@@ -134,13 +134,13 @@ client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands, key="select_brand")
