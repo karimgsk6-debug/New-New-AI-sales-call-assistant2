@@ -267,7 +267,7 @@ render_chat_history()
 with st.container():
     if st.button("🗑️ Clear Conversation", key="clear_chat"):
         st.session_state.chat_history = []
-        st.experimental_rerun()  # safely refresh page
+        st.runtime.scriptrunner.rerun() # safely refresh page
 
     if "chat_input" not in st.session_state:
         st.session_state.chat_input = ""
