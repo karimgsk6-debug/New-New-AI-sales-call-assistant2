@@ -7,7 +7,6 @@ import tempfile
 import base64
 from groq import Groq
 from PyPDF2 import PdfReader
-import elevenlabs
 
 # Optional docx export
 try:
@@ -15,6 +14,45 @@ try:
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
+
+# ---------------------------- TTS Setup (ElevenLabs fallback to gTTS) ----------------------------
+try:
+    import elevenlabs
+    ELEVENLABS_AVAILABLE = True
+except ModuleNotFoundError:
+    ELEVENLABS_AVAILABLE = False
+    from gtts import gTTS
+
+# ElevenLabs config
+ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Your Elderly Male Voice ID
+if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY:
+    elevenlabs.api_key = ELEVENLABS_API_KEY
+else:
+    ELEVENLABS_AVAILABLE = False  # Ensure fallback to gTTS
+
+def generate_audio(text):
+    # Add APACT pauses
+    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+        text = text.replace(step, f"{step} ...")
+    # Remove punctuation for smoother reading
+    text = re.sub(r'[.,*]', '', text)
+
+    if ELEVENLABS_AVAILABLE:
+        audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        with open(tmp_file.name, "wb") as f:
+            for chunk in audio_stream:
+                f.write(chunk)
+    else:
+        tts = gTTS(text=text, lang="en", slow=True)
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(tmp_file.name)
+
+    with open(tmp_file.name, "rb") as f:
+        audio_bytes = f.read()
+        audio_base64 = base64.b64encode(audio_bytes).decode()
+    return audio_base64
 
 # ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
@@ -100,31 +138,8 @@ CSS = f"""
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# ---------------------------- ElevenLabs TTS Setup ----------------------------
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "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")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Your Elderly Male Voice ID
-
-elevenlabs.api_key = ELEVENLABS_API_KEY
-
-def generate_audio(text):
-    # Add APACT pauses
-    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
-        text = text.replace(step, f"{step} ...")
-    # Remove punctuation for more natural reading
-    text = re.sub(r'[.,*]', '', text)
-    
-    audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    with open(tmp_file.name, "wb") as f:
-        for chunk in audio_stream:
-            f.write(chunk)
-    with open(tmp_file.name, "rb") as f:
-        audio_bytes = f.read()
-        audio_base64 = base64.b64encode(audio_bytes).decode()
-    return audio_base64
-
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
