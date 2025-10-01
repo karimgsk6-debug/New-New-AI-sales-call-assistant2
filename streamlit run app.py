@@ -289,12 +289,18 @@ with st.container():
 if DOCX_AVAILABLE and st.session_state.chat_history:
     if st.button("📥 Export Chat (.docx)"):
         doc = Document()
-        doc.add_heading("AI Sales Call Assistant Chat History",0)
+        doc.add_heading("AI Sales Call Assistant Chat History", 0)
         for msg in st.session_state.chat_history:
             doc.add_paragraph(f'User: {msg.get("user","")}')
             doc.add_paragraph(f'AI: {msg.get("ai","")}')
-            doc.add_paragraph('')
+            doc.add_paragraph('')  # spacing
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         doc.save(tmp.name)
-        with open(tmp.name,"rb") as f:
-           
+        with open(tmp.name, "rb") as f:
+            data = f.read()
+        st.download_button(
+            "⬇️ Download Chat History (.docx)", 
+            data=data, 
+            file_name="chat_history.docx", 
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
