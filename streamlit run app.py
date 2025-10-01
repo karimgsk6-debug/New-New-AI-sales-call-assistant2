@@ -163,7 +163,10 @@ def render_chat_history():
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+    # Auto-scroll
+    html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
+    st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
 
 def generate_ai_response(prompt):
     context = f"""
@@ -217,4 +220,4 @@ with st.container():
         st.audio(tmp_file.name)
 
         st.session_state.chat_history.append({"role":"ai","content":ai_resp})
-        st.experimental_rerun()
+        st.rerun()   # ✅ FIX: replace experimental_rerun()
