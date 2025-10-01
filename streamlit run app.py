@@ -1,12 +1,11 @@
 # app.py
 import streamlit as st
-from io import BytesIO
-import re
-import tempfile
-import base64
-from gtts import gTTS
-from groq import Groq
 from PyPDF2 import PdfReader
+from gtts import gTTS
+import base64
+import tempfile
+import re
+from groq import Groq
 
 # Optional docx export
 try:
@@ -33,8 +32,6 @@ if "pdf_search_keyword" not in st.session_state:
     st.session_state.pdf_search_keyword = ""
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
-if "chat_input" not in st.session_state:
-    st.session_state.chat_input = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -103,7 +100,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
@@ -142,31 +139,24 @@ with st.expander("📄 PDF Summary", expanded=False):
 
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
 
-        # AI summary with fallback
-        summary_text = ""
-        if client:
-            try:
-                summary_prompt = f"""
-Summarize the following document into {bullets_count} main bullet points with 2–4 sub-bullets each (include studies, %s, years, guidelines). Format like:
-
-- Main Point
-   • Sub 1
-   • Sub 2
-Document Text:
-{full_text[:12000]}
-"""
-                resp = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role":"system","content":"You are a structured, fact-based medical summary assistant."},
-                              {"role":"user","content":summary_prompt}],
-                    temperature=0.4
-                )
-                summary_text = resp.choices[0].message.content
-            except Exception:
-                summary_text = ""
-        
-        if not summary_text:
-            # fallback regex bullets
+        # --- AI summarization ---
+        try:
+            summary_prompt = f"""
+            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
+            Provide 2–4 sub-bullets for each main point with factual details.
+            Document Text:
+            {full_text[:12000]}
+            """
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                    {"role":"user","content":summary_prompt}
+                ],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+        except Exception:
             pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
             bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
             if len(bullets) < bullets_count:
@@ -176,18 +166,16 @@ Document Text:
                         bullets.append(b)
                     if len(bullets) >= bullets_count:
                         break
-            summary_text = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
-        
-        st.session_state.pdf_summary = summary_text
+            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
     st.session_state.pdf_search_keyword = keyword
-    pdf_display = st.session_state.pdf_summary or "No PDF summary yet."
+    pdf_display = st.session_state.pdf_summary
     if keyword:
         pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
     st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Response ----------------------------
+# ---------------------------- AI Response Function ----------------------------
 def generate_ai_response(prompt):
     context = f"""
 User: {prompt}
@@ -204,35 +192,44 @@ PDF Summary:
 Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
-    if client:
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
-                          {"role":"user","content":context}],
-                temperature=0.65
-            )
-            return response.choices[0].message.content
-        except:
-            pass
-    return f"Sorry, could not generate AI response. Your prompt: {prompt}"
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
+                  {"role":"user","content":context}],
+        temperature=0.65
+    )
+    return response.choices[0].message.content
 
-# ---------------------------- Render Chat ----------------------------
+# ---------------------------- Generate TTS ----------------------------
+def generate_audio(text):
+    # Add APACT pauses
+    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+        text = text.replace(step, f"{step} ...")
+    text = re.sub(r'[.,*]', '', text)
+    tts = gTTS(text=text, lang="en", slow=True)
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(tmp_file.name)
+    with open(tmp_file.name, "rb") as f:
+        audio_bytes = f.read()
+    return base64.b64encode(audio_bytes).decode()
+
+# ---------------------------- Render Chat History ----------------------------
 def render_chat_history():
-    html_out = ""
+    chat_html = ""
     for msg in st.session_state.chat_history:
-        html_out += f"""
+        chat_html += f"""
+        <div class="chat-bubble-user">
+            🧑 You: {msg['user']}
+        </div>
         <div class="chat-bubble-ai">
-            <b>🧑 You:</b> {msg['user']}<br><br>
-            <b>🤖 AI:</b> {msg['ai']}
+            🤖 AI: {msg['ai']}
             <div class="chat-bubble-audio">
                 🔊 AI Voice:<br>
                 <audio controls src="data:audio/mp3;base64,{msg['audio_base64']}"></audio>
             </div>
         </div>
         """
-    html_out += "<div id='chat-bottom'></div>"
-    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="chat-container">{chat_html}<div id="chat-bottom"></div></div>', unsafe_allow_html=True)
     st.markdown(
         "<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>",
         unsafe_allow_html=True
@@ -240,23 +237,11 @@ def render_chat_history():
 
 # ---------------------------- Send Message ----------------------------
 def send_message():
-    user_input = st.session_state.get("chat_input","").strip()
+    user_input = st.session_state.get("chat_input", "").strip()
     if not user_input:
         return
     ai_resp = generate_ai_response(user_input)
-
-    # TTS
-    voice_text = ai_resp
-    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
-        voice_text = voice_text.replace(step, f"{step} ...")
-    voice_text = re.sub(r'[.,*]', '', voice_text)
-    tts = gTTS(text=voice_text, lang="en", slow=True)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(tmp_file.name)
-    with open(tmp_file.name, "rb") as f:
-        audio_bytes = f.read()
-    audio_b64 = base64.b64encode(audio_bytes).decode()
-
+    audio_b64 = generate_audio(ai_resp)
     st.session_state.chat_history.append({
         "user": user_input,
         "ai": ai_resp,
@@ -275,14 +260,16 @@ st.markdown('</div>', unsafe_allow_html=True)
 if st.button("🗑️ Clear Conversation"):
     st.session_state.chat_history = []
 
+render_chat_history()
+
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
     if st.button("📥 Export Chat (.docx)"):
         doc = Document()
         doc.add_heading("AI Sales Call Assistant Chat History", 0)
         for msg in st.session_state.chat_history:
-            doc.add_paragraph(f'User: {msg.get("user","")}')
-            doc.add_paragraph(f'AI: {msg.get("ai","")}')
+            doc.add_paragraph(f'User: {msg["user"]}')
+            doc.add_paragraph(f'AI: {msg["ai"]}')
             doc.add_paragraph('')
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         doc.save(tmp.name)
