@@ -27,7 +27,7 @@ from gtts import gTTS
 
 # ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Your Elderly Male Voice ID
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Elderly Male Voice ID
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
@@ -104,12 +104,12 @@ CSS = f"""
   white-space: pre-line;
 }}
 .chat-container {{
-  height: 60vh;
+  max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 120px;
+  margin-bottom: 0;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:inline-block;
@@ -124,13 +124,14 @@ CSS = f"""
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; }}
 .bottom-bar {{
   position: fixed;
-  bottom: 12px;
-  left: 16px;
-  right: 16px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: rgba(255,255,255,0.98);
-  padding: 10px;
-  border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  padding: 10px 16px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
   display:flex;
   gap:12px;
   align-items:center;
