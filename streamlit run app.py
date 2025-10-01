@@ -255,15 +255,16 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Fixed Chat Input ----------------------------
 st.markdown('<div class="fixed-chat-input">', unsafe_allow_html=True)
-chat_input = st.text_area("Your Message", key="chat_input", placeholder="Type your message here...")
-send = st.button("Send", key="send_button")
+with st.form(key="chat_form", clear_on_submit=True):
+    chat_input = st.text_area("Your Message", key="chat_input", placeholder="Type your message here...")
+    send = st.form_submit_button("Send")
 st.markdown('</div>', unsafe_allow_html=True)
 
 if send and chat_input.strip():
     ai_resp = generate_ai_response(chat_input.strip())
     audio_base64 = generate_audio(ai_resp)
     st.session_state.chat_history.append((chat_input.strip(), ai_resp, audio_base64))
-    st.session_state.chat_input = ""  # Reset input
+
 
 # ---------------------------- Word Export ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
