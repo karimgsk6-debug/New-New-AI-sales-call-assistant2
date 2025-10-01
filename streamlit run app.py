@@ -180,16 +180,51 @@ with st.expander("📄 PDF Summary", expanded=False):
         st.session_state.uploaded_pdf_text = full_text
 
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-        pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
-        bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
-        if len(bullets) < bullets_count:
-            fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
-            for b in fallback_bullets:
-                if b not in bullets:
-                    bullets.append(b)
-                if len(bullets) >= bullets_count:
-                    break
-        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
+
+        # --- Enhanced AI summarization with sub-bullets ---
+        try:
+            summary_prompt = f"""
+            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
+
+            Format rules:
+            - Each main bullet point should be a broad theme or finding.
+            - Under each main bullet, provide 2–4 sub-bullets (•) with elaborative, fact-based details.
+            - Sub-bullets must include supporting evidence if available (percentages, years, clinical trials, guidelines, studies).
+            - Write in a professional, concise, and factual style.
+            - Always structure like this:
+
+            - Main Point
+               • Sub fact 1
+               • Sub fact 2
+               • Sub fact 3
+
+            Document Text:
+            {full_text[:12000]}
+            """
+
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                    {"role":"user","content":summary_prompt}
+                ],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+
+        except Exception:
+            # fallback regex summary if AI fails
+            pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
+            bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
+            if len(bullets) < bullets_count:
+                fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
+                for b in fallback_bullets:
+                    if b not in bullets:
+                        bullets.append(b)
+                    if len(bullets) >= bullets_count:
+                        break
+            # Format as basic bullets with no sub-bullets
+            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
     st.session_state.pdf_search_keyword = keyword
@@ -197,7 +232,6 @@ with st.expander("📄 PDF Summary", expanded=False):
     if keyword:
         pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
     st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
-
 # ---------------------------- AI Response Function ----------------------------
 def generate_ai_response(prompt):
     context = f"""
