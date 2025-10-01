@@ -88,9 +88,9 @@ CSS = f"""
 }}
 .title-box {{
   background: rgba(245,245,245,0.7);
-  padding: 20px;
+  padding: 12px;
   border-radius: 16px;
-  text-align: center;
+  text-align: Left;
   margin: 12px auto;
 }}
 .pdf-summary-box {{
@@ -101,13 +101,13 @@ CSS = f"""
   white-space: pre-line;
 }}
 .chat-container {{
-  max-height: 65vh;
+  max-height: 75vh;
   overflow-y: auto;
   padding: 12px;
   padding-bottom: 15px;
   border-radius: 12px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 3;
+  margin-bottom: 5;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
@@ -117,9 +117,9 @@ CSS = f"""
   max-width: 90%;
   word-wrap: break-word;
 }}
-.chat-bubble-user {{ background: rgba(245,245,245,0.8); color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: rgba(245,245,245,0.8); margin-right:auto; color:#000; }}
-.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
+.chat-bubble-user {{ background: rgba(245,245,245,0.6); color:white; margin-left:auto; }}
+.chat-bubble-ai {{ background: rgba(245,245,245,0.9); margin-right:auto; color:#000; }}
+.chat-bubble-audio {{ background: rgba(245,245,245,0.7); margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
 footer, header {{ z-index: 0; }}
 </style>
 """
