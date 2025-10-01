@@ -107,18 +107,18 @@ CSS = f"""
   padding-bottom: 12px;
   border-radius: 10px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 1;
+  margin-bottom: 2;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
   border-radius:12px;
   margin:8px 0;
-  max-width: 86%;
+  max-width: 90%;
   word-wrap: break-word;
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
+.chat-bubble-ai {{ background: rgba(245,245,245,0.8); margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
 footer, header {{ z-index: 0; }}
 </style>
