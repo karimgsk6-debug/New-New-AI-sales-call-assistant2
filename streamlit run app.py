@@ -82,95 +82,95 @@ BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-sh
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
 # ---------------------------- CSS ----------------------------
-CSS = f"""
+st.markdown("""
 <style>
-/* Background */
-[data-testid="stAppViewContainer"] {{
-  background-image: url("{BACKGROUND_URL}");
-  background-repeat: no-repeat;
-  background-position: right top;
-  background-attachment: fixed;
-  background-size: auto 150%;
-}}
-
-/* Title and PDF summary boxes */
-.title-box {{
-  background: rgba(245,245,245,0.7);
-  padding: 20px;
-  border-radius: 16px;
-  text-align: center;
-  margin: 12px auto;
-}}
-.pdf-summary-box {{
-  background: #E6F0FF; 
-  padding: 12px; 
-  border-radius: 14px; 
-  margin-bottom: 12px;
-  white-space: pre-line;
-}}
-
-/* Chat area */
-.chat-container {{
-  max-height: 65vh;
-  overflow-y: auto;
-  padding: 12px;
-  padding-bottom: 160px; /* leave room for fixed input */
-  border-radius: 10px;
-  background: rgba(255,255,255,0.8);
-  margin-bottom: 0;
-}}
-
-/* Bubbles */
-.chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
-  display:block;
-  padding:12px;
-  border-radius:12px;
-  margin:8px 0;
-  max-width: 86%;
-  word-wrap: break-word;
-}}
-.chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
-.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
-
-/* Make last Streamlit text input and button fixed to bottom
-   (we render the chat_input as the last input in the page so :last-of-type targets it) */
-div[data-testid="stTextInput"]:last-of-type,
-div[data-testid="stTextArea"]:last-of-type {{
-  position: fixed !important;
-  bottom: 18px;
-  left: 20px;
-  right: 160px;
-  z-index: 10002;
-  background: rgba(255,255,255,0.9);
-  border-radius: 10px;
-  padding: 6px;
-}}
-
-/* fix the last button (Send) to the right */
-div[data-testid="stButton"]:last-of-type {{
-  position: fixed !important;
-  bottom: 16px;
-  right: 20px;
-  z-index: 10003;
-}}
-
-/* small responsiveness */
-@media (max-width: 800px) {{
-  div[data-testid="stTextInput"]:last-of-type,
-  div[data-testid="stTextArea"]:last-of-type {{
-    left: 12px;
-    right: 100px;
-  }}
-}}
-
-/* ensure fixed input overlays properly */
-footer, header {{
-  z-index: 0;
-}}
+.chat-container {
+    height: 65vh;   /* auto-resizes with sidebar */
+    overflow-y: auto;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    margin-bottom: 60px; /* leave space for input bar */
+}
+.chat-bubble {
+    background: #fff;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.chat-bubble-user {
+    background: #e7f3ff;
+}
+.chat-bubble-ai {
+    background: #f1f1f1;
+}
+.bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 16px;
+    background: #fff;
+    border-top: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 999;
+}
+.bottom-bar input {
+    flex-grow: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+.small-btn {
+    padding: 4px 10px !important;
+    font-size: 13px !important;
+}
 </style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+
+# ---------------------------- Chat Rendering ----------------------------
+def render_chat_history():
+    html_out = ""
+    for msg in st.session_state.chat_history:
+        html_out += f"""
+        <div class="chat-bubble chat-bubble-ai">
+            <b>🧑 You:</b> {msg["user"]}<br><br>
+            <b>🤖 AI:</b> {msg["ai"]}
+            <div class="chat-bubble-audio">
+                🔊 AI Voice:<br>
+                <audio controls src="data:audio/mp3;base64,{msg['audio_base64']}"></audio>
+            </div>
+        </div>
+        """
+    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
+
+# ---------------------------- Input Bar ----------------------------
+render_chat_history()
+
+st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
+user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed", placeholder="Ask me anything...")
+send = st.button("Send", key="send_btn", help="Send message", type="primary")
+clear = st.button("🗑️ Clear", key="clear_btn")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Handle actions
+if clear:
+    st.session_state.chat_history = []
+    st.rerun()
+
+if send and user_input.strip():
+    ai_resp = generate_ai_response(user_input)
+    audio_base64 = generate_audio(ai_resp)
+    st.session_state.chat_history.append({
+        "user": user_input,
+        "ai": ai_resp,
+        "audio_base64": audio_base64
+    })
+    st.rerun()
 
 # ---------------------------- GROQ Client ----------------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
@@ -338,109 +338,6 @@ def normalize_chat_history():
 
 # run normalization once
 normalize_chat_history()
-
-# ---------------------------- Chat Rendering ----------------------------
-def _format_content_to_html(text):
-    """Escape text then convert simple bullets and newlines into HTML-friendly representation."""
-    if not text:
-        return ""
-    esc = escape(text)
-    # Normalize newlines
-    esc = esc.replace('\r\n', '\n').replace('\r', '\n')
-    lines = esc.split('\n')
-    out = ""
-    for ln in lines:
-        ln = ln.strip()
-        if ln.startswith('- '):
-            out += f'&bull;&nbsp;{ln[2:]}<br>'
-        elif ln.startswith('• '):
-            out += f'&bull;&nbsp;{ln[2:]}<br>'
-        else:
-            # preserve blank lines
-            if ln == "":
-                out += '<br>'
-            else:
-                out += f'{ln}<br>'
-    return out
-
-def render_chat_history():
-    # ensure normalization in case session mutated
-    normalize_chat_history()
-
-    html_out = ""
-    for msg in st.session_state.chat_history:
-        user_html = _format_content_to_html(msg.get("user", ""))
-        ai_html = _format_content_to_html(msg.get("ai", ""))
-        audio_html = ""
-        if msg.get("audio_base64"):
-            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice:<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio></div>'
-
-        # Combined single bubble per turn (user + ai)
-        html_out += f'''
-        <div class="chat-bubble-ai">
-            <div style="color:#0b61a4;"><b>🧑 You:</b></div>
-            <div style="margin:6px 0 10px 0;">{user_html}</div>
-            <div style="color:#333;"><b>🤖 AI:</b></div>
-            <div style="margin:6px 0 8px 0;">{ai_html}</div>
-            {audio_html}
-        </div>
-        '''
-
-    html_out += "<div id='chat-bottom'></div>"
-    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
-
-    # Auto-scroll & focus helper (scroll chat and focus the last input)
-    scroll_js = """
-    <script>
-    (function(){
-        const chat = document.querySelector('.chat-container');
-        if(chat) { chat.scrollTop = chat.scrollHeight; }
-        const bottom = document.getElementById('chat-bottom');
-        if(bottom) { bottom.scrollIntoView({behavior:'auto', block:'end'}); }
-        // focus last text input (the pinned chat input)
-        setTimeout(()=> {
-            const inputs = document.querySelectorAll('input[type="text"], textarea');
-            if(inputs.length) {
-                const last = inputs[inputs.length - 1];
-                try { last.focus(); } catch(e) {}
-            }
-        }, 120);
-    })();
-    </script>
-    """
-    st.markdown(scroll_js, unsafe_allow_html=True)
-
-# ---------------------------- Chat Input ----------------------------
-# We render the chat history first, then the Streamlit text_input (which our CSS pins to the bottom).
-with st.container():
-    if st.button("🗑️ Clear Conversation"):
-        st.session_state.chat_history = []
-        # after clearing, re-render
-        render_chat_history()
-
-    render_chat_history()
-
-    # Chat input - kept as the *last* text input on the page so CSS :last-of-type pins it
-    user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed", placeholder="Ask me anything...")
-    send = st.button("Send", key="send_button")
-
-    if send and user_input and user_input.strip():
-        # call the model and audio
-        ai_resp = generate_ai_response(user_input)
-        audio_base64 = generate_audio(ai_resp)
-
-        # append as a single turn
-        st.session_state.chat_history.append({
-            "user": user_input,
-            "ai": ai_resp,
-            "audio_base64": audio_base64
-        })
-
-        # clear input widget by resetting the session_state key
-        st.session_state["chat_input"] = ""
-
-        # re-render to show the new message and scroll
-        render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
