@@ -202,7 +202,20 @@ def render_chat_history():
 
 render_chat_history()
 
-# ---------------------------- AI Response & gTTS ----------------------------
+# ---------------------------- Chat Rendering ----------------------------
+def render_chat_history():
+    html_out = ""
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
+        else:
+            # Show audio player ABOVE the AI text
+            if "audio" in msg:
+                st.audio(msg["audio"], format="audio/mp3")
+            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+    st.markdown(html_out, unsafe_allow_html=True)
+
+# ---------------------------- AI Response with Voice ----------------------------
 def generate_ai_response(prompt):
     if not client:
         return "⚠️ AI service not configured"
@@ -231,24 +244,28 @@ Instructions:
     )
     ai_text = response.choices[0].message.content
 
-    # ---------- gTTS voice with pauses after APACT steps ----------
+    # ---------- gTTS voice with APACT pauses ----------
     tts_text = ai_text
-    # Insert pauses after APACT steps
     for step in APACT_STEPS:
         tts_text = tts_text.replace(step, f"{step}... ")
 
-    # Clean for gTTS
     tts_text_clean = tts_text.replace(". ", ".\n")
 
     try:
         tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk", slow=False)
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_mp3.name)
-        st.session_state.last_ai_audio = tmp_mp3.name
-        # 🎧 Always show player
-        st.audio(st.session_state.last_ai_audio, format="audio/mp3")
+        audio_file = tmp_mp3.name
     except Exception as e:
         st.warning(f"Voice generation error: {e}")
+        audio_file = None
+
+    # Append AI response with audio
+    st.session_state.chat_history.append({
+        "role": "ai",
+        "content": ai_text,
+        "audio": audio_file
+    })
 
     return ai_text
 
