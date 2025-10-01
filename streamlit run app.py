@@ -135,7 +135,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
     st.session_state.voice_pref = st.selectbox("Voice preference", ["Male Neural","Female Neural"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"])
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
@@ -143,19 +142,17 @@ st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>�
 # ---------------------------- PDF Upload & Smart Summary ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
+    
     if uploaded_pdf:
         reader = PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
 
-        # Determine number of bullets based on summary size
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-
-        # Smart bullet extraction: include numbers, years, studies
         pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
         bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
 
-        # Fallback if not enough bullets
         if len(bullets) < bullets_count:
             fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
             for b in fallback_bullets:
@@ -166,7 +163,6 @@ with st.expander("📄 PDF Summary", expanded=False):
 
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
-    # Search in PDF summary
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
     st.session_state.pdf_search_keyword = keyword
     pdf_display = st.session_state.pdf_summary
@@ -212,7 +208,7 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
-# ---------------------------- Chat Input / Voice / Export ----------------------------
+# ---------------------------- Chat Input / Voice ----------------------------
 with st.container():
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
@@ -225,13 +221,11 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        # Append user
         st.session_state.chat_history.append({"role":"user","content":user_input})
 
-        # Generate AI
         ai_resp = generate_ai_response(user_input)
 
-        # Generate gTTS voice with APACT pauses
+        # ---------------- Voice generation ----------------
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
@@ -240,11 +234,11 @@ with st.container():
         tts.save(tmp_file.name)
 
         # Play voice above AI text
-        st.audio(tmp_file.name)
+        st.audio(tmp_file.name, format="audio/mp3")
 
-        # Append AI response
         st.session_state.chat_history.append({"role":"ai","content":ai_resp})
-        st.rerun()
+
+        render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
