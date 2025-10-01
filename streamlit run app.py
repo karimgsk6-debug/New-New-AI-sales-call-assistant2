@@ -259,7 +259,7 @@ with st.container():
 
     if send and user_input.strip():
         ai_resp = generate_ai_response(user_input)
-        audio_base64 = generate_audio(ai_resp)
+        audio_b64 = generate_audio(ai_resp)
         # store as one entry containing both user + AI
         st.session_state.chat_history.append({
             "user": user_input,
