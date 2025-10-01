@@ -214,11 +214,9 @@ with st.container():
         st.session_state.chat_history.append({"role":"user","content":user_input})
         ai_resp = generate_ai_response(user_input)
 
-        # Male voice generation with APACT pauses
-        voice_text = ai_resp
-        for step in APACT_STEPS:
-            voice_text = voice_text.replace(step, f"{step}, ...")
-        tts = gTTS(text=voice_text, lang="en", slow=True)  # Male-like natural speech
+        # ----------------- Male TTS -----------------
+        voice_text = re.sub(r'[.,*]', '', ai_resp)  # remove punctuations
+        tts = gTTS(text=voice_text, lang="en", slow=False)
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
