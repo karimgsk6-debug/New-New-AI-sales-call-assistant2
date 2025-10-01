@@ -162,6 +162,41 @@ st.markdown(f'''
     <img class="ai-logo" src="{AI_LOGO_URL}">
 </div>
 ''', unsafe_allow_html=True)
+# ---------------------------- PDF Upload & Summary ----------------------------
+with st.expander("📄 PDF Summary", expanded=False):
+    uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
+    
+    if uploaded_pdf:
+        reader = PdfReader(uploaded_pdf)
+        full_text = "".join([p.extract_text() or "" for p in reader.pages])
+        st.session_state.uploaded_pdf_text = full_text
+
+        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
+
+        try:
+            summary_prompt = f"""
+            Summarize the following medical/pharma document into {bullets_count} main bullet points. 
+            Document Text:
+            {full_text[:12000]}
+            """
+
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                    {"role":"user","content":summary_prompt}
+                ],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+
+        except Exception:
+            bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
+            st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
+
+        st.text_area("📌 PDF Summary", value=st.session_state.pdf_summary, height=250)
+
 
 # ---------------------------- Chat Input and Rendering ----------------------------
 user_input = st.text_input("Type your message:", key="chat_input")
