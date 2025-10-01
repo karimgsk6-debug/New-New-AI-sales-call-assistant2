@@ -4,10 +4,10 @@ from PIL import Image
 from io import BytesIO
 import re
 import tempfile
-from gtts import gTTS
 import base64
 from groq import Groq
 from PyPDF2 import PdfReader
+import elevenlabs
 
 # Optional docx export
 try:
@@ -27,7 +27,7 @@ if "uploaded_pdf_text" not in st.session_state:
 if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Male Neural"
+    st.session_state.voice_pref = "Old Male"
 if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_search_keyword" not in st.session_state:
@@ -69,7 +69,7 @@ CSS = f"""
   padding: 12px;
   border-radius: 10px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 120px; /* reserve space for bottom bar */
+  margin-bottom: 120px;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:inline-block;
@@ -100,8 +100,31 @@ CSS = f"""
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
+# ---------------------------- ElevenLabs TTS Setup ----------------------------
+ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Your Elderly Male Voice ID
+
+elevenlabs.api_key = ELEVENLABS_API_KEY
+
+def generate_audio(text):
+    # Add APACT pauses
+    for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+        text = text.replace(step, f"{step} ...")
+    # Remove punctuation for more natural reading
+    text = re.sub(r'[.,*]', '', text)
+    
+    audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    with open(tmp_file.name, "wb") as f:
+        for chunk in audio_stream:
+            f.write(chunk)
+    with open(tmp_file.name, "rb") as f:
+        audio_bytes = f.read()
+        audio_base64 = base64.b64encode(audio_bytes).decode()
+    return audio_base64
+
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
@@ -124,7 +147,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
-    st.session_state.voice_pref = st.selectbox("Voice preference", ["Male Neural","Female Neural"])
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
@@ -190,10 +212,9 @@ def render_chat_history():
         if msg["role"] == "user":
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            # Separate audio bubble
-            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice Playing<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}" autoplay></audio></div>'
-            html_out += audio_html
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice:<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio></div>'
+            html_out += audio_html
     html_out += "<div id='chat-bottom'></div>"
     st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
     st.markdown("<script>var chat=document.querySelector('.chat-container');chat.scrollTop=chat.scrollHeight;</script>", unsafe_allow_html=True)
@@ -211,22 +232,10 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input})
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
         ai_resp = generate_ai_response(user_input)
-
-        # ----------------- Male Old TTS with APACT pauses -----------------
-        voice_text = ai_resp
-        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
-            voice_text = voice_text.replace(step, f"{step} ...")  # natural pauses
-        voice_text = re.sub(r'[.,*]', '', voice_text)  # remove punctuations
-
-        tts = gTTS(text=voice_text, lang="en", slow=True)  # slow = older male style
-        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(tmp_file.name)
-        with open(tmp_file.name, "rb") as f:
-            audio_bytes = f.read()
-
-        st.session_state.chat_history.append({"role":"ai","content":ai_resp, "audio_bytes": audio_bytes})
+        audio_base64 = generate_audio(ai_resp)
+        st.session_state.chat_history.append({"role": "ai", "content": ai_resp, "audio_base64": audio_base64})
         render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
