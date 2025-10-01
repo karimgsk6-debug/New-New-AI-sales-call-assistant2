@@ -175,9 +175,10 @@ with st.expander("📄 PDF Summary (Auto-Extracted)", expanded=False):
         # Extract references
         matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
         st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-        # Informative bullet points
+        # Informative numbered bullet points
         bullets = re.findall(r"([A-Z][^.]{20,200}\.)", full_text)
-        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:12]])
+        numbered_bullets = [f"{i+1}. {b.strip()}" for i, b in enumerate(bullets[:12])]
+        st.session_state.pdf_summary = "\n".join(numbered_bullets)
         st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
         # Keyword search
         keyword = st.text_input("Search in PDF Summary")
