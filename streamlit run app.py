@@ -280,7 +280,7 @@ Sales Call Flow: {', '.join(sales_call_flow)}
 APACT Steps: {', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.3-13b-versatile",
         messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
                   {"role":"user","content":context}],
         temperature=0.65
