@@ -32,6 +32,8 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_search_keyword" not in st.session_state:
     st.session_state.pdf_search_keyword = ""
+if "pdf_summary_size" not in st.session_state:
+    st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -133,6 +135,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
     st.session_state.voice_pref = st.selectbox("Voice preference", ["Male Neural","Female Neural"])
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"])
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
@@ -145,9 +148,10 @@ with st.expander("📄 PDF Summary", expanded=False):
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
 
-        # Concise bullet points: focus on info, numbers, studies
+        # Determine number of bullets based on summary size
+        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
         bullets = re.findall(r"([A-Z][^.\n]{20,150}\.)", full_text)
-        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:12]])
+        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     # Search in PDF summary
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
