@@ -373,32 +373,41 @@ def render_chat_history():
 
 # ---------------------------- Chat Input & Controls ----------------------------
 with st.container():
+    # Clear chat button
     st.markdown('<div style="margin-bottom: 10px;">', unsafe_allow_html=True)
     if st.button("🗑️ Clear Conversation", key="clear_chat"):
         st.session_state.chat_history = []
-        render_chat_history()
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # Render chat history
     render_chat_history()
 
+    # Chat input
     user_input = st.text_input(
-        "Type your message...", key="chat_input",
-        label_visibility="collapsed", placeholder="Ask me anything..."
+        "Type your message...",
+        value="",  # always start empty
+        key="chat_input",
+        label_visibility="collapsed",
+        placeholder="Ask me anything..."
     )
     send = st.button("Send", key="send_button")
 
     if send and user_input.strip():
+        # Generate AI response and audio
         ai_resp = generate_ai_response(user_input)
         audio_base64 = generate_audio(ai_resp)
+
+        # Append to chat history
         st.session_state.chat_history.append({
             "user": user_input,
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
-       # Safely reset input only if it exists
-if "chat_input" in st.session_state:
-    st.session_state.chat_input = ""
-    render_chat_history()
+
+        # No need to manually reset session_state key; text_input starts empty on next run
+
+        # Re-render chat history to show the new message
+        render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
