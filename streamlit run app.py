@@ -106,7 +106,7 @@ CSS = f"""
   padding: 12px;
   padding-bottom: 15px;
   border-radius: 20px;
-  background: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.6);
   margin-bottom: 5;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
