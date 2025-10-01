@@ -395,7 +395,9 @@ with st.container():
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
-        st.session_state["chat_input"] = ""
+       # Safely reset input only if it exists
+if "chat_input" in st.session_state:
+    st.session_state.chat_input = ""
         render_chat_history()
 
 # ---------------------------- Export Chat ----------------------------
