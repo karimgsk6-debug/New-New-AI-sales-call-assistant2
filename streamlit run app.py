@@ -101,11 +101,11 @@ CSS = f"""
   white-space: pre-line;
 }}
 .chat-container {{
-  max-height: 75vh;
+  max-height: 80vh;
   overflow-y: auto;
   padding: 12px;
   padding-bottom: 15px;
-  border-radius: 12px;
+  border-radius: 20px;
   background: rgba(255,255,255,0.8);
   margin-bottom: 5;
 }}
@@ -118,7 +118,7 @@ CSS = f"""
   word-wrap: break-word;
 }}
 .chat-bubble-user {{ background: rgba(245,245,245,0.6); color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: rgba(245,245,245,0.9); margin-right:auto; color:#000; }}
+.chat-bubble-ai {{ background: rgba(245,245,245,0.7); margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: rgba(245,245,245,0.7); margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
 footer, header {{ z-index: 0; }}
 </style>
