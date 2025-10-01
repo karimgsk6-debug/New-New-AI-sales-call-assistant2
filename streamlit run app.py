@@ -1,8 +1,7 @@
 # app.py
 import streamlit as st
-from PIL import Image, ImageStat
+from PIL import Image
 from io import BytesIO
-import requests
 import re
 import tempfile
 from gtts import gTTS
@@ -70,9 +69,9 @@ CSS = f"""
   padding: 12px;
   border-radius: 10px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 80px;
+  margin-bottom: 120px; /* reserve space for bottom bar */
 }}
-.chat-bubble-user, .chat-bubble-ai {{
+.chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:inline-block;
   padding:12px;
   border-radius:12px;
@@ -82,6 +81,7 @@ CSS = f"""
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; }}
+.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; }}
 .bottom-bar {{
   position: fixed;
   bottom: 12px;
@@ -190,8 +190,8 @@ def render_chat_history():
         if msg["role"] == "user":
             html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            # Embed male voice
-            audio_html = f'<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}" autoplay></audio>'
+            # Separate audio bubble
+            audio_html = f'<div class="chat-bubble-audio">🔊 AI Voice Playing<audio controls src="data:audio/mp3;base64,{base64.b64encode(msg["audio_bytes"]).decode()}" autoplay></audio></div>'
             html_out += audio_html
             html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
     html_out += "<div id='chat-bottom'></div>"
@@ -214,9 +214,13 @@ with st.container():
         st.session_state.chat_history.append({"role":"user","content":user_input})
         ai_resp = generate_ai_response(user_input)
 
-        # ----------------- Male TTS -----------------
-        voice_text = re.sub(r'[.,*]', '', ai_resp)  # remove punctuations
-        tts = gTTS(text=voice_text, lang="en", slow=False)
+        # ----------------- Male Old TTS with APACT pauses -----------------
+        voice_text = ai_resp
+        for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
+            voice_text = voice_text.replace(step, f"{step} ...")  # natural pauses
+        voice_text = re.sub(r'[.,*]', '', voice_text)  # remove punctuations
+
+        tts = gTTS(text=voice_text, lang="en", slow=True)  # slow = older male style
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
