@@ -140,7 +140,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload & Search ----------------------------
+# ---------------------------- PDF Upload & Smart Summary ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
     if uploaded_pdf:
@@ -150,7 +150,20 @@ with st.expander("📄 PDF Summary", expanded=False):
 
         # Determine number of bullets based on summary size
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-        bullets = re.findall(r"([A-Z][^.\n]{20,150}\.)", full_text)
+
+        # Smart bullet extraction: include numbers, years, studies
+        pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
+        bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
+
+        # Fallback if not enough bullets
+        if len(bullets) < bullets_count:
+            fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
+            for b in fallback_bullets:
+                if b not in bullets:
+                    bullets.append(b)
+                if len(bullets) >= bullets_count:
+                    break
+
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     # Search in PDF summary
