@@ -15,25 +15,6 @@ try:
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
-# AI Logo URL
-AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
-
-# Add in your CSS block
-st.markdown(f"""
-<style>
-/* Top-right AI logo */
-.ai-logo {{
-    position: absolute;
-    top: 10px;
-    right: 20px;
-    width: 120px;   /* adjust size as needed */
-    height: auto;
-    z-index: 1000;
-}}
-</style>
-
-<img src="{AI_LOGO_URL}" class="ai-logo">
-""", unsafe_allow_html=True)
 
 # ---------------------------- TTS Setup (ElevenLabs fallback to gTTS) ----------------------------
 try:
@@ -42,16 +23,14 @@ try:
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
 
-# Always import gTTS for fallback
 from gtts import gTTS
 
-# ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Elderly Male Voice ID
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
-    ELEVENLABS_AVAILABLE = False  # Ensure fallback to gTTS
+    ELEVENLABS_AVAILABLE = False
 
 def generate_audio(text):
     for step in ["Acknowledge","Probing","Action","Confirm","Transition"]:
@@ -78,81 +57,98 @@ def generate_audio(text):
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
-for key, value in {
-    "chat_history": [],
-    "uploaded_pdf_text": "",
-    "pdf_summary": "",
-    "voice_pref": "Male",
-    "language": "English",
-    "pdf_search_keyword": "",
-    "pdf_summary_size": "Normal",
-    "chat_input": ""
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "uploaded_pdf_text" not in st.session_state:
+    st.session_state.uploaded_pdf_text = ""
+if "pdf_summary" not in st.session_state:
+    st.session_state.pdf_summary = ""
+if "voice_pref" not in st.session_state:
+    st.session_state.voice_pref = "Old Male"
+if "language" not in st.session_state:
+    st.session_state.language = "English"
+if "pdf_search_keyword" not in st.session_state:
+    st.session_state.pdf_search_keyword = ""
+if "pdf_summary_size" not in st.session_state:
+    st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-10-01T21%3A36%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=e48070e4-6fe8-551d-b151-1591946f0e60&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A07%3A59Z&ske=2025-10-02T19%3A07%3A59Z&sks=b&skv=2024-08-04&sig=3/PGGYaseBkvjJWbMBbuzsZeNyvlAXRSqcswf%2Bm1IZI%3D"
+BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
+GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
+AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
 
 # ---------------------------- CSS ----------------------------
-# ---------------------------- Title Box with AI Logo ----------------------------
-st.markdown(f'''
-<div class="title-box" style="position: relative; max-width: 800px; margin: 12px auto;">
-    <img src="{https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png}" width="140" style="float:left;">
-    <h1 style="margin-left: 160px;">💡 AI Sales Call Assistant</h1>
-    <p style="margin-left: 160px;">Powered by AI to equip reps for smarter HCP conversations</p>
-    <img src="{https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D}" style="position:absolute; top:10px; right:10px; width:100px; height:auto;">
-</div>
-''', unsafe_allow_html=True)
-
 CSS = f"""
 <style>
+/* Background */
 [data-testid="stAppViewContainer"] {{
   background-image: url("{BACKGROUND_URL}");
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 120%;
+  background-size: auto 150%;
 }}
+
+/* Title and PDF summary boxes */
 .title-box {{
-  background: rgba(245,245,245,0.6);
-  padding: 12px;
+  background: rgba(245,245,245,0.7);
+  padding: 20px;
   border-radius: 16px;
-  text-align: Left;
+  text-align: left;
   margin: 12px auto;
+  max-width: 800px;
+  position: relative;
 }}
 .pdf-summary-box {{
-  background: rgba(245,245,245,0.7);; 
+  background: #E6F0FF; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
   white-space: pre-line;
 }}
+
+/* Chat area */
 .chat-container {{
-  max-height: 80vh;
+  max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 15px;
-  border-radius: 20px;
-  background: rgba(255,255,255,0.6);
-  margin-bottom: 5;
+  padding-bottom: 60px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.85);
+  margin-bottom: 0;
 }}
+
+/* Bubbles */
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
   border-radius:12px;
-  margin:10px 0;
-  max-width: 90%;
+  margin:8px 0;
+  max-width: 86%;
   word-wrap: break-word;
 }}
-.chat-bubble-user {{ background: rgba(245,245,245,0.6); color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: rgba(245,245,245,0.7); margin-right:auto; color:#000; }}
-.chat-bubble-audio {{ background: rgba(245,245,245,0.7); margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
-footer, header {{ z-index: 0; }}
+.chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
+.chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; color:#000; }}
+.chat-bubble-audio {{ background: #D3D3D3; margin-right:auto; font-size:0.9em; padding:10px; margin-top:8px; }}
+
+/* Ensure logos inside title box */
+.title-box img.ai-logo {{
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 100px;
+    height: auto;
+}}
+.title-box img.gsk-logo {{
+    float: left;
+    width: 140px;
+}}
+.title-box h1, .title-box p {{
+    margin-left: 160px;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
-
 # ---------------------------- GROQ Client ----------------------------
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
