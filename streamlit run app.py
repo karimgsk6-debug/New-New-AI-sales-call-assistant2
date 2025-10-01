@@ -63,7 +63,7 @@ for key, value in {
     "chat_history": [],
     "uploaded_pdf_text": "",
     "pdf_summary": "",
-    "voice_pref": "Old Male",
+    "voice_pref": "Male",
     "language": "English",
     "pdf_search_keyword": "",
     "pdf_summary_size": "Normal",
@@ -94,7 +94,7 @@ CSS = f"""
   margin: 12px auto;
 }}
 .pdf-summary-box {{
-  background: rgba(245,245,245,0.8);; 
+  background: rgba(245,245,245,0.7);; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
@@ -104,16 +104,16 @@ CSS = f"""
   max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 12px;
-  border-radius: 10px;
+  padding-bottom: 15px;
+  border-radius: 12px;
   background: rgba(255,255,255,0.8);
-  margin-bottom: 2;
+  margin-bottom: 3;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
   border-radius:12px;
-  margin:8px 0;
+  margin:10px 0;
   max-width: 90%;
   word-wrap: break-word;
 }}
@@ -137,14 +137,15 @@ personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced"
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists""]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands)
+    specialty = st.selectbox("Select Doctor Specialty", specialties)
     segment = st.selectbox("Select RACE Segment", race_segments)
+    persona = st.selectbox("Select HCP Persona", personas)
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers)
     objective = st.selectbox("Select Objective", objectives)
-    specialty = st.selectbox("Select Doctor Specialty", specialties)
     persona = st.selectbox("Select HCP Persona", personas)
     response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
