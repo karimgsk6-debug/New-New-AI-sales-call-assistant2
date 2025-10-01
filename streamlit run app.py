@@ -40,17 +40,6 @@ if "pdf_summary_size" not in st.session_state:
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
 GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
 
-def get_brightness(url: str) -> int:
-    try:
-        r = requests.get(url, timeout=6)
-        img = Image.open(BytesIO(r.content)).convert("L")
-        stat = ImageStat.Stat(img)
-        return int(stat.mean[0])
-    except:
-        return 255
-
-brightness = get_brightness(BACKGROUND_URL)
-
 # ---------------------------- CSS ----------------------------
 CSS = f"""
 <style>
@@ -153,7 +142,6 @@ with st.expander("📄 PDF Summary", expanded=False):
         bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
         pattern = r'([A-Z][^.\n]{20,200}\b(?:\d{1,3}%?|\d{4}|study|guideline|CDC|FDA|Lancet|NEJM|BMJ|JAMA)[^.]*\.)'
         bullets = re.findall(pattern, full_text, flags=re.IGNORECASE)
-
         if len(bullets) < bullets_count:
             fallback_bullets = re.findall(r'([A-Z][^.]{20,150}\.)', full_text)
             for b in fallback_bullets:
@@ -161,7 +149,6 @@ with st.expander("📄 PDF Summary", expanded=False):
                     bullets.append(b)
                 if len(bullets) >= bullets_count:
                     break
-
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:bullets_count]])
 
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
@@ -223,11 +210,10 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if send and user_input.strip():
-        # Add user message
         st.session_state.chat_history.append({"role":"user","content":user_input})
         ai_resp = generate_ai_response(user_input)
 
-        # Voice generation (male + APACT pauses)
+        # Male voice generation with APACT pauses
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
@@ -237,12 +223,8 @@ with st.container():
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
 
-        # Add AI message with audio
         st.session_state.chat_history.append({"role":"ai","content":ai_resp, "audio_bytes": audio_bytes})
-
-        # Re-render chat
         render_chat_history()
-        st.session_state.chat_input = ""
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
