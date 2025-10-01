@@ -6,9 +6,9 @@ import re
 import tempfile
 import base64
 from groq import Groq
-import os
 from PyPDF2 import PdfReader
 from html import escape
+import os
 
 # Optional docx export
 try:
@@ -26,6 +26,7 @@ except ModuleNotFoundError:
 
 from gtts import gTTS
 
+# ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
@@ -155,11 +156,10 @@ footer, header {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = (
-    st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
-)
-if not GROQ_API_KEY:
-    st.error("❌ No Groq API key found! Please add it in `.streamlit/secrets.toml` or set GROQ_API_KEY in your environment.")
+# <-- Replace this placeholder with your actual Groq API key -->
+GROQ_API_KEY = "Your_Groq_API_KEY_here"
+if not GROQ_API_KEY or GROQ_API_KEY == "Your_Groq_API_KEY_here":
+    st.error("❌ No Groq API key found! Please add it in .streamlit/secrets.toml or set GROQ_API_KEY in your environment.")
     st.stop()
 
 client = Groq(api_key=GROQ_API_KEY)
@@ -175,14 +175,14 @@ objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
-    brand = st.selectbox("Select Brand", gsk_brands)
-    segment = st.selectbox("Select RACE Segment", race_segments)
+    brand = st.selectbox("Select Brand", gsk_brands, index=0)
+    segment = st.selectbox("Select RACE Segment", race_segments, index=0)
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers)
-    objective = st.selectbox("Select Objective", objectives)
-    specialty = st.selectbox("Select Doctor Specialty", specialties)
-    persona = st.selectbox("Select HCP Persona", personas)
-    response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
-    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
+    objective = st.selectbox("Select Objective", objectives, index=0)
+    specialty = st.selectbox("Select Doctor Specialty", specialties, index=0)
+    persona = st.selectbox("Select HCP Persona", personas, index=0)
+    response_length = st.selectbox("Response Length", ["Short","Medium","Long"], index=1)
+    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], index=0)
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
 
 # ---------------------------- Title Box ----------------------------
@@ -203,28 +203,14 @@ with st.expander("📄 PDF Summary", expanded=False):
         try:
             summary_prompt = f"""
             Summarize the following medical/pharma document into {bullets_count} main bullet points. 
-            Format rules:
-            - Each main bullet point should be a broad theme or finding.
-            - Under each main bullet, provide 2–4 sub-bullets (•) with elaborative, fact-based details.
-            - Sub-bullets must include supporting evidence if available (percentages, years, clinical trials, guidelines, studies).
-            - Write in a professional, concise, and factual style.
-            - Always structure like this:
-
-            - Main Point
-               • Sub fact 1
-               • Sub fact 2
-               • Sub fact 3
-
             Document Text:
             {full_text[:12000]}
             """
 
             ai_summary = client.chat.completions.create(
                 model="mistral-7b-chat",
-                messages=[
-                    {"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
-                    {"role":"user","content":summary_prompt}
-                ],
+                messages=[{"role":"system","content":"You are a helpful assistant that creates structured, fact-based medical summaries."},
+                          {"role":"user","content":summary_prompt}],
                 temperature=0.4
             )
             st.session_state.pdf_summary = ai_summary.choices[0].message.content
@@ -381,7 +367,6 @@ with st.container():
             "ai": ai_resp,
             "audio_base64": audio_base64
         })
-        st.session_state.setdefault("chat_input", "")
         st.session_state["chat_input"] = ""
         render_chat_history()
 
