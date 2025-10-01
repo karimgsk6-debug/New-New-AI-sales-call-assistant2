@@ -25,14 +25,6 @@ except ModuleNotFoundError:
 
 from gtts import gTTS
 
-# ElevenLabs config
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
-if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
-    elevenlabs.api_key = ELEVENLABS_API_KEY
-else:
-    ELEVENLABS_AVAILABLE = False
-
 def generate_audio(text):
     try:
         text_proc = text
