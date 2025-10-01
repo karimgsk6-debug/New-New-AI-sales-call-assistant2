@@ -36,6 +36,8 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "Male Neural"
+if "chat_input" not in st.session_state:
+    st.session_state.chat_input = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -82,12 +84,12 @@ CSS = f"""
   line-height:1.4em;
 }}
 .chat-container {{
-  height: 60vh;
+  height: 65vh;
   overflow:auto;
   padding:12px;
   border-radius:10px;
   background: rgba(255,255,255,0.76);
-  margin-bottom: 90px; /* leave space for bottom bar */
+  margin-bottom: 100px; /* space for fixed input bar */
 }}
 .chat-bubble-user, .chat-bubble-ai {{
   display:inline-block;
@@ -105,7 +107,7 @@ CSS = f"""
   bottom: 12px;
   left: 16px;
   right: 16px;
-  z-index: 1200;
+  z-index: 2000;
   background: rgba(255,255,255,0.98);
   padding:10px;
   border-radius:12px;
@@ -200,8 +202,6 @@ def render_chat_history():
                 st.audio(msg["audio"], format="audio/mp3")
             st.markdown(f'<div class="chat-bubble-ai">{msg["content"]}</div>', unsafe_allow_html=True)
 
-render_chat_history()
-
 # ---------------------------- AI Response with Voice ----------------------------
 def generate_ai_response(prompt):
     if not client:
@@ -236,10 +236,8 @@ Instructions:
     for step in APACT_STEPS:
         tts_text = tts_text.replace(step, f"{step}... ")
 
-    tts_text_clean = tts_text.replace(". ", ".\n")
-
     try:
-        tts = gTTS(text=tts_text_clean, lang="en", tld="co.uk", slow=False)
+        tts = gTTS(text=tts_text, lang="en", tld="co.uk", slow=False)
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(tmp_mp3.name)
         audio_file = tmp_mp3.name
@@ -247,29 +245,29 @@ Instructions:
         st.warning(f"Voice generation error: {e}")
         audio_file = None
 
-    # Append AI response
     st.session_state.chat_history.append({
         "role": "ai",
         "content": ai_text,
         "audio": audio_file
     })
 
-    return ai_text
+# ---------------------------- Render Chat ----------------------------
+render_chat_history()
 
-# ---------------------------- Bottom Chat Input ----------------------------
-with st.container():
-    st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-    col1, col2 = st.columns([8,1])
-    with col1:
-        user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-    with col2:
-        send = st.button("Send")
-    st.markdown('</div>', unsafe_allow_html=True)
+# ---------------------------- Fixed Chat Input ----------------------------
+st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
+col1, col2 = st.columns([8,1])
+with col1:
+    user_input = st.text_input("Type your message...", key="chat_input", value=st.session_state.chat_input, label_visibility="collapsed")
+with col2:
+    send = st.button("Send")
+st.markdown('</div>', unsafe_allow_html=True)
 
-    if send and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input})
-        ai_resp = generate_ai_response(user_input)
-        render_chat_history()
+if send and user_input.strip():
+    st.session_state.chat_history.append({"role":"user","content":user_input})
+    generate_ai_response(user_input)
+    st.session_state.chat_input = ""  # clear input after sending
+    st.rerun()  # refresh page so chat stays updated
 
 # ---------------------------- Export Chat ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
