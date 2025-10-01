@@ -149,9 +149,9 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     persona = st.selectbox("Select HCP Persona", personas, key="select_persona")
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers, key="select_barrier")
     objective = st.selectbox("Select Objective", objectives, key="select_objective")
-    response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_length")
-    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_tone")
-    st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="select_language")
+    response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_response_length")
+    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_response_tone")
+    st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="radio_language")
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'''
