@@ -175,7 +175,7 @@ footer, header {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
