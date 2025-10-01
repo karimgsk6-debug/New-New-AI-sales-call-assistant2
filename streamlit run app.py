@@ -135,9 +135,9 @@ CSS = f"""
 /* Fixed chat input */
 div[data-testid="stTextInput"]:last-of-type {{
     position: fixed !important;
-    bottom: 20px;
-    left: 20px;
-    right: 140px;
+    bottom: 30px;
+    left: 30px;
+    right: 100px;
     z-index: 10002;
     background: rgba(255,255,255,0.95);
     border-radius: 10px;
@@ -180,27 +180,29 @@ client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
 gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
-doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
+doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
 APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Select Brand", gsk_brands)
+    specialty = st.selectbox("Select Doctor Specialty", specialties)
     segment = st.selectbox("Select RACE Segment", race_segments)
+    persona = st.selectbox("Select HCP Persona", personas)
     barrier = st.multiselect("Select Doctor Barrier", doctor_barriers)
     objective = st.selectbox("Select Objective", objectives)
-    specialty = st.selectbox("Select Doctor Specialty", specialties)
-    persona = st.selectbox("Select HCP Persona", personas)
     response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
 
 # ---------------------------- Title Box ----------------------------
-st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
+st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 
+AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 PDF Summary", expanded=False):
