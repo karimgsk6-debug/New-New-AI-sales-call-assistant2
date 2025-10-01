@@ -96,6 +96,16 @@ BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 
 # ---------------------------- CSS ----------------------------
+# ---------------------------- Title Box with AI Logo ----------------------------
+st.markdown(f'''
+<div class="title-box" style="position: relative; max-width: 800px; margin: 12px auto;">
+    <img src="{https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png}" width="140" style="float:left;">
+    <h1 style="margin-left: 160px;">💡 AI Sales Call Assistant</h1>
+    <p style="margin-left: 160px;">Powered by AI to equip reps for smarter HCP conversations</p>
+    <img src="{https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D}" style="position:absolute; top:10px; right:10px; width:100px; height:auto;">
+</div>
+''', unsafe_allow_html=True)
+
 CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
