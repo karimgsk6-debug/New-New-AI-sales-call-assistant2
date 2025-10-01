@@ -21,12 +21,14 @@ try:
     ELEVENLABS_AVAILABLE = True
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
-    from gtts import gTTS
+
+# Always import gTTS for fallback
+from gtts import gTTS
 
 # ElevenLabs config
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")  # Your Elderly Male Voice ID
-if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY:
+if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
     ELEVENLABS_AVAILABLE = False  # Ensure fallback to gTTS
