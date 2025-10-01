@@ -173,6 +173,50 @@ footer, header {{
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+/* Reduce chat container width */
+.chat-container {
+    max-height: 65vh;
+    overflow-y: auto;
+    padding: 12px;
+    padding-bottom: 70px; /* leave room for fixed input */
+    border-radius: 10px;
+    background: rgba(255,255,255,0.85);
+    margin-bottom: 0;
+    max-width: 650px;       /* reduced width */
+}
+
+/* Chat input + Send button inside same box */
+.chat-input-container {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 650px; /* match chat box width */
+    z-index: 10002;
+    display: flex;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.95);
+    padding: 5px 10px;
+}
+
+.chat-input-container input[type="text"] {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    padding: 10px;
+    border-radius: 8px 0 0 8px;
+}
+
+.chat-input-container button {
+    background-color: #0078D7;
+    color: white;
+    border: none;
+    padding: 0 16px;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 0 8px 8px 0;
+}
+
 
 # ---------------------------- GROQ Client ----------------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
