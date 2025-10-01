@@ -140,16 +140,16 @@ APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
 objectives = ["Awareness","Adoption","Retention"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
-    brand = st.selectbox("Select Brand", gsk_brands)
-    specialty = st.selectbox("Select Doctor Specialty", specialties)
-    segment = st.selectbox("Select RACE Segment", race_segments)
-    persona = st.selectbox("Select HCP Persona", personas)
-    barrier = st.multiselect("Select Doctor Barrier", doctor_barriers)
-    objective = st.selectbox("Select Objective", objectives)
-    persona = st.selectbox("Select HCP Persona", personas)
-    response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
-    response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
-    st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
+brand = st.selectbox("Select Brand", gsk_brands, key="select_brand")
+segment = st.selectbox("Select RACE Segment", race_segments, key="select_segment")
+barrier = st.multiselect("Select Doctor Barrier", doctor_barriers, key="select_barrier")
+objective = st.selectbox("Select Objective", objectives, key="select_objective")
+specialty = st.selectbox("Select Doctor Specialty", specialties, key="select_specialty")
+persona = st.selectbox("Select HCP Persona", personas, key="select_persona")
+response_length = st.selectbox("Response Length", ["Short","Medium","Long"], key="select_response_length")
+response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"], key="select_response_tone")
+st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="radio_language")
+
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
