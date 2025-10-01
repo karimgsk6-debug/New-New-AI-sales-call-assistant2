@@ -210,8 +210,13 @@ with st.expander("📄 PDF Summary", expanded=False):
 # ---------------------------- Chat Area ----------------------------
 st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
 
+# Chat input
 user_input = st.text_input("Type your question:", key="chat_input")
-if user_input:
+
+# Send button
+send = st.button("Send")
+
+if send and user_input.strip():
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -222,18 +227,37 @@ if user_input:
             temperature=0.65
         )
         ai_resp = response.choices[0].message.content
+
+        # Append to chat history
         st.session_state.chat_history.append(("user", user_input))
         st.session_state.chat_history.append(("ai", ai_resp))
-        st.session_state.chat_input = ""
 
+        # Generate audio
         audio_base64 = generate_audio(ai_resp)
+        st.session_state.chat_history.append(("audio", audio_base64))
+
+    except Exception as e:
+        st.error(f"Error generating AI response: {e}")
+
+# Render chat history
+for item in st.session_state.chat_history:
+    role, msg = item
+    if role == "user":
+        cls = "chat-bubble-user"
+        st.markdown(f'<div class="{cls}">{escape(msg)}</div>', unsafe_allow_html=True)
+    elif role == "ai":
+        cls = "chat-bubble-ai"
+        st.markdown(f'<div class="{cls}">{escape(msg)}</div>', unsafe_allow_html=True)
+    elif role == "audio":
         st.markdown(f"""
         <div class="chat-bubble-audio">
             🔊 <audio controls>
-            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            <source src="data:audio/mp3;base64,{msg}" type="audio/mp3">
             </audio>
         </div>
         """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error generating AI response: {e}")
