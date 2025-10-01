@@ -274,21 +274,30 @@ st.markdown('</div>', unsafe_allow_html=True)
 render_chat_history()
 
 # ---------------- BOTTOM INPUT ----------------
-user_input = st.text_area("", value=st.session_state["chat_input"], key="chat_input",
-                          placeholder="Type your message (Shift+Enter for newline)", height=80)
+user_input = st.text_area(
+    "", 
+    value=st.session_state.get("chat_input", ""), 
+    key="chat_input",
+    placeholder="Type your message (Shift+Enter for newline)", 
+    height=80
+)
 
-send_clicked = st.button("📤", key="send_button", help="Send message")
-
-if send_clicked and user_input.strip():
-    ai_resp = generate_ai_response(user_input)
+def send_message():
+    """Callback to safely append chat and clear input"""
+    prompt = st.session_state.get("chat_input", "").strip()
+    if not prompt:
+        return
+    ai_resp = generate_ai_response(prompt)
     audio_b64 = generate_audio(ai_resp)
     st.session_state.chat_history.append({
-        "user": user_input,
+        "user": prompt,
         "ai": ai_resp,
         "audio_base64": audio_b64
     })
-    st.session_state["chat_input"] = ""
-    st.experimental_rerun()
+    st.session_state["chat_input"] = ""  # safe here inside callback
+
+# Small paper-plane send button, calls the safe callback
+st.button("📤", key="send_button", help="Send message", on_click=send_message)
 
 # ---------------- EXPORT CHAT ----------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
