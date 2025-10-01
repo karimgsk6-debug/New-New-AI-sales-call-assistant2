@@ -85,12 +85,12 @@ CSS = f"""
   background-size: auto 150%;
 }}
 .title-box {{
-  background: rgba(245,245,245,0.85);
+  background: rgba(245,245,245,0.7);
   padding: 15px;
   border-radius: 16px;
   text-align: left;
   margin: 12px auto;
-  width: 75%;
+  width: 85%;
   position: relative;
 }}
 .title-box img.ai-logo {{
@@ -156,7 +156,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'''
 <div class="title-box">
-    <img src="{GSK_LOGO_URL}" width="160">
+    <img src="{GSK_LOGO_URL}" width="120">
     <h1>💡 AI Sales Call Assistant</h1>
     <p>Powered by AI to equip reps for smarter HCP conversations</p>
     <img class="ai-logo" src="{AI_LOGO_URL}">
