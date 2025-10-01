@@ -144,15 +144,17 @@ with st.expander("📄 PDF Summary", expanded=False):
         reader = PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
-        bullets = re.findall(r"([A-Z][^.]{10,150}\.)", full_text)
+
+        # Concise bullet points: focus on info, numbers, studies
+        bullets = re.findall(r"([A-Z][^.\n]{20,150}\.)", full_text)
         st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:12]])
-    
-    # Search
+
+    # Search in PDF summary
     keyword = st.text_input("Search in PDF Summary", value=st.session_state.pdf_search_keyword)
     st.session_state.pdf_search_keyword = keyword
     pdf_display = st.session_state.pdf_summary
     if keyword:
-        pdf_display = pdf_display.replace(keyword, f"**{keyword}**")
+        pdf_display = re.sub(f"(?i)({re.escape(keyword)})", r"**\1**", pdf_display)
     st.markdown('<div class="pdf-summary-box">'+pdf_display+'</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat ----------------------------
@@ -193,9 +195,8 @@ APACT Steps: {', '.join(APACT_STEPS)}
     )
     return response.choices[0].message.content
 
-# ---------------------------- Chat Input / Voice ----------------------------
+# ---------------------------- Chat Input / Voice / Export ----------------------------
 with st.container():
-    # Clear conversation
     if st.button("🗑️ Clear Conversation"):
         st.session_state.chat_history = []
 
@@ -213,7 +214,7 @@ with st.container():
         # Generate AI
         ai_resp = generate_ai_response(user_input)
 
-        # Generate gTTS voice (male with APACT pauses)
+        # Generate gTTS voice with APACT pauses
         voice_text = ai_resp
         for step in APACT_STEPS:
             voice_text = voice_text.replace(step, f"{step}, ...")
@@ -227,3 +228,16 @@ with st.container():
         # Append AI response
         st.session_state.chat_history.append({"role":"ai","content":ai_resp})
         st.rerun()
+
+# ---------------------------- Export Chat ----------------------------
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    if st.button("📥 Export Chat (.docx)"):
+        doc = Document()
+        doc.add_heading("AI Sales Call Assistant Chat History", 0)
+        for msg in st.session_state.chat_history:
+            doc.add_paragraph(f'{msg["role"].capitalize()}: {msg["content"]}')
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+        doc.save(tmp.name)
+        with open(tmp.name,"rb") as f:
+            data = f.read()
+        st.download_button("⬇️ Download Chat History (.docx)", data=data, file_name="chat_history.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
