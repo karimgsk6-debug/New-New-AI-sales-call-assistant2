@@ -36,8 +36,6 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "Male Neural"
-if "chat_input" not in st.session_state:
-    st.session_state.chat_input = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
@@ -70,26 +68,21 @@ CSS = f"""
   padding: 20px;
   border-radius: 16px;
   text-align: center;
-  max-width: 90%;
   margin: 12px auto;
 }}
-.title-box h1 {{ margin:0; font-size:34px; font-weight:800; color:#000; }}
-.title-box p {{ margin:6px 0 0 0; font-size:16px; color:#333; }}
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
   border-radius: 14px; 
   margin-bottom: 12px;
-  font-size:15px;
-  line-height:1.4em;
 }}
 .chat-container {{
-  height: 65vh;
-  overflow:auto;
-  padding:12px;
-  border-radius:10px;
-  background: rgba(255,255,255,0.76);
-  margin-bottom: 100px; /* space for fixed input bar */
+  height: 60vh;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.8);
+  margin-bottom: 80px;
 }}
 .chat-bubble-user, .chat-bubble-ai {{
   display:inline-block;
@@ -98,7 +91,6 @@ CSS = f"""
   margin:8px 0;
   max-width: 86%;
   word-wrap: break-word;
-  color: #000;
 }}
 .chat-bubble-user {{ background: #DCF8C6; margin-left:auto; }}
 .chat-bubble-ai {{ background: #E6F0FF; margin-right:auto; }}
@@ -107,31 +99,14 @@ CSS = f"""
   bottom: 12px;
   left: 16px;
   right: 16px;
-  z-index: 2000;
   background: rgba(255,255,255,0.98);
-  padding:10px;
-  border-radius:12px;
+  padding: 10px;
+  border-radius: 12px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.06);
   display:flex;
   gap:12px;
   align-items:center;
-}}
-.bottom-bar input[type="text"] {{
-  flex:1;
-  padding:10px 12px;
-  border-radius:8px;
-  border:1px solid #ddd;
-  outline:none;
-}}
-.bottom-bar button {{
-  min-width:110px;
-  padding:8px 12px;
-  border-radius:8px;
-  background:#ff8c00;
-  color:white;
-  border:none;
-  font-weight:600;
-  cursor:pointer;
+  z-index: 1000;
 }}
 </style>
 """
@@ -161,52 +136,36 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_length = st.selectbox("Response Length", ["Short","Medium","Long"])
     response_tone = st.selectbox("Response Tone", ["Formal","Casual","Friendly","Persuasive"])
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True)
-    st.session_state.voice_pref = st.selectbox("Voice preference", ["Male Neural","Female Neural","English Neural","Arabic Neural"], index=0)
+    st.session_state.voice_pref = st.selectbox("Voice preference", ["Male Neural","Female Neural"])
 
 # ---------------------------- Title Box ----------------------------
 st.markdown(f'<div class="title-box"><img src="{GSK_LOGO_URL}" width="140"><h1>💡 AI Sales Call Assistant</h1><p>Powered by AI to equip reps for smarter HCP conversations</p></div>', unsafe_allow_html=True)
 
-# ---------------------------- PDF Upload & Summary ----------------------------
-with st.expander("📄 PDF Summary (Auto-Extracted)", expanded=False):
+# ---------------------------- PDF Upload ----------------------------
+with st.expander("📄 PDF Summary", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF for AI reference", type=["pdf"])
     if uploaded_pdf:
         from PyPDF2 import PdfReader
         reader = PdfReader(uploaded_pdf)
         full_text = "".join([p.extract_text() or "" for p in reader.pages])
         st.session_state.uploaded_pdf_text = full_text
-        # Extract references
-        matches = re.findall(r"(?:CDC|FDA|Guideline|Study|Journal|20\d{2}|Lancet|NEJM|BMJ|JAMA)[^.\n]*", full_text, flags=re.I)
-        st.session_state.extracted_medical_ref = ", ".join(matches) if matches else "None"
-        # Informative numbered bullet points
-        bullets = re.findall(r"([A-Z][^.]{20,200}\.)", full_text)
-        numbered_bullets = [f"{i+1}. {b.strip()}" for i, b in enumerate(bullets[:12])]
-        st.session_state.pdf_summary = "\n".join(numbered_bullets)
+        bullets = re.findall(r"([A-Z][^.]{10,150}\.)", full_text)
+        st.session_state.pdf_summary = "\n".join([f"- {b.strip()}" for b in bullets[:12]])
         st.markdown('<div class="pdf-summary-box">'+st.session_state.pdf_summary+'</div>', unsafe_allow_html=True)
-        # Keyword search
-        keyword = st.text_input("Search in PDF Summary")
-        if keyword:
-            highlighted = st.session_state.pdf_summary.replace(keyword, f"**{keyword}**")
-            st.markdown('<div class="pdf-summary-box">'+highlighted+'</div>', unsafe_allow_html=True)
-        with st.expander("Extracted References", expanded=False):
-            st.write(st.session_state.extracted_medical_ref)
 
-# ---------------------------- Chat History ----------------------------
+# ---------------------------- Chat ----------------------------
 st.markdown("<h3>💬 Chat</h3>", unsafe_allow_html=True)
 
 def render_chat_history():
+    html_out = ""
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
+        if msg["role"]=="user":
+            html_out += f'<div class="chat-bubble-user">{msg["content"]}</div>'
         else:
-            if "audio" in msg and msg["audio"]:
-                st.audio(msg["audio"], format="audio/mp3")
-            st.markdown(f'<div class="chat-bubble-ai">{msg["content"]}</div>', unsafe_allow_html=True)
+            html_out += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
+    st.markdown(f'<div class="chat-container">{html_out}</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Response with Voice ----------------------------
 def generate_ai_response(prompt):
-    if not client:
-        return "⚠️ AI service not configured"
-
     context = f"""
 User: {prompt}
 Brand: {brand}
@@ -215,69 +174,47 @@ Objective: {objective}
 Doctor Barrier: {barrier}
 Persona: {persona}
 Specialty: {specialty}
+
 PDF Summary:
 {st.session_state.pdf_summary}
 
-Instructions:
-- Structure response along sales call steps: {', '.join(sales_call_flow)}
-- For each step, inject APACT actions: {', '.join(APACT_STEPS)}
-- Make responses actionable, concise, and professional.
+Please structure the response around the Sales Call Flow:
+{', '.join(sales_call_flow)}
+
+And embed APACT steps:
+{', '.join(APACT_STEPS)}
 """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role":"system","content":"You are a helpful GSK medical sales assistant."},
+        messages=[{"role":"system","content":"You are a helpful GSK sales assistant."},
                   {"role":"user","content":context}],
         temperature=0.65
     )
-    ai_text = response.choices[0].message.content
+    return response.choices[0].message.content
 
-    # ---------- gTTS voice with APACT pauses ----------
-    tts_text = ai_text
-    for step in APACT_STEPS:
-        tts_text = tts_text.replace(step, f"{step}... ")
+# ---------------------------- Chat Input Fixed ----------------------------
+with st.container():
+    render_chat_history()
 
-    try:
-        tts = gTTS(text=tts_text, lang="en", tld="co.uk", slow=False)
-        tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(tmp_mp3.name)
-        audio_file = tmp_mp3.name
-    except Exception as e:
-        st.warning(f"Voice generation error: {e}")
-        audio_file = None
-
-    st.session_state.chat_history.append({
-        "role": "ai",
-        "content": ai_text,
-        "audio": audio_file
-    })
-
-# ---------------------------- Render Chat ----------------------------
-render_chat_history()
-
-# ---------------------------- Fixed Chat Input ----------------------------
-st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
-col1, col2 = st.columns([8,1])
-with col1:
-    user_input = st.text_input("Type your message...", key="chat_input", value=st.session_state.chat_input, label_visibility="collapsed")
-with col2:
+    st.markdown('<div class="bottom-bar">', unsafe_allow_html=True)
+    user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
     send = st.button("Send")
-st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if send and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input})
-    generate_ai_response(user_input)
-    st.session_state.chat_input = ""  # clear input after sending
-    st.rerun()  # refresh page so chat stays updated
+    if send and user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input})
+        ai_resp = generate_ai_response(user_input)
 
-# ---------------------------- Export Chat ----------------------------
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    if st.button("📥 Export Chat (.docx)"):
-        doc = Document()
-        doc.add_heading("AI Sales Call Assistant Chat History", 0)
-        for msg in st.session_state.chat_history:
-            doc.add_paragraph(f'{msg["role"].capitalize()}: {msg["content"]}')
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-        doc.save(tmp.name)
-        with open(tmp.name,"rb") as f:
-            data = f.read()
-        st.download_button("⬇️ Download Chat History (.docx)", data=data, file_name="chat_history.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        # Generate voice (male with pauses at APACT)
+        voice_text = ai_resp
+        for step in APACT_STEPS:
+            voice_text = voice_text.replace(step, f"{step}, ...")
+        tts = gTTS(text=voice_text, lang="en", slow=False)
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(tmp_file.name)
+
+        # Play voice before showing text
+        st.audio(tmp_file.name)
+
+        st.session_state.chat_history.append({"role":"ai","content":ai_resp})
+        st.experimental_rerun()
