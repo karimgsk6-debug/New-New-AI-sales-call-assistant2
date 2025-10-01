@@ -73,8 +73,8 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://www.shutterstock.com/image-photo/excited-girl-white-shirt-using-260nw-708132598.jpg"
-GSK_LOGO_URL = "https://i-cf65.gskstatic.com/content/dam/cf-pharma/gskusmedicalaffairs/en_US/logos/gsk-logo-white.png?auto=format"
+BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-466c-620a-81c6-59c1f5c85484/raw?se=2025-10-01T21%3A36%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=e48070e4-6fe8-551d-b151-1591946f0e60&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A07%3A59Z&ske=2025-10-02T19%3A07%3A59Z&sks=b&skv=2024-08-04&sig=3/PGGYaseBkvjJWbMBbuzsZeNyvlAXRSqcswf%2Bm1IZI%3D"
+GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
 
 # ---------------------------- CSS ----------------------------
