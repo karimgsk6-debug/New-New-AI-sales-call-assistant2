@@ -73,7 +73,7 @@ if "pdf_summary_size" not in st.session_state:
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-10-02T08%3A55%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=da9b1fe8-d683-5331-8dac-5d17ac775ed0&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T05%3A07%3A48Z&ske=2025-10-03T05%3A07%3A48Z&sks=b&skv=2024-08-04&sig=zev17ijVwaJyIwxogpGkQRRHoIWzd7z4Ic%2BWeVhPdjc%3D"
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
-AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-01T22%3A14%3A53Z&sp=r&sv=2024-08-04&sr=b&scid=5e0685db-737d-5bda-a960-befd761ac516&skoid=eb780365-537d-4279-a878-cae64e33aa9c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-01T19%3A10%3A31Z&ske=2025-10-02T19%3A10%3A31Z&sks=b&skv=2024-08-04&sig=Fq1ONP%2BC2j2OlBh8kGjhfgU4zzbXf/ZJ5om/q%2B4BKCE%3D"
+AI_LOGO_URL = "https://sdmntprcentralus.oaiusercontent.com/files/00000000-abf4-61f5-bfa6-fcf43be4077e/raw?se=2025-10-02T08%3A35%3A25Z&sp=r&sv=2024-08-04&sr=b&scid=a394ba72-0dda-587b-95a6-d917502f74f4&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T07%3A09%3A24Z&ske=2025-10-03T07%3A09%3A24Z&sks=b&skv=2024-08-04&sig=CQx2gH/Lfl/QiwlLizWH/Ry58wPSD3ieXd4ToXXyNvA%3D"
 
 # ---------------------------- CSS ----------------------------
 CSS = f"""
