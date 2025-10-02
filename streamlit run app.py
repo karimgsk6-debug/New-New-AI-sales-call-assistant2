@@ -92,7 +92,7 @@ CSS = f"""
   background: rgba(240,240,240,0.7);
   padding: 15px;
   border-radius: 16px;
-  text-align: Right;
+  text-align: left;
   margin: 12px auto;
   width: 850px;
   position: relative;
@@ -100,7 +100,7 @@ CSS = f"""
 .title-box img.ai-logo {{
     position: absolute;
     top: 5px;
-    left: 10px;
+    right: 10px;
     width: 90px;
 }}
 
