@@ -119,7 +119,7 @@ CSS = f"""
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.6);
   margin-bottom: 20px;
 }}
 
