@@ -71,7 +71,7 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-10-02T08%3A55%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=da9b1fe8-d683-5331-8dac-5d17ac775ed0&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T05%3A07%3A48Z&ske=2025-10-03T05%3A07%3A48Z&sks=b&skv=2024-08-04&sig=zev17ijVwaJyIwxogpGkQRRHoIWzd7z4Ic%2BWeVhPdjc%3D"
+BACKGROUND_URL = "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-ecfc-620a-9191-1ddf3c254307/raw?se=2025-10-02T10%3A51%3A50Z&sp=r&sv=2024-08-04&sr=b&scid=fe4e8fce-d418-53ae-b74d-bedf41fdf3c1&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T06%3A40%3A37Z&ske=2025-10-03T06%3A40%3A37Z&sks=b&skv=2024-08-04&sig=LB9SdS5tGyDeyPWTb0UINv4xO2LdY25oiwk4Wvz/Vqc%3D"
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-02T10%3A16%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=835aa463-ae7d-50c3-9b32-c42adf55b5f2&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T04%3A05%3A48Z&ske=2025-10-03T04%3A05%3A48Z&sks=b&skv=2024-08-04&sig=M4%2Bt2fzXRX%2Bh3ddBBv97mHRjFSBpXYJyEoSs5TqbwGc%3D"
 
