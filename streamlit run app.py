@@ -171,7 +171,7 @@ gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist","Rheumatologist","Internal medicine","Neurologists"]
 objectives = ["Awareness","Adoption","Retention"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
