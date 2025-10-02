@@ -71,9 +71,9 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-10-02T08%3A55%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=da9b1fe8-d683-5331-8dac-5d17ac775ed0&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T05%3A07%3A48Z&ske=2025-10-03T05%3A07%3A48Z&sks=b&skv=2024-08-04&sig=zev17ijVwaJyIwxogpGkQRRHoIWzd7z4Ic%2BWeVhPdjc%3D"
+BACKGROUND_URL = "https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?..."
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
-AI_LOGO_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-42e0-6246-8bd4-812f66b46668/raw?se=2025-10-02T09%3A09%3A04Z&sp=r&sv=2024-08-04&sr=b&scid=04001bb8-a622-5394-8e9b-f0e7f4f6f1f2&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T04%3A32%3A34Z&ske=2025-10-03T04%3A32%3A34Z&sks=b&skv=2024-08-04&sig=eStxlnunHXrvS6s65lQTrZCH1ziJhQ6mUxgpbnT/zeY%3D"
+AI_LOGO_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-42e0-6246-8bd4-812f66b46668/raw?..."
 
 # ---------------------------- CSS ----------------------------
 CSS = f"""
@@ -163,7 +163,7 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "Your Groq API KEY here"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
@@ -171,10 +171,8 @@ gsk_brands = ["Shingrix", "Trelegy", "Zejula"]
 race_segments = ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"]
 doctor_barriers = ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"]
 personas = ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"]
-sales_call_flow = ["Prepare","Engage","Create Opportunities","Impact GSO","Influence","Post Call Analysis"]
-APACT_STEPS = ["Acknowledge","Probing","Action","Confirm","Transition"]
-objectives = ["Awareness","Adoption","Retention"]
 specialties = ["GP","Cardiologist","Dermatologist","Endocrinologist"]
+objectives = ["Awareness","Adoption","Retention"]
 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", gsk_brands, key="select_brand")
@@ -223,17 +221,44 @@ with st.expander("📄 PDF Summary", expanded=False):
 
 # ---------------------------- AI Chat ----------------------------
 def generate_ai_response(user_input):
-    if "sales call flow" in user_input.lower():
-        prompt = f"Build a sales call flow for {persona} using RACE steps."
-    elif "handle objection" in user_input.lower() or "apact" in user_input.lower():
-        prompt = f"Generate APACT approach steps for the objection: {user_input}"
+    lower = user_input.lower()
+
+    if "sales call" in lower or "call flow" in lower:
+        system_prompt = """
+        You are an AI sales coach for pharmaceutical reps. 
+        Always generate responses using this **GSK Sales Call Flow**:
+        1. Prepare
+        2. Engage
+        3. Create Opportunities
+        4. Influence
+        5. Impact GSO (Good Sell Outcome)
+
+        For each step, provide clear, practical example lines the rep can use with an HCP.
+        """
+        final_prompt = f"Build a structured sales call flow for {persona}, focusing on {brand}, barriers: {barrier}, specialty: {specialty}, and objective: {objective}."
+
+    elif "objection" in lower or "concern" in lower or "apact" in lower or "handle" in lower:
+        system_prompt = """
+        You are an AI objection-handling coach for pharmaceutical reps.
+        Always generate responses using the **APACT framework**:
+        - Acknowledge
+        - Probing
+        - Action
+        - Confirm
+        - Transition to next step
+
+        For each milestone, provide realistic phrasing the rep can use with an HCP.
+        """
+        final_prompt = f"Handle the HCP objection with APACT structure. Objection context: {user_input}. Persona: {persona}, Brand: {brand}."
+
     else:
-        prompt = f"Answer the query professionally: {user_input}"
+        system_prompt = "You are a helpful sales assistant AI for pharma reps."
+        final_prompt = user_input
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role":"system","content":"You are a helpful sales assistant AI."},
-                  {"role":"user","content":prompt}],
+        messages=[{"role":"system","content":system_prompt},
+                  {"role":"user","content":final_prompt}],
         temperature=0.65
     )
     return response.choices[0].message.content
@@ -264,7 +289,6 @@ if send and chat_input.strip():
     ai_resp = generate_ai_response(chat_input.strip())
     audio_base64 = generate_audio(ai_resp)
     st.session_state.chat_history.append((chat_input.strip(), ai_resp, audio_base64))
-
 
 # ---------------------------- Word Export ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
