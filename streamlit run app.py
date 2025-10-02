@@ -73,7 +73,7 @@ if "pdf_summary_size" not in st.session_state:
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://sdmntprukwest.oaiusercontent.com/files/00000000-abd4-6243-82cf-168367664603/raw?se=2025-10-02T08%3A55%3A08Z&sp=r&sv=2024-08-04&sr=b&scid=da9b1fe8-d683-5331-8dac-5d17ac775ed0&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T05%3A07%3A48Z&ske=2025-10-03T05%3A07%3A48Z&sks=b&skv=2024-08-04&sig=zev17ijVwaJyIwxogpGkQRRHoIWzd7z4Ic%2BWeVhPdjc%3D"
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
-AI_LOGO_URL = "https://sdmntpritalynorth.oaiusercontent.com/files/00000000-42e0-6246-8bd4-812f66b46668/raw?se=2025-10-02T09%3A09%3A04Z&sp=r&sv=2024-08-04&sr=b&scid=04001bb8-a622-5394-8e9b-f0e7f4f6f1f2&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T04%3A32%3A34Z&ske=2025-10-03T04%3A32%3A34Z&sks=b&skv=2024-08-04&sig=eStxlnunHXrvS6s65lQTrZCH1ziJhQ6mUxgpbnT/zeY%3D"
+AI_LOGO_URL = "https://sdmntprcentralus.oaiusercontent.com/files/00000000-abf4-61f5-bfa6-fcf43be4077e/raw?se=2025-10-02T08%3A35%3A25Z&sp=r&sv=2024-08-04&sr=b&scid=a394ba72-0dda-587b-95a6-d917502f74f4&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T07%3A09%3A24Z&ske=2025-10-03T07%3A09%3A24Z&sks=b&skv=2024-08-04&sig=CQx2gH/Lfl/QiwlLizWH/Ry58wPSD3ieXd4ToXXyNvA%3D"
 
 # ---------------------------- CSS ----------------------------
 CSS = f"""
@@ -84,12 +84,12 @@ CSS = f"""
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 150%;
+  background-size: auto 140%;
 }}
 
 /* Title box */
 .title-box {{
-  background: rgba(245,245,245,0.85);
+  background: rgba(245,245,245,0.7);
   padding: 15px;
   border-radius: 16px;
   text-align: center;
@@ -99,9 +99,9 @@ CSS = f"""
 }}
 .title-box img.ai-logo {{
     position: absolute;
-    top: 10px;
+    top: 5px;
     right: 10px;
-    width: 80px;
+    width: 90px;
 }}
 
 /* PDF summary box */
@@ -119,7 +119,7 @@ CSS = f"""
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.7);
   margin-bottom: 20px;
 }}
 
