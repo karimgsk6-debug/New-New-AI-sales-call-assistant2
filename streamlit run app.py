@@ -100,7 +100,7 @@ CSS = f"""
 .title-box img.ai-logo {{
     position: absolute;
     top: 5px;
-    right: 10px;
+    left: 10px;
     width: 90px;
 }}
 
