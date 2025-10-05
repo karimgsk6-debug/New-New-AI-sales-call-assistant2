@@ -70,34 +70,34 @@ CSS = f"""
 /* Fixed disclaimer top-center */
 .disclaimer-fixed {{
   position: fixed;
-  top: 8px;
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10020;
-  background: rgba(255,255,255,0.98);
+  background: rgba(230,230,230,0.7);
   padding: 8px 20px;
   border-radius: 8px;
   text-align:center;
   box-shadow: 0 2px 12px rgba(0,0,0,0.12);
 }}
-.disclaimer-fixed .brand {{ font-weight: 900; font-size: 40px; color: #FF7F00; }}
-.disclaimer-fixed .text {{ font-weight: 700; font-size: 30px; color: black; display:block; margin-top:6px; }}
+.disclaimer-fixed .brand {{ font-weight: 900; font-size: 20px; color: #FF7F00; }}
+.disclaimer-fixed .text {{ font-weight: 700; font-size: 15px; color: black; display:block; margin-top:6px; }}
 
 /* Title box */
 .title-box {{
-  background: rgba(240,240,240,0.85);
+  background: rgba(240,240,240,0.7);
   padding: 12px;
   border-radius: 14px;
   text-align: left;
   margin: 80px auto 12px; /* push down to avoid overlap with fixed disclaimer */
-  width: 900px;
+  width: 1200px;
   position: relative;
 }}
 .title-box img.ai-logo {{
     position: absolute;
     top: 6px;
     right: 10px;
-    width: 90px;
+    width: 120px;
 }}
 
 /* PDF summary box (permanent) */
