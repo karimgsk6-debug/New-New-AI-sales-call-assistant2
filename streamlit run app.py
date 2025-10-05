@@ -90,11 +90,11 @@ CSS = f"""
 /* Fixed disclaimer top-center */
 .disclaimer-fixed {{
   position: fixed;
-  top: 6px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10010;
-  background: rgba(255,255,255,0.7);
+  background: rgba(240,240,240,0.7);
   padding: 10px 18px;
   border-radius: 8px;
   text-align:center;
