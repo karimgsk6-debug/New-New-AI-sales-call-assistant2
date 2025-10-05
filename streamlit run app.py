@@ -167,8 +167,8 @@ def safe_makedirs(path):
 
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
-safe_makedirs(".devcontainer/SalesModule/JEMPERLI")
+safe_makedirs(".devcontainer/SalesModule/shingrix")
+safe_makedirs(".devcontainer/SalesModule/jemperli")
 
 # ---------------------------- Brand Configuration ----------------------------
 brand_data = {
@@ -178,7 +178,7 @@ brand_data = {
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
         "references_path": ".devcontainer/references/shingrix/"
     },
-    "JEMPERLI": {
+    "jemperli": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
