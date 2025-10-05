@@ -33,26 +33,6 @@ if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
 else:
     ELEVENLABS_AVAILABLE = False
 
-def generate_audio(text):
-    """Generate TTS audio for the AI response"""
-    # brief normalization for TTS
-    for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition to next step"]:
-        text = text.replace(step, f"{step} ...")
-    text = re.sub(r'[{},*]', '', text)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    if ELEVENLABS_AVAILABLE:
-        audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
-        with open(tmp_file.name, "wb") as f:
-            for chunk in audio_stream:
-                f.write(chunk)
-    else:
-        tts = gTTS(text=text, lang="en", slow=True)
-        tts.save(tmp_file.name)
-    with open(tmp_file.name, "rb") as f:
-        audio_bytes = f.read()
-        audio_base64 = base64.b64encode(audio_bytes).decode()
-    return audio_base64
-
 # ---------------------------- App config ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
@@ -90,40 +70,41 @@ CSS = f"""
 /* Fixed disclaimer top-center */
 .disclaimer-fixed {{
   position: fixed;
-  bottom: 10px;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10010;
-  background: rgba(240,240,240,0.7);
-  padding: 10px 18px;
-  border-radius: 5px;
+  z-index: 10020;
+  background: rgba(255,255,255,0.98);
+  padding: 8px 20px;
+  border-radius: 8px;
   text-align:center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
 }}
-.disclaimer-fixed .text {{ font-weight: 400; font-size: 15px; color: black; display:block; margin-top:4px; }}
+.disclaimer-fixed .brand {{ font-weight: 900; font-size: 40px; color: #FF7F00; }}
+.disclaimer-fixed .text {{ font-weight: 700; font-size: 30px; color: black; display:block; margin-top:6px; }}
 
 /* Title box */
 .title-box {{
-  background: rgba(230,230,230,0.7);
-  padding: 5px;
-  border-radius: 15px;
+  background: rgba(240,240,240,0.85);
+  padding: 12px;
+  border-radius: 14px;
   text-align: left;
-  margin: 20px auto 12px; /* push down to avoid overlap with fixed disclaimer */
-  width: 1500px;
+  margin: 80px auto 12px; /* push down to avoid overlap with fixed disclaimer */
+  width: 900px;
   position: relative;
 }}
 .title-box img.ai-logo {{
     position: absolute;
-    top: 5px;
+    top: 6px;
     right: 10px;
-    width: 150px;
+    width: 90px;
 }}
 
 /* PDF summary box (permanent) */
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
-  border-radius: 14px; 
+  border-radius: 12px; 
   margin-bottom: 12px;
   white-space: pre-line;
 }}
@@ -134,7 +115,7 @@ CSS = f"""
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.62);
   margin-bottom: 12px;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
@@ -147,7 +128,7 @@ CSS = f"""
 }}
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
-.chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
+.chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.95em; padding:10px; margin-top:12px; }}
 
 /* Fixed chat input at bottom */
 .fixed-chat-input {{
@@ -174,13 +155,13 @@ CSS = f"""
 
 /* Call flow box */
 .call-flow-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.98);
   padding: 10px;
   border-radius: 10px;
   margin-bottom: 8px;
 }}
 
-/* Permanent footer area to hold PDF summary export and disclaimer spacing */
+/* Footer spacing to keep input visible */
 .footer-space {{
   height: 160px;
 }}
@@ -266,7 +247,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 disclaimer_html = f'''
 <div class="disclaimer-fixed">
   <div class="brand">⚠️ AI Assistant for <span style="font-weight:900;">{escape(brand)}</span></div>
-  <div class="text">AI can do mistakes, Please validate all generated responses against GSK-approved materials before use.</div>
+  <div class="text">Please validate all generated responses against GSK-approved materials before use.</div>
 </div>
 '''
 st.markdown(disclaimer_html, unsafe_allow_html=True)
@@ -274,7 +255,7 @@ st.markdown(disclaimer_html, unsafe_allow_html=True)
 # ---------------------------- Title ----------------------------
 st.markdown(f'''
 <div class="title-box">
-    <img src="{GSK_LOGO_URL}" width="150">
+    <img src="{GSK_LOGO_URL}" width="140">
     <img src="{AI_LOGO_URL}" class="ai-logo">
     <h1>💡 AI Sales Call Assistant</h1>
     <p>Empowering reps for smarter {brand} conversations</p>
@@ -335,6 +316,10 @@ sales_folder = f".devcontainer/SalesModule/{brand.upper()}"
 safe_makedirs(sales_folder)
 sales_module_text, sales_warning = load_local_references(sales_folder)
 
+# initialize external texts (they may be set in expanders)
+external_text = ""
+sales_external_text = ""
+
 # ---------------------------- Collapsible resource panels (render UI) ----------------------------
 # Medical references panel (collapsible)
 with st.expander("📚 Medical References (local + external)", expanded=False):
@@ -347,10 +332,11 @@ with st.expander("📚 Medical References (local + external)", expanded=False):
     # External URL input inside the same collapsible panel
     external_urls_input = st.text_area("Add external medical reference URLs (one per line)", height=120)
     external_urls = [u.strip() for u in (external_urls_input or "").splitlines() if u.strip()]
-    external_text = load_external_references(external_urls) if external_urls else ""
-    if external_text:
-        with st.expander("🔍 Preview External Medical References", expanded=False):
-            st.text_area("External Medical Reference Preview", external_text[:4000] + ("..." if len(external_text) > 4000 else ""), height=240)
+    if external_urls:
+        external_text = load_external_references(external_urls)
+        if external_text:
+            with st.expander("🔍 Preview External Medical References", expanded=False):
+                st.text_area("External Medical Reference Preview", external_text[:4000] + ("..." if len(external_text) > 4000 else ""), height=240)
 
 # PDF summary (always visible)
 st.markdown("### 📄 Uploaded PDF Summary (always visible)")
@@ -366,10 +352,11 @@ with st.expander("🧩 Sales Call Module (local + external)", expanded=False):
             st.text_area("SalesModule Preview", sales_module_text[:4000] + ("..." if len(sales_module_text) > 4000 else ""), height=260)
     sales_urls_input = st.text_area("Optional: Add external SalesModule URLs (one per line)", height=100)
     sales_urls = [u.strip() for u in (sales_urls_input or "").splitlines() if u.strip()]
-    sales_external_text = load_external_references(sales_urls) if sales_urls else ""
-    if sales_external_text:
-        with st.expander("🔍 Preview External SalesModule Content", expanded=False):
-            st.text_area("SalesModule External Preview", sales_external_text[:4000] + ("..." if len(sales_external_text) > 4000 else ""), height=260)
+    if sales_urls:
+        sales_external_text = load_external_references(sales_urls)
+        if sales_external_text:
+            with st.expander("🔍 Preview External SalesModule Content", expanded=False):
+                st.text_area("SalesModule External Preview", sales_external_text[:4000] + ("..." if len(sales_external_text) > 4000 else ""), height=260)
 
 # ---------------------------- Chat rendering area ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -386,7 +373,7 @@ for item in st.session_state.chat_history:
         ''', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Permanent footer spacing (keeps input visible) ----------------------------
+# ---------------------------- Permanent footer spacing ----------------------------
 st.markdown('<div class="footer-space"></div>', unsafe_allow_html=True)
 
 # ---------------------------- Fixed chat input ----------------------------
@@ -474,33 +461,87 @@ def generate_ai_response(user_input):
     # Build unified call flow + APACT HTML block
     call_flow_block = build_call_flow_and_apact_html(brand, include_apact=include_apact)
 
-    # Convert model output into escaped paragraphs for display and audio
-    body_paragraphs = []
-    for para in ai_raw.splitlines():
-        p = para.strip()
-        if not p:
-            continue
-        # Convert common headings like "Examples:" to bold within display (we keep content escaped)
-        p_escaped = escape(p)
-        p_escaped = re.sub(r'^(Examples:)', r'<strong>\1</strong>', p_escaped, flags=re.IGNORECASE)
-        body_paragraphs.append(p_escaped)
-    ai_body_html = "<br>".join(body_paragraphs) if body_paragraphs else "<em>No examples generated.</em>"
+    # Post-process model output:
+    # - Escape text for safe HTML display
+    # - Bold step names inside the Examples block (if present)
+    # We'll bold any occurrence of the brand steps and APACT step names inside the examples.
+    step_names = []
+    if brand.upper() == "JEMPERLI":
+        step_names = list(JEMPERLI_CALL_FLOW.keys())
+    else:
+        step_names = list(SHINGRIX_CALL_FLOW.keys())
+    apact_names = ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]
+
+    # Escape first
+    ai_escaped = escape(ai_raw)
+
+    # Bold step names (case-insensitive) in the escaped text
+    def bold_terms(text, terms):
+        for t in terms:
+            # escape the term then use regex to replace case-insensitively
+            escaped_term = re.escape(escape(t))
+            pattern = re.compile(rf'\b({escaped_term})\b', flags=re.IGNORECASE)
+            text = pattern.sub(r'<strong>\1</strong>', text)
+        return text
+
+    ai_escaped = bold_terms(ai_escaped, step_names + apact_names)
+
+    # Convert line breaks into <br> for display while preserving the inserted <strong> tags
+    # (ai_escaped may contain HTML tags we added)
+    ai_body_html = "<br>".join([line for line in ai_escaped.splitlines() if line.strip()])
 
     # Compose final HTML (call flow header + model's examples)
     assistant_html = call_flow_block + f'<div class="call-flow-box"><p><strong>Examples:</strong></p><div>{ai_body_html}</div></div>'
 
-    # Plain text for audio: strip HTML tags
-    plain_text = re.sub(r'<[^>]+>', '', assistant_html)
-    return assistant_html, plain_text
+    # Plain text for audio: remove emojis and punctuation and collapse extra whitespace
+    plain_text_for_audio = re.sub(r'[^\w\s\.\-]', '', re.sub(r'<[^>]+>', '', assistant_html))
+    plain_text_for_audio = re.sub(r'\s+', ' ', plain_text_for_audio).strip()
+
+    return assistant_html, plain_text_for_audio
+
+# ---------------------------- Generate audio with improved humanization ----------------------------
+def generate_audio_file(text):
+    """
+    Create a human-friendly audio file.
+    Preprocess: remove emojis and excessive punctuation, keep sentences.
+    Use ElevenLabs if available; otherwise use gTTS (normal speed).
+    """
+    # Remove emoji characters (basic approach)
+    text_no_emoji = re.sub(r'[\U00010000-\U0010ffff]', '', text)  # remove high-plane emojis
+    # Remove other emoji-like symbols
+    text_no_emoji = re.sub(r'[🟩🟦🟨🟧🟥🟪🔹⚠️✅➡️⬛🟫]', '', text_no_emoji)
+    # Remove excessive punctuation but keep sentence-ending periods
+    text_no_emoji = re.sub(r'[,\*\:\;\(\)\[\]\{\}"]', '', text_no_emoji)
+    # Collapse whitespace
+    text_no_emoji = re.sub(r'\s+', ' ', text_no_emoji).strip()
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    try:
+        if ELEVENLABS_AVAILABLE:
+            # use elevenlabs generation — attempt to set parameters for humanized voice if possible
+            # NOTE: depending on the installed elevenlabs client, parameters differ.
+            audio_stream = elevenlabs.generate(text=text_no_emoji, voice=ELEVENLABS_VOICE_ID, stream=True)
+            with open(tmp_file.name, "wb") as f:
+                for chunk in audio_stream:
+                    f.write(chunk)
+        else:
+            # gTTS: normal human-like speed (slow=False)
+            tts = gTTS(text=text_no_emoji, lang="en", slow=False)
+            tts.save(tmp_file.name)
+        with open(tmp_file.name, "rb") as f:
+            audio_bytes = f.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode()
+    except Exception as e:
+        # fallback: return empty audio and log warning
+        st.warning(f"⚠️ TTS generation failed: {e}")
+        audio_base64 = ""
+    return audio_base64
 
 # ---------------------------- Handle send action ----------------------------
-if 'send' in locals() and send and chat_input and chat_input.strip():
+if send and chat_input and chat_input.strip():
     ai_html, ai_plain = generate_ai_response(chat_input.strip())
-    audio_b64 = generate_audio(ai_plain)
+    audio_b64 = generate_audio_file(ai_plain)
     st.session_state.chat_history.append((chat_input.strip(), ai_html, audio_b64))
-
-# Note: when using form with clear_on_submit=True, the variables are cleared automatically in UI on submit.
-# However due to the sequential execution in Streamlit, the 'send' variable is only present in this block on submit.
 
 # ---------------------------- Export to Word ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
