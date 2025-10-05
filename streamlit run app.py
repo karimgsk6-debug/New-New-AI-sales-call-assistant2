@@ -172,7 +172,7 @@ brand_data = {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
-        "references_path": "./references/jemperli/"
+        "references_path": ".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf"
     }
 }
 
