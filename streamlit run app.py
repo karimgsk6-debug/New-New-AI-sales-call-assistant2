@@ -165,6 +165,7 @@ def safe_makedirs(path):
     except Exception as e:
         st.warning(f"⚠️ Could not create folder {path}: {e}")
 
+# create base folders
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
 safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
