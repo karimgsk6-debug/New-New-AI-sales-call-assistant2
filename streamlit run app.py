@@ -167,7 +167,8 @@ def safe_makedirs(path):
 
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule")
+safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
+safe_makedirs(".devcontainer/SalesModule/JEMPERLI")
 
 brand_data = {
     "Shingrix": {
