@@ -71,7 +71,7 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/689bc01c01a2ad191082f04a8478bbb98cd5cdfb/background.jpg"
+BACKGROUND_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/1f6bac7fb46f2408471f860a90c19a5c07a43629/background.jpg"
 GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
 AI_LOGO_URL = "https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4b60-61fa-9450-ba1622fd3488/raw?se=2025-10-02T10%3A16%3A35Z&sp=r&sv=2024-08-04&sr=b&scid=835aa463-ae7d-50c3-9b32-c42adf55b5f2&skoid=6658dbdd-f305-4d30-8f6b-d62218202cb9&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-10-02T04%3A05%3A48Z&ske=2025-10-03T04%3A05%3A48Z&sks=b&skv=2024-08-04&sig=M4%2Bt2fzXRX%2Bh3ddBBv97mHRjFSBpXYJyEoSs5TqbwGc%3D"
 
