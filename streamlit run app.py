@@ -100,7 +100,7 @@ CSS = f"""
   text-align:center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.7);
 }}
-.disclaimer-fixed .text {{ font-weight: 200; font-size: 15px; color: black; display:block; margin-top:4px; }}
+.disclaimer-fixed .text {{ font-weight: 400; font-size: 15px; color: black; display:block; margin-top:4px; }}
 
 /* Title box */
 .title-box {{
