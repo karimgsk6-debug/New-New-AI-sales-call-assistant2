@@ -18,23 +18,29 @@ try:
     ELEVENLABS_AVAILABLE = True
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
+import requests
+from PyPDF2 import PdfReader
 
 # ---------------------------- ElevenLabs TTS Setup ----------------------------
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "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")
-ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "EXAMPLE_VOICE_ID")  # updated
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "EXAMPLE_VOICE_ID")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
     ELEVENLABS_AVAILABLE = False
 
 def generate_audio(text):
-    """Generate TTS audio for AI response"""
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     if ELEVENLABS_AVAILABLE:
-        audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
-        with open(tmp_file.name, "wb") as f:
-            for chunk in audio_stream:
-                f.write(chunk)
+        # Updated SDK call
+        try:
+            audio_bytes = elevenlabs.text_to_speech(text=text, voice=ELEVENLABS_VOICE_ID)
+            with open(tmp_file.name, "wb") as f:
+                f.write(audio_bytes)
+        except Exception as e:
+            st.warning(f"ElevenLabs TTS error: {e}. Falling back to gTTS.")
+            tts = gTTS(text=text, lang="en", slow=False)
+            tts.save(tmp_file.name)
     else:
         tts = gTTS(text=text, lang="en", slow=False)
         tts.save(tmp_file.name)
@@ -170,14 +176,17 @@ brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
-        "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"]
+        "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
+        "references_path": ".devcontainer/references/shingrix/"
     },
     "JEMPERLI": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
-        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"]
+        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
+        "references_path": ".devcontainer/references/jemperli/"
     }
 }
+
 SHINGRIX_CALL_FLOW = {
     "Prepare": "Plan the call: identify persona, call objectives and select patient types; gather insights.",
     "Engage": "Open the conversation to connect and capture attention; set context using insights.",
@@ -186,6 +195,7 @@ SHINGRIX_CALL_FLOW = {
     "Impact GSO": "Clarify next steps and link to incremental steps that achieve Good Sell Outcome.",
     "Post-Call Analysis": "Record insights, update CRM and evaluate success metrics."
 }
+
 JEMPERLI_CALL_FLOW = {
     "COCO": "Pre-call planning using customer insights to identify persona and call objective.",
     "Anchor": "Open the conversation using COCO insights; create a patient-focused narrative.",
@@ -208,6 +218,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
     response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"])
     st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True)
+    medical_url = st.text_input("📚 Add external medical reference URL", placeholder="https://...")
 
 # ---------------------------- Fixed top disclaimer ----------------------------
 st.markdown(f'''
@@ -231,12 +242,12 @@ st.markdown(f'''
 st.markdown("### 📄 Uploaded PDF Summary")
 st.text_area("PDF Summary", st.session_state.pdf_summary or "No PDF uploaded.", height=140)
 
-# ---------------------------- Collapsible call steps + references ----------------------------
-def build_call_flow_html(brand_name, include_apact=False):
+# ---------------------------- Call Flow HTML Builder ----------------------------
+def build_call_flow_html(brand_name, include_apact=False, external_url=None):
     steps = SHINGRIX_CALL_FLOW.items() if brand_name=="Shingrix" else JEMPERLI_CALL_FLOW.items()
     html = '<details open><summary><strong>🧩 Call Steps & Resources</strong></summary>'
     for idx, (step_name, desc) in enumerate(steps, start=1):
-        html += f'<p>🔹 <strong>{idx}. {escape(step_name)}:</strong> {escape(desc)}</p>'
+        html += f'<p>🔹 <strong>{escape(step_name)}:</strong> {escape(desc)}</p>'
     if include_apact:
         apact_steps = [
             ("Acknowledge", "Acknowledge the HCP's concern."),
@@ -248,10 +259,13 @@ def build_call_flow_html(brand_name, include_apact=False):
         html += "<hr><p><strong>APACT – Objection Handling:</strong></p>"
         for name, desc in apact_steps:
             html += f'<p>🔹 <strong>{escape(name)}:</strong> {escape(desc)}</p>'
-    # Add collapsible Medical References & SalesModule
+    # Medical References collapsible
     html += '<details><summary><strong>📚 Medical References</strong></summary>'
-    html += '<p>Link to GSK-approved references or example content here...</p>'
+    html += '<p>GSK-approved references and study links here.</p>'
+    if external_url:
+        html += f'<p>🌐 External URL: <a href="{escape(external_url)}" target="_blank">{escape(external_url)}</a></p>'
     html += '</details>'
+    # Sales Module collapsible
     html += '<details><summary><strong>💼 Sales Module</strong></summary>'
     html += '<p>Segmented sales modules with call scripts, messages, and templates.</p>'
     html += '</details>'
@@ -261,7 +275,7 @@ def build_call_flow_html(brand_name, include_apact=False):
 # ---------------------------- AI Response ----------------------------
 def generate_ai_response(user_input):
     include_apact = bool(re.search(r'\b(objection|concern|handle|apact|how to respond|how to handle)\b', user_input, re.IGNORECASE))
-    html_response = build_call_flow_html(brand, include_apact)
+    html_response = build_call_flow_html(brand, include_apact, medical_url)
     plain_text = re.sub(r'<[^>]+>', '', html_response)
     return html_response, plain_text
 
