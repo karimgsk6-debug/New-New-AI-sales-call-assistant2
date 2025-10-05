@@ -33,7 +33,6 @@ if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
 else:
     ELEVENLABS_AVAILABLE = False
 
-
 def generate_audio(text):
     for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
         text = text.replace(step, f"{step} ...")
@@ -51,7 +50,6 @@ def generate_audio(text):
         audio_bytes = f.read()
         audio_base64 = base64.b64encode(audio_bytes).decode()
     return audio_base64
-
 
 # ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
@@ -158,21 +156,25 @@ if not GROQ_API_KEY:
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Brand Configurations ----------------------------
-os.makedirs("./references/shingrix", exist_ok=True)
-os.makedirs("./references/jemperli", exist_ok=True)
+os.makedirs(".devcontainer/references/shingrix", exist_ok=True)
+os.makedirs(".devcontainer/references/jemperli", exist_ok=True)
+os.makedirs(".devcontainer/SalesModule/shingrix", exist_ok=True)
+os.makedirs(".devcontainer/SalesModule/jemperli", exist_ok=True)
 
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
-        "references_path": "./references/shingrix/"
+        "references_path": ".devcontainer/references/shingrix/",
+        "salescall_path": ".devcontainer/SalesModule/shingrix/"
     },
     "JEMPERLI": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
-        "references_path": ".devcontainer/references/Jemperli/"
+        "references_path": ".devcontainer/references/jemperli/",
+        "salescall_path": ".devcontainer/SalesModule/jemperli/"
     }
 }
 
@@ -202,16 +204,13 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-
-# ---------------------------- Helper: Load references ----------------------------
+# ---------------------------- Helper Functions ----------------------------
 def load_references_for_brand(brand_name):
-    """Read all PDFs and TXT files from the brand reference folder"""
+    """Load all medical reference PDFs and TXT files"""
     base_path = brand_data[brand_name]["references_path"]
     all_text = ""
-
     if not os.path.exists(base_path):
-        return "No local references found."
-
+        return "No medical references found."
     for file in os.listdir(base_path):
         file_path = os.path.join(base_path, file)
         if file.lower().endswith(".pdf"):
@@ -224,38 +223,52 @@ def load_references_for_brand(brand_name):
         elif file.lower().endswith(".txt"):
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 all_text += f.read()
-
     return all_text.strip()
 
+def load_salescall_for_brand(brand_name):
+    """Load all sales call module PDFs and TXT files"""
+    base_path = brand_data[brand_name]["salescall_path"]
+    all_text = ""
+    if not os.path.exists(base_path):
+        return "", f"No Sales Call module folder found for {brand_name} at {base_path}"
+    for file in os.listdir(base_path):
+        file_path = os.path.join(base_path, file)
+        if file.lower().endswith(".pdf"):
+            try:
+                reader = PdfReader(file_path)
+                for page in reader.pages:
+                    all_text += page.extract_text() or ""
+            except Exception as e:
+                all_text += f"\n[Error reading {file}: {e}]"
+        elif file.lower().endswith(".txt"):
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                all_text += f.read()
+    return all_text.strip(), None
 
-# ---------------------------- Medical References ----------------------------
+# ---------------------------- Medical References Section ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
-ref_path = selected_brand["references_path"]
+ref_text = load_references_for_brand(brand)
+with st.expander("🔍 View / Search in Medical References", expanded=False):
+    st.text_area("Preview", ref_text[:3000] + "..." if len(ref_text) > 3000 else ref_text, height=250)
+    search_keyword = st.text_input("Search keyword in Medical References", key="search_ref")
+    if search_keyword:
+        matches = [m.start() for m in re.finditer(search_keyword, ref_text, re.IGNORECASE)]
+        st.write(f"Found {len(matches)} matches for '{search_keyword}'.")
 
-try:
-    reference_files = [f for f in os.listdir(ref_path) if f.lower().endswith((".pdf", ".txt"))]
-    if reference_files:
-        selected_ref = st.selectbox("Select a reference document", reference_files, key="select_reference")
-        file_path = os.path.join(ref_path, selected_ref)
-        if selected_ref.lower().endswith(".pdf"):
-            with open(file_path, "rb") as f:
-                reader = PdfReader(f)
-                ref_text = "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            with open(file_path, "r", encoding="utf-8") as f:
-                ref_text = f.read()
-
-        with st.expander("🔍 View / Search in Document", expanded=False):
-            st.text_area("Document Preview", ref_text[:3000] + "..." if len(ref_text) > 3000 else ref_text, height=250)
-            search_keyword = st.text_input("Search keyword")
-            if search_keyword:
-                matches = [m.start() for m in re.finditer(search_keyword, ref_text, re.IGNORECASE)]
-                st.write(f"Found {len(matches)} matches for '{search_keyword}'.")
-    else:
-        st.info(f"No local references found in `{ref_path}`.")
-except Exception as e:
-    st.warning(f"⚠️ Error loading references: {e}")
-
+# ---------------------------- Sales Call Module Section ----------------------------
+st.markdown(f"## 🗂️ {brand} Sales Call Module")
+salescall_text, salescall_err = load_salescall_for_brand(brand)
+if salescall_err:
+    st.warning(salescall_err)
+elif salescall_text:
+    with st.expander("🔍 View / Search in Sales Call Module", expanded=False):
+        st.text_area("Preview", salescall_text[:3000] + "..." if len(salescall_text) > 3000 else salescall_text, height=250)
+        search_keyword = st.text_input("Search keyword in Sales Call Module", key="search_salescall")
+        if search_keyword:
+            matches = [m.start() for m in re.finditer(search_keyword, salescall_text, re.IGNORECASE)]
+            st.write(f"Found {len(matches)} matches for '{search_keyword}'.")
+else:
+    st.info(f"No Sales Call module files found for {brand}.")
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
@@ -281,13 +294,12 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     if st.session_state.pdf_summary:
         st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
-
 # ---------------------------- AI Chat ----------------------------
 def generate_ai_response(user_input):
-    # Load brand-specific reference context
-    brand_reference_text = load_references_for_brand(brand)
-    if len(brand_reference_text) > 15000:
-        brand_reference_text = brand_reference_text[:15000]
+    brand_reference_text = ref_text[:15000]
+    salescall_context = ""
+    if "sales call" in user_input.lower() and salescall_text:
+        salescall_context = salescall_text[:12000]
 
     context_prompt = f"""
     Brand: {brand}
@@ -297,9 +309,10 @@ def generate_ai_response(user_input):
     Objective: {objective}
     Barriers: {barrier}
     Medical Context:\n{brand_reference_text[:5000]}
+    Sales Call Module Context:\n{salescall_context}
     """
 
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using provided references."
+    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using medical references and sales call module content."
     final_prompt = f"{user_input}\n\n{context_prompt}"
 
     response = client.chat.completions.create(
@@ -311,7 +324,6 @@ def generate_ai_response(user_input):
         temperature=0.65
     )
     return response.choices[0].message.content
-
 
 # ---------------------------- Render Chat ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
