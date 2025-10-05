@@ -166,8 +166,8 @@ def safe_makedirs(path):
         st.warning(f"⚠️ Could not create folder {path}: {e}")
 
 # Reference & Sales Module folders
-safe_makedirs(".devcontainer/references/shingrix")
-safe_makedirs(".devcontainer/references/jemperli")
+safe_makedirs(".devcontainer/references/Shingrix")
+safe_makedirs(".devcontainer/references/Jemperli")
 safe_makedirs(".devcontainer/SalesModule/shingrix")
 safe_makedirs(".devcontainer/SalesModule/jemperli")
 
