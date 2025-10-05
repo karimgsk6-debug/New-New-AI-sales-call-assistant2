@@ -210,6 +210,23 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
+# ---------------------------- Sales Call Flows ----------------------------
+JEMPERLI_CALL_FLOW = {
+    "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
+    "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
+    "Engage": "Draw customer in through two-way dialogue, connect clinical data and product messages.",
+    "Close": "Gain agreement, define next steps, extend engagement via omni-channel, record insights."
+}
+
+SHINGRIX_CALL_FLOW = {
+    "Prepare": "Plan the call: identify persona, objectives, patient types, key insights.",
+    "Engage": "Start conversation, capture attention, set discussion context.",
+    "Create Opportunities": "Identify gaps or unmet needs; introduce solutions with clinical/product data.",
+    "Influence": "Present evidence, handle objections, highlight value and outcomes.",
+    "Impact GSO": "Link discussion to incremental steps and overall GSO; clarify next steps.",
+    "Post-Call Analysis": "Record insights, update CRM, evaluate metrics to inform future calls."
+}
+
 # ---------------------------- Load Medical References ----------------------------
 def load_local_references(folder_path):
     text_all = ""
@@ -252,7 +269,8 @@ local_ref_text, local_warning = load_local_references(selected_brand["references
 if local_warning:
     st.info(local_warning)
 
-external_urls = st.text_area("Add External Reference URLs (one per line)").splitlines()
+with st.expander("🌐 Add External Reference URLs", expanded=False):
+    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 external_text = load_external_references([u for u in external_urls if u.strip()])
 
 # Preview combined medical reference
@@ -266,7 +284,7 @@ sales_module_text, sales_warning = load_local_references(".devcontainer/SalesMod
 if sales_warning:
     st.info(sales_warning)
 if sales_module_text:
-    with st.expander("🔍 View / Search Sales Module Documents", expanded=False):
+    with st.expander("🔍 Preview SalesModule Documents", expanded=False):
         st.text_area(
             "Sales Module Preview",
             sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
@@ -323,20 +341,33 @@ with st.form(key="chat_form", clear_on_submit=True):
     send = st.form_submit_button("Send")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# ---------------------------- AI Response Generation ----------------------------
 def generate_ai_response(user_input):
-    # Combine all context sources
     combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
+
+    call_flow_prompt = ""
+    if brand.upper() == "JEMPERLI":
+        call_flow_prompt = "\n\n--- JEMPERLI Call Flow Steps ---\n"
+        for step, desc in JEMPERLI_CALL_FLOW.items():
+            call_flow_prompt += f"{step}: {desc}\n"
+    elif brand.upper() == "SHINGRIX":
+        call_flow_prompt = "\n\n--- Shingrix Call Flow Steps ---\n"
+        for step, desc in SHINGRIX_CALL_FLOW.items():
+            call_flow_prompt += f"{step}: {desc}\n"
+
     context_prompt = f"""
-    Brand: {brand}
-    Persona: {persona}
-    Segment: {segment}
-    Specialty: {specialty}
-    Objective: {objective}
-    Barriers: {barrier}
-    Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
-    """
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, and uploaded PDF context."
+Brand: {brand}
+Persona: {persona}
+Segment: {segment}
+Specialty: {specialty}
+Objective: {objective}
+Barriers: {barrier}
+Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
+{call_flow_prompt}
+"""
+    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
     final_prompt = f"{user_input}\n\n{context_prompt}"
+
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": system_prompt},
