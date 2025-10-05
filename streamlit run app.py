@@ -158,6 +158,9 @@ if not GROQ_API_KEY:
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Brand Configurations ----------------------------
+os.makedirs("./references/shingrix", exist_ok=True)
+os.makedirs("./references/jemperli", exist_ok=True)
+
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -199,14 +202,40 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
+
+# ---------------------------- Helper: Load references ----------------------------
+def load_references_for_brand(brand_name):
+    """Read all PDFs and TXT files from the brand reference folder"""
+    base_path = brand_data[brand_name]["references_path"]
+    all_text = ""
+
+    if not os.path.exists(base_path):
+        return "No local references found."
+
+    for file in os.listdir(base_path):
+        file_path = os.path.join(base_path, file)
+        if file.lower().endswith(".pdf"):
+            try:
+                reader = PdfReader(file_path)
+                for page in reader.pages:
+                    all_text += page.extract_text() or ""
+            except Exception as e:
+                all_text += f"\n[Error reading {file}: {e}]"
+        elif file.lower().endswith(".txt"):
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                all_text += f.read()
+
+    return all_text.strip()
+
+
 # ---------------------------- Medical References ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
 ref_path = selected_brand["references_path"]
 
 try:
-    reference_files = [f for f in os.listdir(".devcontainer/references/Jemperli") if f.lower().endswith((".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf", ".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf"))]
+    reference_files = [f for f in os.listdir(ref_path) if f.lower().endswith((".pdf", ".txt"))]
     if reference_files:
-        selected_ref = st.selectbox(".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf", reference_files, key=".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf")
+        selected_ref = st.selectbox("Select a reference document", reference_files, key="select_reference")
         file_path = os.path.join(ref_path, selected_ref)
         if selected_ref.lower().endswith(".pdf"):
             with open(file_path, "rb") as f:
@@ -226,6 +255,7 @@ try:
         st.info(f"No local references found in `{ref_path}`.")
 except Exception as e:
     st.warning(f"⚠️ Error loading references: {e}")
+
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
@@ -251,19 +281,25 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     if st.session_state.pdf_summary:
         st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
+
 # ---------------------------- AI Chat ----------------------------
 def generate_ai_response(user_input):
+    # Load brand-specific reference context
+    brand_reference_text = load_references_for_brand(brand)
+    if len(brand_reference_text) > 15000:
+        brand_reference_text = brand_reference_text[:15000]
+
     context_prompt = f"""
-    Context:
     Brand: {brand}
     Persona: {persona}
     Segment: {segment}
     Specialty: {specialty}
     Objective: {objective}
     Barriers: {barrier}
+    Medical Context:\n{brand_reference_text[:5000]}
     """
 
-    system_prompt = "You are a helpful AI assistant for pharmaceutical sales representatives."
+    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using provided references."
     final_prompt = f"{user_input}\n\n{context_prompt}"
 
     response = client.chat.completions.create(
