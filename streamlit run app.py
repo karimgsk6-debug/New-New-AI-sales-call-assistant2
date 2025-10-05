@@ -34,7 +34,6 @@ if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
 else:
     ELEVENLABS_AVAILABLE = False
 
-
 def generate_audio(text):
     """Generate TTS audio for the AI response"""
     for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
@@ -158,17 +157,20 @@ if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Brand Configurations ----------------------------
+# ---------------------------- Helper: Safe Folder Creation ----------------------------
 def safe_makedirs(path):
-    try:
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            st.warning(f"⚠️ Path exists but is not a directory: {path}")
+    else:
         os.makedirs(path, exist_ok=True)
-    except Exception as e:
-        st.warning(f"⚠️ Could not create folder {path}: {e}")
 
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule")
+safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
+safe_makedirs(".devcontainer/SalesModule/JEMPERLI")
 
+# ---------------------------- Brand Configuration ----------------------------
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -176,7 +178,7 @@ brand_data = {
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
         "references_path": ".devcontainer/references/shingrix/"
     },
-    "jemperli": {
+    "JEMPERLI": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
@@ -210,7 +212,7 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Load Medical References ----------------------------
+# ---------------------------- Reference Loading ----------------------------
 def load_local_references(folder_path):
     text_all = ""
     warning = None
@@ -246,7 +248,7 @@ def load_external_references(url_list):
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
 
-# ---------------------------- Medical Reference Section ----------------------------
+# ---------------------------- Medical References ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
@@ -255,14 +257,13 @@ if local_warning:
 external_urls = st.text_area("Add External Reference URLs (one per line)").splitlines()
 external_text = load_external_references([u for u in external_urls if u.strip()])
 
-# Preview combined medical reference
 if local_ref_text or external_text:
     with st.expander("🔍 Preview Combined Medical References", expanded=False):
         st.text_area("Medical Reference Preview", (local_ref_text + "\n" + external_text)[:3000], height=250)
 
 # ---------------------------- Sales Call Module ----------------------------
 st.markdown(f"## 📝 Sales Call Module for {brand}")
-sales_module_text, sales_warning = load_local_references(".devcontainer/SalesModule")
+sales_module_text, sales_warning = load_local_references(f".devcontainer/SalesModule/{brand.upper()}")
 if sales_warning:
     st.info(sales_warning)
 if sales_module_text:
@@ -324,7 +325,6 @@ with st.form(key="chat_form", clear_on_submit=True):
 st.markdown('</div>', unsafe_allow_html=True)
 
 def generate_ai_response(user_input):
-    # Combine all context sources
     combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
     context_prompt = f"""
     Brand: {brand}
