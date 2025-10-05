@@ -36,7 +36,7 @@ else:
 def generate_audio(text):
     """Generate TTS audio for the AI response"""
     # brief normalization for TTS
-    for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
+    for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition to next step"]:
         text = text.replace(step, f"{step} ...")
     text = re.sub(r'[{},*]', '', text)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
@@ -84,7 +84,7 @@ CSS = f"""
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 140%;
+  background-size: auto 120%;
 }}
 
 /* Fixed disclaimer top-center */
@@ -105,11 +105,11 @@ CSS = f"""
 /* Title box */
 .title-box {{
   background: rgba(240,240,240,0.7);
-  padding: 15px;
-  border-radius: 16px;
-  text-align: left;
-  margin: 60px auto 12px; /* push down to avoid overlap with fixed disclaimer */
-  width: 700px;
+  padding: 8px;
+  border-radius: 15px;
+  text-align: center;
+  margin: 50px auto 12px; /* push down to avoid overlap with fixed disclaimer */
+  width: 1000px;
   position: relative;
 }}
 .title-box img.ai-logo {{
