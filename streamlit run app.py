@@ -162,7 +162,7 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
