@@ -6,10 +6,10 @@ import re
 import tempfile
 import base64
 import os
-import requests
 from groq import Groq
 from PyPDF2 import PdfReader
 from html import escape
+import requests
 
 # Optional docx export
 try:
@@ -36,6 +36,7 @@ else:
 
 
 def generate_audio(text):
+    """Generate TTS audio for the AI response"""
     for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
         text = text.replace(step, f"{step} ...")
     text = re.sub(r'[.,*]', '', text)
@@ -52,7 +53,6 @@ def generate_audio(text):
         audio_bytes = f.read()
         audio_base64 = base64.b64encode(audio_bytes).decode()
     return audio_base64
-
 
 # ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
@@ -165,26 +165,22 @@ def safe_makedirs(path):
     except Exception as e:
         st.warning(f"⚠️ Could not create folder {path}: {e}")
 
-# Reference & Sales Module folders
-safe_makedirs(".devcontainer/references/Shingrix")
-safe_makedirs(".devcontainer/references/Jemperli")
-safe_makedirs(".devcontainer/SalesModule/shingrix")
-safe_makedirs(".devcontainer/SalesModule/jemperli")
+safe_makedirs(".devcontainer/references/shingrix")
+safe_makedirs(".devcontainer/references/jemperli")
+safe_makedirs(".devcontainer/SalesModule")
 
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
-        "references_path": ".devcontainer/references/shingrix",
-        "sales_module_path": ".devcontainer/SalesModule/shingrix"
+        "references_path": ".devcontainer/references/shingrix/"
     },
-    "Jemperli": {
+    "JEMPERLI": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
-        "references_path": ".devcontainer/references/jemperli",
-        "sales_module_path": ".devcontainer/SalesModule/jemperli"
+        "references_path": ".devcontainer/references/jemperli/"
     }
 }
 
@@ -214,125 +210,122 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-
-# ---------------------------- Helper: Load References ----------------------------
-def load_references_for_brand(brand_name):
-    base_path = brand_data[brand_name]["references_path"]
-    all_text = ""
-    if not os.path.exists(base_path):
-        return "No local references found."
-
-    for file in os.listdir(base_path):
-        file_path = os.path.join(base_path, file)
+# ---------------------------- Load Medical References ----------------------------
+def load_local_references(folder_path):
+    text_all = ""
+    warning = None
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        return "", f"⚠️ Folder does not exist: {folder_path}"
+    files = [f for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".txt"))]
+    if not files:
+        return "", f"ℹ️ No files found in {folder_path}"
+    for file in files:
+        file_path = os.path.join(folder_path, file)
         try:
             if file.lower().endswith(".pdf"):
                 reader = PdfReader(file_path)
                 for page in reader.pages:
-                    all_text += page.extract_text() or ""
+                    text_all += page.extract_text() or ""
             elif file.lower().endswith(".txt"):
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    all_text += f.read()
+                    text_all += f.read()
         except Exception as e:
-            all_text += f"\n[Error reading {file}: {e}]"
-    return all_text.strip()
+            text_all += f"\n[Error reading {file}: {e}]"
+    return text_all.strip(), None
 
+def load_external_references(url_list):
+    all_text = ""
+    for url in url_list:
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                all_text += r.text + "\n"
+            else:
+                all_text += f"\n[Could not fetch {url}]"
+        except Exception as e:
+            all_text += f"\n[Error fetching {url}: {e}]"
+    return all_text
 
-# ---------------------------- Medical References ----------------------------
+# ---------------------------- Medical Reference Section ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
-ref_path = selected_brand["references_path"]
+local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
+if local_warning:
+    st.info(local_warning)
 
-try:
-    reference_files = [f for f in os.listdir(ref_path) if f.lower().endswith((".pdf", ".txt"))]
-    if reference_files:
-        selected_ref = st.selectbox("Select a reference document", reference_files, key="select_reference")
-        file_path = os.path.join(ref_path, selected_ref)
-        if selected_ref.lower().endswith(".pdf"):
-            with open(file_path, "rb") as f:
-                reader = PdfReader(f)
-                ref_text = "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            with open(file_path, "r", encoding="utf-8") as f:
-                ref_text = f.read()
+external_urls = st.text_area("Add External Reference URLs (one per line)").splitlines()
+external_text = load_external_references([u for u in external_urls if u.strip()])
 
-        with st.expander("🔍 View / Search in Document", expanded=False):
-            st.text_area("Document Preview", ref_text[:3000] + "..." if len(ref_text) > 3000 else ref_text, height=250)
-            search_keyword = st.text_input("Search keyword")
-            if search_keyword:
-                matches = [m.start() for m in re.finditer(search_keyword, ref_text, re.IGNORECASE)]
-                st.write(f"Found {len(matches)} matches for '{search_keyword}'.")
-    else:
-        ref_text = "No local references found."
-        st.info(ref_text)
-except Exception as e:
-    ref_text = "No local references found."
-    st.warning(f"⚠️ Error loading references: {e}")
+# Preview combined medical reference
+if local_ref_text or external_text:
+    with st.expander("🔍 Preview Combined Medical References", expanded=False):
+        st.text_area("Medical Reference Preview", (local_ref_text + "\n" + external_text)[:3000], height=250)
 
+# ---------------------------- Sales Call Module ----------------------------
+st.markdown(f"## 📝 Sales Call Module for {brand}")
+sales_module_text, sales_warning = load_local_references(".devcontainer/SalesModule")
+if sales_warning:
+    st.info(sales_warning)
+if sales_module_text:
+    with st.expander("🔍 View / Search Sales Module Documents", expanded=False):
+        st.text_area(
+            "Sales Module Preview",
+            sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
+            height=250
+        )
+        sales_search_keyword = st.text_input("Search keyword in sales modules")
+        if sales_search_keyword:
+            matches = [m.start() for m in re.finditer(sales_search_keyword, sales_module_text, re.IGNORECASE)]
+            st.write(f"Found {len(matches)} matches for '{sales_search_keyword}'.")
 
-# ---------------------------- External References via URLs ----------------------------
-st.markdown("## 🌐 Add External Medical References (URL)")
-with st.expander("Add URLs for additional medical references", expanded=False):
-    ext_urls = st.text_area(
-        "Enter PDF/TXT URLs (one per line)",
-        placeholder="https://example.com/article1.pdf\nhttps://example.com/article2.txt",
-        height=120
-    )
-    if st.button("📥 Load External References"):
-        ext_text = ""
-        for url in ext_urls.splitlines():
-            url = url.strip()
-            if not url:
-                continue
-            try:
-                r = requests.get(url)
-                r.raise_for_status()
-                content_type = r.headers.get("Content-Type", "")
-                if "pdf" in content_type:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        tmp_file.write(r.content)
-                        reader = PdfReader(tmp_file.name)
-                        for page in reader.pages:
-                            ext_text += page.extract_text() or ""
-                else:
-                    ext_text += r.text
-                st.success(f"Loaded reference from {url}")
-            except Exception as e:
-                st.error(f"Failed to load {url}: {e}")
-        if ext_text:
-            ref_text += "\n" + ext_text
-            st.info("External references added to AI context.")
-# ---------------------------- AI Chat with Sales Call Module ----------------------------
-def load_sales_module_for_brand(brand_name):
-    """Read all PDFs/TXT files from the brand sales module folder"""
-    base_path = brand_data[brand_name]["sales_module_path"]
-    all_text = ""
-    if not os.path.exists(base_path):
-        return "No local sales call modules found."
-    
-    for file in os.listdir(base_path):
-        file_path = os.path.join(base_path, file)
+# ---------------------------- PDF Upload & Summary ----------------------------
+with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
+    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True)
+    if uploaded_pdf:
+        reader = PdfReader(uploaded_pdf)
+        full_text = "".join([p.extract_text() or "" for p in reader.pages])
+        st.session_state.uploaded_pdf_text = full_text
+        bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
         try:
-            if file.lower().endswith(".pdf"):
-                reader = PdfReader(file_path)
-                for page in reader.pages:
-                    all_text += page.extract_text() or ""
-            elif file.lower().endswith(".txt"):
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    all_text += f.read()
-        except Exception as e:
-            all_text += f"\n[Error reading {file}: {e}]"
-    return all_text.strip()
+            summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": "You are a helpful assistant."},
+                          {"role": "user", "content": summary_prompt}],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+        except Exception:
+            fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
+            st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
+    if st.session_state.pdf_summary:
+        st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
+# ---------------------------- AI Chat ----------------------------
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+for item in st.session_state.chat_history:
+    if isinstance(item, tuple) and len(item) == 3:
+        user_msg, ai_msg, audio = item
+        st.markdown(f'<div class="chat-bubble-user">{escape(user_msg)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">{escape(ai_msg)}</div>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <div class="chat-bubble-audio">
+            🔊 AI Voice:<br>
+            <audio controls src="data:audio/mp3;base64,{audio}"></audio>
+            </div>
+        ''', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------- Chat Input ----------------------------
+st.markdown('<div class="fixed-chat-input">', unsafe_allow_html=True)
+with st.form(key="chat_form", clear_on_submit=True):
+    chat_input = st.text_area("Your Message", key="chat_input", placeholder="Type your message here...")
+    send = st.form_submit_button("Send")
+st.markdown('</div>', unsafe_allow_html=True)
 
 def generate_ai_response(user_input):
-    # Load all reference contexts
-    brand_reference_text = load_references_for_brand(brand)
-    sales_module_text = load_sales_module_for_brand(brand)
-
-    # Include external references added by user
-    uploaded_pdf_text = st.session_state.uploaded_pdf_text or ""
-    
-    # Limit text size to prevent overload
-    max_context_chars = 15000
+    # Combine all context sources
+    combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
     context_prompt = f"""
     Brand: {brand}
     Persona: {persona}
@@ -340,27 +333,35 @@ def generate_ai_response(user_input):
     Specialty: {specialty}
     Objective: {objective}
     Barriers: {barrier}
-    
-    Medical References (local + external + uploaded):
-    {brand_reference_text[:5000]}
-    {uploaded_pdf_text[:5000]}
-    
-    Sales Call Module:
-    {sales_module_text[:5000]}
+    Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
     """
-
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using all provided references and sales call modules."
-
+    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, and uploaded PDF context."
     final_prompt = f"{user_input}\n\n{context_prompt}"
-
-    # Call the Groq AI
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": final_prompt}
-        ],
+        messages=[{"role": "system", "content": system_prompt},
+                  {"role": "user", "content": final_prompt}],
         temperature=0.65
     )
-
     return response.choices[0].message.content
+
+if send and chat_input.strip():
+    ai_resp = generate_ai_response(chat_input.strip())
+    audio_base64 = generate_audio(ai_resp)
+    st.session_state.chat_history.append((chat_input.strip(), ai_resp, audio_base64))
+
+# ---------------------------- Export ----------------------------
+if DOCX_AVAILABLE and st.session_state.chat_history:
+    if st.button("📥 Export Chat to Word"):
+        doc = Document()
+        doc.add_heading("AI Sales Call Assistant Chat Export", 0)
+        for user_msg, ai_msg, audio in st.session_state.chat_history:
+            doc.add_paragraph(f"User: {user_msg}")
+            doc.add_paragraph(f"AI: {ai_msg}\n")
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+        doc.save(tmp_file.name)
+        with open(tmp_file.name, "rb") as f:
+            bytes_data = f.read()
+            b64 = base64.b64encode(bytes_data).decode()
+            href = f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}" download="AI_Chat.docx">Click to download Word file</a>'
+            st.markdown(href, unsafe_allow_html=True)
