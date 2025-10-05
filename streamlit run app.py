@@ -34,6 +34,7 @@ if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
 else:
     ELEVENLABS_AVAILABLE = False
 
+
 def generate_audio(text):
     """Generate TTS audio for the AI response"""
     for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
@@ -157,20 +158,17 @@ if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Helper: Safe Folder Creation ----------------------------
+# ---------------------------- Brand Configurations ----------------------------
 def safe_makedirs(path):
-    if os.path.exists(path):
-        if not os.path.isdir(path):
-            st.warning(f"⚠️ Path exists but is not a directory: {path}")
-    else:
+    try:
         os.makedirs(path, exist_ok=True)
+    except Exception as e:
+        st.warning(f"⚠️ Could not create folder {path}: {e}")
 
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule/shingrix")
-safe_makedirs(".devcontainer/SalesModule/jemperli")
+safe_makedirs(".devcontainer/SalesModule")
 
-# ---------------------------- Brand Configuration ----------------------------
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -178,7 +176,7 @@ brand_data = {
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
         "references_path": ".devcontainer/references/shingrix/"
     },
-    "jemperli": {
+    "JEMPERLI": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
@@ -212,7 +210,24 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Reference Loading ----------------------------
+# ---------------------------- Sales Call Flows ----------------------------
+JEMPERLI_CALL_FLOW = {
+    "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
+    "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
+    "Engage": "Draw customer in through two-way dialogue, connect clinical data and product messages.",
+    "Close": "Gain agreement, define next steps, extend engagement via omni-channel, record insights."
+}
+
+SHINGRIX_CALL_FLOW = {
+    "Prepare": "Plan the call: identify persona, objectives, patient types, key insights.",
+    "Engage": "Start conversation, capture attention, set discussion context.",
+    "Create Opportunities": "Identify gaps or unmet needs; introduce solutions with clinical/product data.",
+    "Influence": "Present evidence, handle objections, highlight value and outcomes.",
+    "Impact GSO": "Link discussion to incremental steps and overall GSO; clarify next steps.",
+    "Post-Call Analysis": "Record insights, update CRM, evaluate metrics to inform future calls."
+}
+
+# ---------------------------- Load Medical References ----------------------------
 def load_local_references(folder_path):
     text_all = ""
     warning = None
@@ -248,26 +263,28 @@ def load_external_references(url_list):
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
 
-# ---------------------------- Medical References ----------------------------
+# ---------------------------- Medical Reference Section ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
     st.info(local_warning)
 
-external_urls = st.text_area("Add External Reference URLs (one per line)").splitlines()
+with st.expander("🌐 Add External Reference URLs", expanded=False):
+    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 external_text = load_external_references([u for u in external_urls if u.strip()])
 
+# Preview combined medical reference
 if local_ref_text or external_text:
     with st.expander("🔍 Preview Combined Medical References", expanded=False):
         st.text_area("Medical Reference Preview", (local_ref_text + "\n" + external_text)[:3000], height=250)
 
 # ---------------------------- Sales Call Module ----------------------------
 st.markdown(f"## 📝 Sales Call Module for {brand}")
-sales_module_text, sales_warning = load_local_references(f".devcontainer/SalesModule/{brand.upper()}")
+sales_module_text, sales_warning = load_local_references(".devcontainer/SalesModule")
 if sales_warning:
     st.info(sales_warning)
 if sales_module_text:
-    with st.expander("🔍 View / Search Sales Module Documents", expanded=False):
+    with st.expander("🔍 Preview SalesModule Documents", expanded=False):
         st.text_area(
             "Sales Module Preview",
             sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
@@ -324,19 +341,33 @@ with st.form(key="chat_form", clear_on_submit=True):
     send = st.form_submit_button("Send")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# ---------------------------- AI Response Generation ----------------------------
 def generate_ai_response(user_input):
     combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
+
+    call_flow_prompt = ""
+    if brand.upper() == "JEMPERLI":
+        call_flow_prompt = "\n\n--- JEMPERLI Call Flow Steps ---\n"
+        for step, desc in JEMPERLI_CALL_FLOW.items():
+            call_flow_prompt += f"{step}: {desc}\n"
+    elif brand.upper() == "SHINGRIX":
+        call_flow_prompt = "\n\n--- Shingrix Call Flow Steps ---\n"
+        for step, desc in SHINGRIX_CALL_FLOW.items():
+            call_flow_prompt += f"{step}: {desc}\n"
+
     context_prompt = f"""
-    Brand: {brand}
-    Persona: {persona}
-    Segment: {segment}
-    Specialty: {specialty}
-    Objective: {objective}
-    Barriers: {barrier}
-    Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
-    """
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, and uploaded PDF context."
+Brand: {brand}
+Persona: {persona}
+Segment: {segment}
+Specialty: {specialty}
+Objective: {objective}
+Barriers: {barrier}
+Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
+{call_flow_prompt}
+"""
+    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
     final_prompt = f"{user_input}\n\n{context_prompt}"
+
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": system_prompt},
