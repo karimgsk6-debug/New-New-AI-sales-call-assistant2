@@ -84,7 +84,7 @@ CSS = f"""
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 120%;
+  background-size: auto 130%;
 }}
 
 /* Fixed disclaimer top-center */
