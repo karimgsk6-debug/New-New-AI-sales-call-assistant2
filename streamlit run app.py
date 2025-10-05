@@ -1,6 +1,5 @@
 # app.py
 import streamlit as st
-from PIL import Image
 from io import BytesIO
 import re
 import tempfile
@@ -34,12 +33,12 @@ if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
 else:
     ELEVENLABS_AVAILABLE = False
 
-
 def generate_audio(text):
     """Generate TTS audio for the AI response"""
     for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
         text = text.replace(step, f"{step} ...")
-    text = re.sub(r'[.,*]', '', text)
+    # remove problematic punctuation for smoother TTS
+    text = re.sub(r'[{},*]', '', text)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     if ELEVENLABS_AVAILABLE:
         audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
@@ -87,12 +86,12 @@ CSS = f"""
   background-size: auto 140%;
 }}
 .title-box {{
-  background: rgba(240,240,240,0.7);
+  background: rgba(240,240,240,0.8);
   padding: 15px;
   border-radius: 16px;
   text-align: left;
   margin: 12px auto;
-  width: 850px;
+  width: 900px;
   position: relative;
 }}
 .title-box img.ai-logo {{
@@ -148,6 +147,12 @@ CSS = f"""
     height: 40px;
     width: 100px;
 }}
+.call-flow-box {{
+  background: rgba(255,255,255,0.9);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -158,17 +163,28 @@ if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
 
-# ---------------------------- Brand Configurations ----------------------------
+# ---------------------------- Helper: Safe Folder Creation ----------------------------
 def safe_makedirs(path):
+    # ensure parent directories created where needed; don't error if file exists but not dir
     try:
+        if os.path.exists(path):
+            if not os.path.isdir(path):
+                st.warning(f"⚠️ Path exists but is not a directory: {path}")
+                return False
+            return True
         os.makedirs(path, exist_ok=True)
+        return True
     except Exception as e:
         st.warning(f"⚠️ Could not create folder {path}: {e}")
+        return False
 
+# create base folders
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
 safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
+safe_makedirs(".devcontainer/SalesModule/JEMPERLI")
 
+# ---------------------------- Brand Configurations ----------------------------
 brand_data = {
     "Shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -212,25 +228,24 @@ st.markdown(f'''
 
 # ---------------------------- Sales Call Flows ----------------------------
 JEMPERLI_CALL_FLOW = {
-    "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
-    "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
-    "Engage": "Draw customer in through two-way dialogue, connect clinical data and product messages.",
-    "Close": "Gain agreement, define next steps, extend engagement via omni-channel, record insights."
+    "COCO": "Pre-call planning using customer insights to identify persona and call objective. Select a patient type and prepare thought-provoking questions to challenge the status quo.",
+    "Anchor": "Open the conversation using COCO insights; create a patient-focused narrative and align on the call objective. Tailor messaging to the HCP challenge/unmet need.",
+    "Engage": "Build a two-way dialogue that connects clinical data and product messages to address patient/customer needs and handle objections.",
+    "Close": "Gain agreement and commitment through clear next steps aligned to the call objective; consider omni-channel follow-up and record new insights."
 }
 
 SHINGRIX_CALL_FLOW = {
-    "Prepare": "Plan the call: identify persona, objectives, patient types, key insights.",
-    "Engage": "Start conversation, capture attention, set discussion context.",
-    "Create Opportunities": "Identify gaps or unmet needs; introduce solutions with clinical/product data.",
-    "Influence": "Present evidence, handle objections, highlight value and outcomes.",
-    "Impact GSO": "Link discussion to incremental steps and overall GSO; clarify next steps.",
-    "Post-Call Analysis": "Record insights, update CRM, evaluate metrics to inform future calls."
+    "Prepare": "Identify the customer persona, call objectives, and select patient types. Gather insights to inform messaging.",
+    "Engage": "Open the conversation to connect and capture attention; set context and use insights to align with the HCP.",
+    "Create Opportunities": "Identify gaps/unmet needs and present tailored clinical/product data as solutions.",
+    "Influence": "Present evidence, handle objections, and highlight value/outcomes to influence decisions.",
+    "Impact GSO": "Clarify next steps and link to incremental steps that achieve the Good Sell Outcome (GSO).",
+    "Post-Call Analysis": "Record insights, update CRM, and evaluate performance to refine future calls."
 }
 
-# ---------------------------- Load Medical References ----------------------------
+# ---------------------------- Helper: Load local references (PDF/TXT) ----------------------------
 def load_local_references(folder_path):
     text_all = ""
-    warning = None
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
         return "", f"⚠️ Folder does not exist: {folder_path}"
     files = [f for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".txt"))]
@@ -243,56 +258,74 @@ def load_local_references(folder_path):
                 reader = PdfReader(file_path)
                 for page in reader.pages:
                     text_all += page.extract_text() or ""
-            elif file.lower().endswith(".txt"):
+            else:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     text_all += f.read()
         except Exception as e:
             text_all += f"\n[Error reading {file}: {e}]"
     return text_all.strip(), None
 
+# ---------------------------- Helper: Load external references from URLs ----------------------------
 def load_external_references(url_list):
     all_text = ""
     for url in url_list:
+        url = url.strip()
+        if not url:
+            continue
         try:
-            r = requests.get(url)
-            if r.status_code == 200:
-                all_text += r.text + "\n"
+            r = requests.get(url, timeout=15)
+            r.raise_for_status()
+            content_type = r.headers.get("Content-Type", "").lower()
+            if "pdf" in content_type or url.lower().endswith(".pdf"):
+                # parse pdf bytes
+                from io import BytesIO
+                try:
+                    reader = PdfReader(BytesIO(r.content))
+                    for page in reader.pages:
+                        all_text += page.extract_text() or ""
+                except Exception:
+                    # fallback: include raw bytes notice
+                    all_text += f"\n[Could not extract PDF text from {url}]"
             else:
-                all_text += f"\n[Could not fetch {url}]"
+                all_text += r.text + "\n"
         except Exception as e:
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
 
-# ---------------------------- Medical Reference Section ----------------------------
+# ---------------------------- Medical Reference Section (local + external) ----------------------------
 st.markdown(f"## 📚 {brand} Medical References")
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
     st.info(local_warning)
 
-with st.expander("🌐 Add External Reference URLs", expanded=False):
-    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
-external_text = load_external_references([u for u in external_urls if u.strip()])
+# Collapsible external URL input
+with st.expander("🌐 Add External Medical Reference URLs (collapsible)", expanded=False):
+    external_urls_input = st.text_area("Enter public PDF/TXT URLs (one per line)", height=120)
+external_urls = [u.strip() for u in (external_urls_input or "").splitlines() if u.strip()]
+external_text = load_external_references(external_urls) if external_urls else ""
 
-# Preview combined medical reference
-if local_ref_text or external_text:
+# Combined preview
+if (local_ref_text and local_ref_text.strip()) or (external_text and external_text.strip()):
     with st.expander("🔍 Preview Combined Medical References", expanded=False):
-        st.text_area("Medical Reference Preview", (local_ref_text + "\n" + external_text)[:3000], height=250)
+        st.text_area("Medical Reference Preview", (local_ref_text + "\n\n" + external_text)[:4000], height=260)
 
-# ---------------------------- Sales Call Module ----------------------------
+# ---------------------------- Sales Call Module Section ----------------------------
 st.markdown(f"## 📝 Sales Call Module for {brand}")
-sales_module_text, sales_warning = load_local_references(".devcontainer/SalesModule")
+sales_module_folder = f".devcontainer/SalesModule/{brand.upper()}"
+# ensure brand-specific sales module folder exists
+safe_makedirs(sales_module_folder)
+sales_module_text, sales_warning = load_local_references(sales_module_folder)
 if sales_warning:
-    st.info(sales_warning)
+    # if missing, create user-friendly fallback but let user know
+    st.info(sales_warning + " — using default call flow content if needed.")
+    # fallback text will be empty string, the call-flow dict will be used when generating responses
+    sales_module_text = ""
 if sales_module_text:
     with st.expander("🔍 Preview SalesModule Documents", expanded=False):
-        st.text_area(
-            "Sales Module Preview",
-            sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
-            height=250
-        )
-        sales_search_keyword = st.text_input("Search keyword in sales modules")
+        st.text_area("Sales Module Preview", sales_module_text[:4000] + ("..." if len(sales_module_text) > 4000 else ""), height=260)
+        sales_search_keyword = st.text_input("Search keyword in SalesModule", key="search_sales")
         if sales_search_keyword:
-            matches = [m.start() for m in re.finditer(sales_search_keyword, sales_module_text, re.IGNORECASE)]
+            matches = [m.start() for m in re.finditer(re.escape(sales_search_keyword), sales_module_text, re.IGNORECASE)]
             st.write(f"Found {len(matches)} matches for '{sales_search_keyword}'.")
 
 # ---------------------------- PDF Upload & Summary ----------------------------
@@ -319,13 +352,16 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     if st.session_state.pdf_summary:
         st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Chat ----------------------------
+# ---------------------------- AI Chat Rendering ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for item in st.session_state.chat_history:
     if isinstance(item, tuple) and len(item) == 3:
-        user_msg, ai_msg, audio = item
+        user_msg, ai_msg_html, audio = item
+        # user bubble (escaped)
         st.markdown(f'<div class="chat-bubble-user">{escape(user_msg)}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chat-bubble-ai">{escape(ai_msg)}</div>', unsafe_allow_html=True)
+        # ai bubble (we already build HTML for ai messages)
+        st.markdown(f'<div class="chat-bubble-ai">{ai_msg_html}</div>', unsafe_allow_html=True)
+        # audio bubble
         st.markdown(f'''
             <div class="chat-bubble-audio">
             🔊 AI Voice:<br>
@@ -341,54 +377,130 @@ with st.form(key="chat_form", clear_on_submit=True):
     send = st.form_submit_button("Send")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Response Generation ----------------------------
-def generate_ai_response(user_input):
-    combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
+# ---------------------------- APACT helper ----------------------------
+def build_apact_html():
+    # APACT headers bold + emoji
+    apact_steps = [("Acknowledge", "Acknowledge the HCP concern."), 
+                   ("Probing", "Ask clarifying questions to understand the root cause."), 
+                   ("Action", "Provide a concise action or evidence-based response."), 
+                   ("Confirm", "Confirm the HCP's understanding/agreement."), 
+                   ("Transition", "Transition to next steps or follow-up.")]
+    html = ""
+    for name, desc in apact_steps:
+        html += f'<p>🔹 <strong>{escape(name)}:</strong> {escape(desc)}</p>'
+    return html
 
-    call_flow_prompt = ""
-    if brand.upper() == "JEMPERLI":
-        call_flow_prompt = "\n\n--- JEMPERLI Call Flow Steps ---\n"
+# ---------------------------- Build call-flow HTML helper ----------------------------
+def build_call_flow_html(brand_name):
+    html = '<div class="call-flow-box">'
+    if brand_name.upper() == "JEMPERLI":
         for step, desc in JEMPERLI_CALL_FLOW.items():
-            call_flow_prompt += f"{step}: {desc}\n"
-    elif brand.upper() == "SHINGRIX":
-        call_flow_prompt = "\n\n--- Shingrix Call Flow Steps ---\n"
+            emoji = {
+                "COCO": "🟩",
+                "Anchor": "🟦",
+                "Engage": "🟨",
+                "Close": "🟥"
+            }.get(step, "🔹")
+            html += f'<p>{emoji} <strong>{escape(step)}:</strong> {escape(desc)}</p>'
+    elif brand_name.upper() == "SHINGRIX":
+        emoji_map = ["🟩","🟦","🟨","🟧","🟥","🟪"]
+        i = 0
         for step, desc in SHINGRIX_CALL_FLOW.items():
-            call_flow_prompt += f"{step}: {desc}\n"
+            emoji = emoji_map[i % len(emoji_map)]
+            i += 1
+            html += f'<p>{emoji} <strong>{escape(step)}:</strong> {escape(desc)}</p>'
+    else:
+        html += "<p><strong>Call flow:</strong> Use brand-specific guidance.</p>"
+    html += "</div>"
+    return html
 
-    context_prompt = f"""
-Brand: {brand}
-Persona: {persona}
-Segment: {segment}
-Specialty: {specialty}
-Objective: {objective}
-Barriers: {barrier}
-Medical + Sales + Uploaded PDF Context:\n{combined_context[:5000]}
-{call_flow_prompt}
-"""
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
-    final_prompt = f"{user_input}\n\n{context_prompt}"
+# ---------------------------- Generate AI response ----------------------------
+def generate_ai_response(user_input):
+    # Combine context
+    combined_context = "\n\n".join([
+        local_ref_text or "",
+        external_text or "",
+        sales_module_text or "",
+        st.session_state.uploaded_pdf_text or ""
+    ])[:15000]
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": system_prompt},
-                  {"role": "user", "content": final_prompt}],
-        temperature=0.65
+    # Build base system prompt and user prompt for the model (keeps it concise)
+    system_prompt = (
+        "You are a pharmaceutical sales coach for reps. Use the provided Medical and Sales Module context "
+        "to craft practical, step-by-step sales call dialogue, tailored to the selected persona, specialty, and barriers. "
+        "If the user asks about objection handling, structure the advice using the APACT framework."
     )
-    return response.choices[0].message.content
+    user_prompt = (
+        f"User request: {user_input}\n\n"
+        f"Context (truncated):\n{combined_context[:8000]}\n\n"
+        f"Persona: {persona}\nBrand: {brand}\nSpecialty: {specialty}\nSegment: {segment}\nBarriers: {barrier}\nObjective: {objective}\n"
+    )
 
-if send and chat_input.strip():
-    ai_resp = generate_ai_response(chat_input.strip())
-    audio_base64 = generate_audio(ai_resp)
-    st.session_state.chat_history.append((chat_input.strip(), ai_resp, audio_base64))
+    # Ask the model to produce a practical call flow and example lines
+    model_instructions = (
+        "Produce: 1) A short, practical call structure following the brand's call flow steps. "
+        "2) Example lines the rep can use for each step. Keep it actionable and concise."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt + "\n\n" + model_instructions}
+            ],
+            temperature=0.6
+        )
+        ai_text = response.choices[0].message.content or ""
+    except Exception as e:
+        ai_text = f"[Error calling model: {e}]"
+
+    # Build formatted HTML with call-flow (emoji + bold) at top of the assistant message
+    call_flow_html = build_call_flow_html(brand)
+
+    # If the user asked about an objection, prepend APACT formatted block
+    apact_html = ""
+    if re.search(r'\b(objection|concern|handle|how to respond|apact)\b', user_input, re.IGNORECASE):
+        apact_html = '<div class="call-flow-box"><p><strong>Objection handling (APACT):</strong></p>'
+        apact_html += build_apact_html()
+        apact_html += "</div>"
+
+    # Convert ai_text to safe HTML paragraphs
+    # We'll replace consecutive newlines with paragraph breaks
+    safe_lines = []
+    for paragraph in ai_text.splitlines():
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        safe_lines.append(escape(paragraph))
+    ai_body_html = "<br>".join(safe_lines) if safe_lines else ""
+
+    # Full assistant HTML: call flow + APACT (if any) + AI body
+    assistant_html = call_flow_html + (apact_html if apact_html else "") + f"<div>{ai_body_html}</div>"
+
+    return assistant_html, ai_text  # return HTML (for display) and plain text (for audio)
+
+# ---------------------------- Handle Send ----------------------------
+if send and chat_input and chat_input.strip():
+    # generate AI response
+    ai_html, ai_plain = generate_ai_response(chat_input.strip())
+    # generate audio
+    audio_b64 = generate_audio(ai_plain)
+    # append to chat history: store (user_text, ai_html, audio)
+    st.session_state.chat_history.append((chat_input.strip(), ai_html, audio_b64))
+    # clear the input after send (form has clear_on_submit=True)
+    # (Streamlit will clear automatically because form param was set)
 
 # ---------------------------- Export ----------------------------
 if DOCX_AVAILABLE and st.session_state.chat_history:
     if st.button("📥 Export Chat to Word"):
         doc = Document()
         doc.add_heading("AI Sales Call Assistant Chat Export", 0)
-        for user_msg, ai_msg, audio in st.session_state.chat_history:
+        for user_msg, ai_html, audio in st.session_state.chat_history:
+            # convert ai_html -> plain text for doc export by stripping tags (simple approach)
+            plain_ai = re.sub(r'<[^>]+>', '', ai_html)
             doc.add_paragraph(f"User: {user_msg}")
-            doc.add_paragraph(f"AI: {ai_msg}\n")
+            doc.add_paragraph(f"AI: {plain_ai}\n")
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         doc.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
