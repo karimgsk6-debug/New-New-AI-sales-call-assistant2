@@ -107,7 +107,7 @@ CSS = f"""
   background: rgba(240,240,240,0.7);
   padding: 8px;
   border-radius: 15px;
-  text-align: center;
+  text-align: left;
   margin: 50px auto 12px; /* push down to avoid overlap with fixed disclaimer */
   width: 1000px;
   position: relative;
@@ -116,7 +116,7 @@ CSS = f"""
     position: absolute;
     top: 5px;
     right: 10px;
-    width: 90px;
+    width: 150px;
 }}
 
 /* PDF summary box (permanent) */
@@ -274,7 +274,7 @@ st.markdown(disclaimer_html, unsafe_allow_html=True)
 # ---------------------------- Title ----------------------------
 st.markdown(f'''
 <div class="title-box">
-    <img src="{GSK_LOGO_URL}" width="140">
+    <img src="{GSK_LOGO_URL}" width="150">
     <img src="{AI_LOGO_URL}" class="ai-logo">
     <h1>💡 AI Sales Call Assistant</h1>
     <p>Empowering reps for smarter {brand} conversations</p>
