@@ -163,7 +163,7 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Filters / Sidebar ----------------------------
