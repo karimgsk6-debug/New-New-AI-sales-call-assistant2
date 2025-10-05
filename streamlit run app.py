@@ -100,7 +100,6 @@ CSS = f"""
   text-align:center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.7);
 }}
-.disclaimer-fixed .brand {{ font-weight: 500; font-size: 40px; color: black; }}
 .disclaimer-fixed .text {{ font-weight: 400; font-size: 20px; color: black; display:block; margin-top:4px; }}
 
 /* Title box */
@@ -110,7 +109,7 @@ CSS = f"""
   border-radius: 16px;
   text-align: left;
   margin: 60px auto 12px; /* push down to avoid overlap with fixed disclaimer */
-  width: 900px;
+  width: 700px;
   position: relative;
 }}
 .title-box img.ai-logo {{
