@@ -266,7 +266,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 disclaimer_html = f'''
 <div class="disclaimer-fixed">
   <div class="brand">⚠️ AI Assistant for <span style="font-weight:900;">{escape(brand)}</span></div>
-  <div class="text">Please validate all generated responses against GSK-approved materials before use.</div>
+  <div class="text">AI can do mistakes, Please validate all generated responses against GSK-approved materials before use.</div>
 </div>
 '''
 st.markdown(disclaimer_html, unsafe_allow_html=True)
