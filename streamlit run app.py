@@ -94,18 +94,18 @@ CSS = f"""
   left: 50%;
   transform: translateX(-50%);
   z-index: 10010;
-  background: rgba(255,255,255,0.98);
+  background: rgba(255,255,255,0.7);
   padding: 10px 18px;
   border-radius: 8px;
   text-align:center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.7);
 }}
-.disclaimer-fixed .brand {{ font-weight: 800; font-size: 40px; color: black; }}
-.disclaimer-fixed .text {{ font-weight: 700; font-size: 30px; color: black; display:block; margin-top:4px; }}
+.disclaimer-fixed .brand {{ font-weight: 500; font-size: 40px; color: black; }}
+.disclaimer-fixed .text {{ font-weight: 400; font-size: 20px; color: black; display:block; margin-top:4px; }}
 
 /* Title box */
 .title-box {{
-  background: rgba(240,240,240,0.8);
+  background: rgba(240,240,240,0.7);
   padding: 15px;
   border-radius: 16px;
   text-align: left;
