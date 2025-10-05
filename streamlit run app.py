@@ -179,7 +179,7 @@ brand_data = {
         "references_path": ".devcontainer/references/shingrix",
         "sales_module_path": ".devcontainer/SalesModule/shingrix"
     },
-    "JEMPERLI": {
+    "Jemperli": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
