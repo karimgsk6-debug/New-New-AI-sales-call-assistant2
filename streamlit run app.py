@@ -168,17 +168,17 @@ def safe_makedirs(path):
 # create base folders
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule/SHINGRIX")
-safe_makedirs(".devcontainer/SalesModule/JEMPERLI")
+safe_makedirs(".devcontainer/SalesModule/shingrix")
+safe_makedirs(".devcontainer/SalesModule/jemperli")
 
 brand_data = {
-    "Shingrix": {
+    "shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
         "references_path": ".devcontainer/references/shingrix/"
     },
-    "JEMPERLI": {
+    "jemperli": {
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
@@ -213,14 +213,14 @@ st.markdown(f'''
 ''', unsafe_allow_html=True)
 
 # ---------------------------- Sales Call Flows ----------------------------
-JEMPERLI_CALL_FLOW = {
+jemperli_CALL_FLOW = {
     "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
     "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
     "Engage": "Draw customer in through two-way dialogue, connect clinical data and product messages.",
     "Close": "Gain agreement, define next steps, extend engagement via omni-channel, record insights."
 }
 
-SHINGRIX_CALL_FLOW = {
+shingrix_CALL_FLOW = {
     "Prepare": "Plan the call: identify persona, objectives, patient types, key insights.",
     "Engage": "Start conversation, capture attention, set discussion context.",
     "Create Opportunities": "Identify gaps or unmet needs; introduce solutions with clinical/product data.",
@@ -348,13 +348,13 @@ def generate_ai_response(user_input):
     combined_context = (local_ref_text + "\n" + external_text + "\n" + sales_module_text + "\n" + st.session_state.uploaded_pdf_text)[:15000]
 
     call_flow_prompt = ""
-    if brand.upper() == "JEMPERLI":
-        call_flow_prompt = "\n\n--- JEMPERLI Call Flow Steps ---\n"
-        for step, desc in JEMPERLI_CALL_FLOW.items():
+    if brand.upper() == "jemperli":
+        call_flow_prompt = "\n\n--- jemperli Call Flow Steps ---\n"
+        for step, desc in jemperli_CALL_FLOW.items():
             call_flow_prompt += f"{step}: {desc}\n"
-    elif brand.upper() == "SHINGRIX":
-        call_flow_prompt = "\n\n--- Shingrix Call Flow Steps ---\n"
-        for step, desc in SHINGRIX_CALL_FLOW.items():
+    elif brand.upper() == "shingrix":
+        call_flow_prompt = "\n\n--- shingrix Call Flow Steps ---\n"
+        for step, desc in shingrix_CALL_FLOW.items():
             call_flow_prompt += f"{step}: {desc}\n"
 
     context_prompt = f"""
