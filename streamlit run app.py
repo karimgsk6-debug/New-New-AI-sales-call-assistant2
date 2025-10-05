@@ -72,7 +72,7 @@ if "pdf_summary_size" not in st.session_state:
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/main/.devcontainer/Background1.jpeg?raw=true"
-GSK_LOGO_URL = "https://usppg.org/wp-content/uploads/2025/04/GSK-logo.png"
+GSK_LOGO_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/main/.devcontainer/GSK-logo.png?raw=true"
 AI_LOGO_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/main/.devcontainer/AURA.png?raw=true"
 
 # ---------------------------- CSS ----------------------------
