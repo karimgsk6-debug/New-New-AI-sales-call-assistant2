@@ -204,7 +204,7 @@ st.markdown(f"## 📚 {brand} Medical References")
 ref_path = selected_brand["references_path"]
 
 try:
-    reference_files = [f for f in os.listdir(.devcontainer/references/Jemperli) if f.lower().endswith((".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf", ".txt"))]
+    reference_files = [f for f in os.listdir(".devcontainer/references/Jemperli") if f.lower().endswith((".devcontainer/references/Jemperli/Jemperli - Egypt PI.pdf", ".txt"))]
     if reference_files:
         selected_ref = st.selectbox("Select a reference document", reference_files, key="select_reference")
         file_path = os.path.join(ref_path, selected_ref)
