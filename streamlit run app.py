@@ -104,12 +104,12 @@ CSS = f"""
 
 /* Title box */
 .title-box {{
-  background: rgba(240,240,240,0.7);
-  padding: 8px;
+  background: rgba(230,230,230,0.7);
+  padding: 5px;
   border-radius: 15px;
   text-align: left;
-  margin: 50px auto 12px; /* push down to avoid overlap with fixed disclaimer */
-  width: 1000px;
+  margin: 20px auto 12px; /* push down to avoid overlap with fixed disclaimer */
+  width: 1500px;
   position: relative;
 }}
 .title-box img.ai-logo {{
