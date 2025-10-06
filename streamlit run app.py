@@ -363,62 +363,58 @@ shingrix_CALL_FLOW = {
 # ---------------------------- Audio Generation ----------------------------
 def generate_audio(text):
     """
-    Generate natural, humanized male speech with pauses and punctuation filtering.
-    Uses ElevenLabs if available, else falls back to gTTS.
+    Generate humanized TTS audio that clearly separates titles (e.g. "Prepare", "Engage")
+    from their descriptions with short pauses.
     """
     import re
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
 
+    # --- STEP 1: Clean & structure the text ---
+    # Detect and emphasize call flow titles or section headers
+    section_titles = [
+        "Prepare", "Engage", "Create Opportunities", "Influence",
+        "Impact GSO", "Post-Call Analysis", "Anchor", "Close",
+        "COCO", "Engage", "Action", "Confirm", "Transition"
+    ]
+
+    # Add spoken pauses after titles
+    for title in section_titles:
+        pattern = r'\b' + re.escape(title) + r'\b[:\-–]?'  # match title + optional colon
+        text = re.sub(pattern, f"{title}... ", text, flags=re.IGNORECASE)
+
+    # Remove punctuation that doesn’t sound natural when spoken
+    text = re.sub(r'[\(\)\[\]\{\};:,]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Add natural pauses for better rhythm
+    text = text.replace('.', '... ')
+    text = text.replace('!', '... ')
+    text = text.replace('?', '... ')
+
+    # --- STEP 2: Generate Audio ---
     try:
-        # 🧠 Step 1: Clean text (remove brackets, URLs, and excessive punctuation)
-        clean_text = re.sub(r'\[.*?\]|\(.*?\)|https?://\S+|www\.\S+', '', text)
-        clean_text = re.sub(r'[^a-zA-Z0-9.,;?!\s\'"]', '', clean_text)
-        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-
-        # 🕓 Step 2: Add soft pauses for clarity (after commas, periods, etc.)
-        # These help make speech sound more explanatory and calm.
-        enhanced_text = (
-            clean_text.replace(",", ", ...")
-                      .replace(".", ". ...")
-                      .replace(";", "; ...")
-                      .replace(":", ": ...")
-        )
-
-        # 🗣️ Step 3: ElevenLabs preferred (more realistic male voice)
         if ELEVENLABS_AVAILABLE:
-            voice_settings = {
-                "stability": 0.45,
-                "similarity_boost": 0.9,
-                "style": 0.65,
-                "use_speaker_boost": True
-            }
-
-            # Choose a natural male voice (change name if you want a different tone)
-            male_voice_id = ELEVENLABS_VOICE_ID or "Josh"
-
+            # 🧠 ElevenLabs - Natural male voice
+            formatted_text = f"{text}\n\n(Use clear male tone with small pauses after section titles.)"
             audio_stream = elevenlabs.generate(
-                text=enhanced_text,
-                voice=male_voice_id,
-                stream=True,
+                text=formatted_text,
+                voice=ELEVENLABS_VOICE_ID,
                 model="eleven_multilingual_v2",
-                voice_settings=voice_settings
+                stream=True
             )
             with open(tmp_file.name, "wb") as f:
                 for chunk in audio_stream:
                     f.write(chunk)
-
         else:
-            # 🎙️ Step 4: Fallback to gTTS with slower, more explanatory pacing
-            from gtts import gTTS
-            tts = gTTS(text=enhanced_text, lang="en", slow=True)
+            # 🗣️ Fallback: gTTS (still humanized pacing)
+            tts_text = re.sub(r'([.!?])', r'\1 ...', text)
+            tts = gTTS(text=tts_text, lang="en", slow=True)
             tts.save(tmp_file.name)
 
-        # 🎧 Step 5: Return base64-encoded audio for Streamlit playback
+        # Encode as base64 for playback
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
-            audio_base64 = base64.b64encode(audio_bytes).decode()
-
-        return audio_base64
+        return base64.b64encode(audio_bytes).decode()
 
     except Exception as e:
         st.warning(f"Audio generation failed: {e}")
