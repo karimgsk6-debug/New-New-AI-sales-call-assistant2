@@ -363,55 +363,72 @@ shingrix_CALL_FLOW = {
 # ---------------------------- Audio Generation ----------------------------
 def generate_audio(text):
     """
-    Generate humanized TTS audio that clearly separates titles (e.g. "Prepare", "Engage")
-    from their descriptions with short pauses.
+    Generate a natural, humanized male voice output that:
+    - Emphasizes titles like 'Prepare' or 'Engage' with a short pause
+    - Adds short pauses after commas, periods, and sentence endings
+    - Uses a confident, explanatory male tone
     """
     import re
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
 
-    # --- STEP 1: Clean & structure the text ---
-    # Detect and emphasize call flow titles or section headers
+    # --- STEP 1: Structure and clean text ---
     section_titles = [
         "Prepare", "Engage", "Create Opportunities", "Influence",
         "Impact GSO", "Post-Call Analysis", "Anchor", "Close",
-        "COCO", "Engage", "Action", "Confirm", "Transition"
+        "COCO", "Confirm", "Transition", "Action"
     ]
 
-    # Add spoken pauses after titles
+    # Add clear pauses after section titles
     for title in section_titles:
-        pattern = r'\b' + re.escape(title) + r'\b[:\-–]?'  # match title + optional colon
+        pattern = r'\b' + re.escape(title) + r'\b[:\-–]?'
         text = re.sub(pattern, f"{title}... ", text, flags=re.IGNORECASE)
 
-    # Remove punctuation that doesn’t sound natural when spoken
-    text = re.sub(r'[\(\)\[\]\{\};:,]', '', text)
+    # Add short pauses after sentence delimiters and commas
+    text = re.sub(r'\.\s*', '. ... ', text)
+    text = re.sub(r',\s*', ', ... ', text)
+    text = re.sub(r';\s*', '; ... ', text)
+    text = re.sub(r':\s*', ': ... ', text)
     text = re.sub(r'\s+', ' ', text).strip()
-
-    # Add natural pauses for better rhythm
-    text = text.replace('.', '... ')
-    text = text.replace('!', '... ')
-    text = text.replace('?', '... ')
 
     # --- STEP 2: Generate Audio ---
     try:
         if ELEVENLABS_AVAILABLE:
-            # 🧠 ElevenLabs - Natural male voice
-            formatted_text = f"{text}\n\n(Use clear male tone with small pauses after section titles.)"
+            from elevenlabs import VoiceSettings
+
+            formatted_text = (
+                "Use a confident, warm male voice. "
+                "Emphasize section titles clearly, add short pauses after each title, "
+                "and maintain natural pacing after commas and periods.\n\n"
+                f"{text}"
+            )
+
+            # 🎙️ Fine-tuned voice style for expressiveness
+            voice_settings = VoiceSettings(
+                stability=0.35,          # less robotic, more dynamic
+                similarity_boost=0.85,   # keep voice identity
+                style=0.55,              # expressive tone
+                use_speaker_boost=True
+            )
+
             audio_stream = elevenlabs.generate(
                 text=formatted_text,
                 voice=ELEVENLABS_VOICE_ID,
                 model="eleven_multilingual_v2",
-                stream=True
+                stream=True,
+                voice_settings=voice_settings
             )
+
             with open(tmp_file.name, "wb") as f:
                 for chunk in audio_stream:
                     f.write(chunk)
+
         else:
-            # 🗣️ Fallback: gTTS (still humanized pacing)
-            tts_text = re.sub(r'([.!?])', r'\1 ...', text)
+            # 🗣️ gTTS fallback with added pauses
+            tts_text = re.sub(r'([,.!?])', r'\1 ...', text)
             tts = gTTS(text=tts_text, lang="en", slow=True)
             tts.save(tmp_file.name)
 
-        # Encode as base64 for playback
+        # Encode for Streamlit playback
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
         return base64.b64encode(audio_bytes).decode()
