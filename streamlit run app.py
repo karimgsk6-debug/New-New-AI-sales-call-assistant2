@@ -485,7 +485,8 @@ if st.session_state.chat_history:
         st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
 
 # ---------------------------- Disclaimer ----------------------------
-st.markdown("""<div class="fixed-disclaimer">
+st.markdown("""
+<div class="fixed-disclaimer">
 ⚠️ For internal GSK use only. This AI assistant is designed to support field force preparation and must not be used for direct promotional communication with HCPs.
 </div>
 ""    ", unsafe_allow_html=True)
