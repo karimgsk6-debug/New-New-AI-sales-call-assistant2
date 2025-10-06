@@ -104,7 +104,7 @@ CSS = f"""
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(240,240,240,0.6);
+  background: rgba(240,240,240,0.7);
   margin-bottom: 20px;
 }}
 
@@ -113,12 +113,12 @@ CSS = f"""
   padding:12px;
   border-radius:12px;
   margin:12px 0;
-  max-width: 86%;
+  max-width: 90%;
   word-wrap: break-word;
 }}
 
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#0000; }}
+.chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
 
 .fixed-chat-input {{
