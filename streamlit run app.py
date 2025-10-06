@@ -65,7 +65,7 @@ CSS = f"""
   background-repeat: no-repeat;
   background-position: right top;
   background-attachment: fixed;
-  background-size: auto 140%;
+  background-size: auto 130%;
 }}
 
 @keyframes fadeIn {{
@@ -79,7 +79,7 @@ CSS = f"""
   border-radius: 16px;
   text-align: left;
   margin: 12px auto;
-  width: 850px;
+  width: 1200px;
   position: relative;
   animation: fadeIn 1.2s ease-in-out;
 }}
@@ -88,7 +88,7 @@ CSS = f"""
     position: absolute;
     top: 5px;
     right: 10px;
-    width: 90px;
+    width: 120px;
 }}
 
 .pdf-summary-box {{
@@ -153,7 +153,7 @@ CSS = f"""
     background: rgba(255, 255, 255, 0.95);
     color: #444;
     text-align: center;
-    font-size: 13px;
+    font-size: 18px;
     padding: 8px;
     border-top: 2px solid #FF6F00;
     z-index: 9999;
