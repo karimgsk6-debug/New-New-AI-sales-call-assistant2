@@ -274,13 +274,9 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
     # Clear Chat button (no confirmation as requested)
     
     # ---------------------------- Clear Chat Button ----------------------------
-    
 if st.sidebar.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
-    try:
-        st.rerun()
-    except AttributeError:
-        st.experimental_rerun()
+    st.rerun()
     
 # ---------------------------- Title ----------------------------
 st.markdown(f'''
