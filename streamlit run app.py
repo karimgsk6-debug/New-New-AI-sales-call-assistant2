@@ -362,24 +362,68 @@ shingrix_CALL_FLOW = {
 
 # ---------------------------- Audio Generation ----------------------------
 def generate_audio(text):
+    """
+    Generate natural, humanized male speech with pauses and punctuation filtering.
+    Uses ElevenLabs if available, else falls back to gTTS.
+    """
+    import re
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+
     try:
+        # 🧠 Step 1: Clean text (remove brackets, URLs, and excessive punctuation)
+        clean_text = re.sub(r'\[.*?\]|\(.*?\)|https?://\S+|www\.\S+', '', text)
+        clean_text = re.sub(r'[^a-zA-Z0-9.,;?!\s\'"]', '', clean_text)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
+        # 🕓 Step 2: Add soft pauses for clarity (after commas, periods, etc.)
+        # These help make speech sound more explanatory and calm.
+        enhanced_text = (
+            clean_text.replace(",", ", ...")
+                      .replace(".", ". ...")
+                      .replace(";", "; ...")
+                      .replace(":", ": ...")
+        )
+
+        # 🗣️ Step 3: ElevenLabs preferred (more realistic male voice)
         if ELEVENLABS_AVAILABLE:
-            audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
+            voice_settings = {
+                "stability": 0.45,
+                "similarity_boost": 0.9,
+                "style": 0.65,
+                "use_speaker_boost": True
+            }
+
+            # Choose a natural male voice (change name if you want a different tone)
+            male_voice_id = ELEVENLABS_VOICE_ID or "Josh"
+
+            audio_stream = elevenlabs.generate(
+                text=enhanced_text,
+                voice=male_voice_id,
+                stream=True,
+                model="eleven_multilingual_v2",
+                voice_settings=voice_settings
+            )
             with open(tmp_file.name, "wb") as f:
                 for chunk in audio_stream:
                     f.write(chunk)
+
         else:
-            tts = gTTS(text=text, lang="en", slow=True)
+            # 🎙️ Step 4: Fallback to gTTS with slower, more explanatory pacing
+            from gtts import gTTS
+            tts = gTTS(text=enhanced_text, lang="en", slow=True)
             tts.save(tmp_file.name)
+
+        # 🎧 Step 5: Return base64-encoded audio for Streamlit playback
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
             audio_base64 = base64.b64encode(audio_bytes).decode()
+
         return audio_base64
+
     except Exception as e:
         st.warning(f"Audio generation failed: {e}")
         return ""
-
+        
 # ---------------------------- AI Response ----------------------------
 def generate_ai_response(user_input):
     combined_context = "\n".join([
