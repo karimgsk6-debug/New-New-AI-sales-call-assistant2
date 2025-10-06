@@ -272,7 +272,8 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
         else:
             st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
     # Clear Chat button (no confirmation as requested)
-    if st.sidebar.button("🗑️ Clear Chat"):
+    # ---------------------------- Clear Chat Button ----------------------------
+if st.sidebar.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
 
