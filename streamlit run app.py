@@ -169,7 +169,7 @@ section[data-testid="stSidebar"] .st-expanderHeader {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
