@@ -74,21 +74,21 @@ CSS = f"""
 }}
 
 .title-box {{
-  background: rgba(240,240,240,0.7);
-  padding: 15px;
-  border-radius: 16px;
+  background: rgba(230,230,230,0.7);
+  padding: 10px;
+  border-radius: 15px;
   text-align: left;
   margin: 12px auto;
-  width: 1200px;
+  width: 1300px;
   position: relative;
   animation: fadeIn 1.2s ease-in-out;
 }}
 
 .title-box img.ai-logo {{
     position: absolute;
-    top: 5px;
-    right: 10px;
-    width: 120px;
+    top: 10px;
+    right: 15px;
+    width: 150px;
 }}
 
 .pdf-summary-box {{
@@ -104,7 +104,7 @@ CSS = f"""
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(240,240,240,0.6);
   margin-bottom: 20px;
 }}
 
@@ -118,7 +118,7 @@ CSS = f"""
 }}
 
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
-.chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
+.chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#0000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
 
 .fixed-chat-input {{
