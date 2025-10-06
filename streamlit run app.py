@@ -426,6 +426,7 @@ def generate_audio(text):
         
 # ---------------------------- AI Response ----------------------------
 def generate_ai_response(user_input):
+    import re
     combined_context = "\n".join([
         local_ref_text or "",
         external_text or "",
@@ -450,7 +451,8 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
 {call_flow_prompt}
 """
 
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
+    system_prompt = "You are a pharmaceutical AI assistant. Generate structured, empathetic, and conversational responses suitable for spoken delivery. Use short sentences, add brief pauses, and sound clear and confident."
+
     final_prompt = f"{user_input}\n\n{context_prompt}"
 
     try:
@@ -460,7 +462,19 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
                       {"role": "user", "content": final_prompt}],
             temperature=0.65
         )
-        return response.choices[0].message.content
+        ai_text = response.choices[0].message.content
+
+        # 🎤 Optimize for speech
+        ai_text = re.sub(r'\[.*?\]|\(.*?\)', '', ai_text)  # remove brackets
+        ai_text = re.sub(r'https?://\S+|www\.\S+', '', ai_text)  # remove URLs
+        ai_text = re.sub(r'\s+', ' ', ai_text).strip()
+        ai_text = ai_text.replace(';', ',').replace(':', ',')
+        ai_text = re.sub(r'(\.)(\S)', r'\1 \2', ai_text)  # ensure spacing
+        ai_text = re.sub(r'([.!?])', r'\1 ...', ai_text)  # add pauses
+        ai_text = f"Here’s what I recommend. ... {ai_text} ... In summary, these are the key points to emphasize."
+
+        return ai_text
+
     except Exception as e:
         st.error(f"AI generation failed: {e}")
         return f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
