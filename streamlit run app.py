@@ -486,6 +486,7 @@ if st.session_state.chat_history:
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown("""
+
 <div class="fixed-disclaimer">
 ⚠️ For internal GSK use only. This AI assistant is designed to support field force preparation and must not be used for direct promotional communication with HCPs.
 </div>
