@@ -181,7 +181,6 @@ def safe_makedirs(path):
     except Exception as e:
         st.warning(f"⚠️ Could not create folder {path}: {e}")
 
-# ensure directory structure exists
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
 safe_makedirs(".devcontainer/SalesModule/shingrix")
@@ -205,7 +204,7 @@ brand_data = {
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Rheumatologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------------------- Helper: Load Local & External References ----------------------------
+# ---------------------------- Helper Functions ----------------------------
 def load_local_references(folder_path):
     text_all = ""
     warning = None
@@ -240,7 +239,6 @@ def load_external_references(url_list):
         except Exception as e:
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
-
 # ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", list(brand_data.keys()), key="select_brand")
@@ -251,7 +249,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     specialty = st.selectbox("Specialty", specialties, key="select_specialty")
     objective = st.selectbox("Objective", objectives, key="select_objective")
     response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="select_tone")
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="select_length")
     st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="select_language")
 
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
@@ -271,13 +268,12 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
             st.download_button("⬇️ Download DOCX", open(tmp.name, "rb"), file_name=f"{brand}_chat.docx")
         else:
             st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
-    # Clear Chat button (no confirmation as requested)
-    
-    # ---------------------------- Clear Chat Button ----------------------------
+
+# Clear Chat Button
 if st.sidebar.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
-    
+
 # ---------------------------- Title ----------------------------
 st.markdown(f'''
 <div class="title-box">
@@ -288,13 +284,12 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Medical References (Local + External) ----------------------------
+# ---------------------------- Medical References ----------------------------
 st.markdown(f"## 📚 {brand.capitalize()} Medical References")
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
     st.info(local_warning)
 
-# external_text loaded from sidebar external_urls
 external_text = load_external_references([u for u in external_urls if u.strip()])
 
 if local_ref_text or external_text:
@@ -302,7 +297,7 @@ if local_ref_text or external_text:
         preview_text = (local_ref_text + "\n" + external_text).strip()
         st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
 
-# ---------------------------- Sales Call Module (per-brand SalesModule folder) ----------------------------
+# ---------------------------- Sales Call Module ----------------------------
 st.markdown(f"## 📝 Sales Call Module for {brand}")
 sales_module_path = f".devcontainer/SalesModule/{brand}"
 sales_module_text, sales_warning = load_local_references(sales_module_path)
@@ -330,7 +325,6 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
             full_text = "".join([p.extract_text() or "" for p in reader.pages])
             st.session_state.uploaded_pdf_text = full_text
             st.success(f"✅ Loaded {len(full_text)} characters from uploaded PDF.")
-            # Create summary using Groq model (fallback to simple extraction if model call fails)
             bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
             try:
                 summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
@@ -342,7 +336,6 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
                 )
                 st.session_state.pdf_summary = ai_summary.choices[0].message.content
             except Exception:
-                # fallback: extract candidate sentences
                 fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
                 st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
         except Exception as e:
@@ -350,7 +343,7 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     if st.session_state.pdf_summary:
         st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
-# ---------------------------- Call Flows (kept from earlier) ----------------------------
+# ---------------------------- Call Flows ----------------------------
 jemperli_CALL_FLOW = {
     "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
     "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
@@ -369,21 +362,14 @@ shingrix_CALL_FLOW = {
 
 # ---------------------------- Audio Generation ----------------------------
 def generate_audio(text):
-    """Generate TTS audio for the AI response"""
-    for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
-        text = text.replace(step, f"{step} ...")
-    # remove some punctuation for clearer TTS
-    text = re.sub(r'[,*]', '', text)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     try:
         if ELEVENLABS_AVAILABLE:
-            # generate via ElevenLabs
             audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
             with open(tmp_file.name, "wb") as f:
                 for chunk in audio_stream:
                     f.write(chunk)
         else:
-            # fallback to gTTS
             tts = gTTS(text=text, lang="en", slow=True)
             tts.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
@@ -394,9 +380,8 @@ def generate_audio(text):
         st.warning(f"Audio generation failed: {e}")
         return ""
 
-# ---------------------------- AI Response Generation ----------------------------
+# ---------------------------- AI Response ----------------------------
 def generate_ai_response(user_input):
-    # Build combined context from local refs, external refs, sales module, uploaded pdf
     combined_context = "\n".join([
         local_ref_text or "",
         external_text or "",
@@ -404,7 +389,6 @@ def generate_ai_response(user_input):
         st.session_state.uploaded_pdf_text or ""
     ])[:15000]
 
-    # include call flow depending on brand
     call_flow_prompt = ""
     if brand.lower() == "jemperli":
         call_flow_prompt = "\n\n--- jemperli Call Flow Steps ---\n" + "\n".join([f"{k}: {v}" for k, v in jemperli_CALL_FLOW.items()])
@@ -435,9 +419,7 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
         return response.choices[0].message.content
     except Exception as e:
         st.error(f"AI generation failed: {e}")
-        # fallback simple echo / structured template
-        fallback = f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
-        return fallback
+        return f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
 
 # ---------------------------- Chat UI ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -447,7 +429,6 @@ for item in st.session_state.chat_history:
     elif isinstance(item, dict) and item.get("role") == "assistant":
         st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(item.get("content",""))}</div>', unsafe_allow_html=True)
         if item.get("audio"):
-            # display audio player
             try:
                 st.audio(base64.b64decode(item["audio"]), format="audio/mp3")
             except Exception:
@@ -455,22 +436,15 @@ for item in st.session_state.chat_history:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat Input ----------------------------
-# Use chat_input for a simple bottom input
 user_input = st.chat_input("Ask or continue your sales dialogue...")
 if user_input:
-    # store user message
     st.session_state.chat_history.append({"role": "user", "content": user_input})
-    # generate AI response
     ai_resp = generate_ai_response(user_input)
-    # generate audio
     audio_base64 = generate_audio(ai_resp) if ai_resp else ""
-    # store assistant message
     st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
-    # rerun to show message immediately
-    st.experimental_rerun()
+    st.rerun()
 
-# ---------------------------- Export (bottom fallback if not used in sidebar) ----------------------------
-# Keep export options accessible also in main area if desired
+# ---------------------------- Export / Download Chat ----------------------------
 if st.session_state.chat_history:
     with st.expander("Export / Download Chat", expanded=False):
         text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
