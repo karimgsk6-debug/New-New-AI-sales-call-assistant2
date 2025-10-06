@@ -502,7 +502,7 @@ st.markdown("""
 }
 </style>
 <div class="fixed-disclaimer">
-<b>Disclaimer:</b> This AI Sales Call Assistant is intended for educational and informational purposes only. 
+<b>Disclaimer:</b> ⚠️This AI Sales Call Assistant is intended for educational and informational purposes only. 
 It does not replace official medical references, product labeling, or company-approved materials. 
 Always verify with the latest approved product information and compliance guidance before use.
 </div>
