@@ -153,7 +153,7 @@ CSS = f"""
     background: rgba(255, 255, 255, 0.95);
     color: #444;
     text-align: center;
-    font-size: 18px;
+    font-size: 14px;
     padding: 8px;
     border-top: 2px solid #FF6F00;
     z-index: 9999;
@@ -489,4 +489,4 @@ st.markdown("""
 <div class="fixed-disclaimer">
 ⚠️ For internal GSK use only. This AI assistant is designed to support field force preparation and must not be used for direct promotional communication with HCPs.
 </div>
-""", unsafe_allow_html=True)
+""    ", unsafe_allow_html=True)
