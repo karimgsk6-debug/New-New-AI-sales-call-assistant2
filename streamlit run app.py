@@ -486,8 +486,24 @@ if st.session_state.chat_history:
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown("""
-
+<style>
+.fixed-disclaimer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    color: #444;
+    text-align: center;
+    font-size: 13px;
+    padding: 8px;
+    border-top: 2px solid #FF6F00;
+    z-index: 9999;
+}
+</style>
 <div class="fixed-disclaimer">
-⚠️ For internal GSK use only. This AI assistant is designed to support field force preparation and must not be used for direct promotional communication with HCPs.
+<b>Disclaimer:</b> This AI Sales Call Assistant is intended for educational and informational purposes only. 
+It does not replace official medical references, product labeling, or company-approved materials. 
+Always verify with the latest approved product information and compliance guidance before use.
 </div>
-""    ", unsafe_allow_html=True)
+""", unsafe_allow_html=True)
