@@ -438,6 +438,31 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
         # fallback simple echo / structured template
         fallback = f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
         return fallback
+        from prompt_moderation import moderate_prompt
+
+user_input = st.chat_input("Ask or continue your sales dialogue...")
+if user_input:
+    # 1) Moderate prompt
+    mod = moderate_prompt(user_input, user_id=st.session_state.get("user_id", "unknown"), external_provider=None)
+    if mod["action"] == "block":
+        st.error(f"Prompt blocked: {mod['reason']}")
+    elif mod["action"] == "review":
+        st.warning(f"Prompt requires human review: {mod['reason']}. Suggested rewrite: {mod['rewrite']}")
+        # Optionally queue for human review and do not call the LLM
+    elif mod["action"] == "rewrite" and mod.get("rewrite"):
+        user_prompt_to_send = mod["rewrite"]
+        # optionally show suggestion to user and allow them to accept
+        st.info("Your prompt was rewritten for compliance. Sending rewritten prompt to AI.")
+    else:
+        user_prompt_to_send = user_input
+
+    # 2) If allowed, call AI
+    if mod["action"] in ("allow", "allow_with_suggestion", "rewrite"):
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        ai_resp = generate_ai_response(user_prompt_to_send)
+        audio_base64 = generate_audio(ai_resp) if ai_resp else ""
+        st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+        st.rerun()
 
 # ---------------------------- Chat UI ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
