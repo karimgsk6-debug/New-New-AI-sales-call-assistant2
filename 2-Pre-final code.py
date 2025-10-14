@@ -467,7 +467,7 @@ if user_input:
     # store assistant message
     st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
     # rerun to show message immediately
-    st.experimental_rerun()
+    st.rerun()
 
 # ---------------------------- Export (bottom fallback if not used in sidebar) ----------------------------
 # Keep export options accessible also in main area if desired
