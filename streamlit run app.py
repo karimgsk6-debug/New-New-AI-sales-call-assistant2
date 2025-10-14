@@ -440,7 +440,8 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
         return fallback
         from prompt_moderation import moderate_prompt
 
-user_input = st.chat_input("Ask or continue your sales dialogue...")
+user_input = st.chat_input("Ask or continue your sales dialogue...", key="main_chat_input")
+
 if user_input:
     # 1) Moderate prompt
     mod = moderate_prompt(user_input, user_id=st.session_state.get("user_id", "unknown"), external_provider=None)
