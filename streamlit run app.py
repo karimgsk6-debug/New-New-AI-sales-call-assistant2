@@ -11,7 +11,7 @@ from PyPDF2 import PdfReader
 from html import escape
 import requests
 from datetime import datetime
-import json
+from gtts import gTTS
 
 # Optional DOCX export
 try:
@@ -27,16 +27,10 @@ try:
 except ModuleNotFoundError:
     ELEVENLABS_AVAILABLE = False
 
-from gtts import gTTS  # gTTS fallback
-
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "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")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
-
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
-    try:
-        elevenlabs.api_key = ELEVENLABS_API_KEY
-    except Exception:
-        ELEVENLABS_AVAILABLE = False
+    elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
     ELEVENLABS_AVAILABLE = False
 
@@ -56,10 +50,6 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
-if "chat_key" not in st.session_state:
-    st.session_state.chat_key = 0
-if "user_id" not in st.session_state:
-    st.session_state.user_id = "anonymous"
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
@@ -76,48 +66,36 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 130%;
 }}
-
-@keyframes fadeIn {{
-  from {{ opacity: 0; transform: translateY(-10px); }}
-  to {{ opacity: 1; transform: translateY(0); }}
-}}
-
 .title-box {{
   background: rgba(230,230,230,0.7);
   padding: 10px;
   border-radius: 15px;
   text-align: left;
   margin: 12px auto;
-  width: 1100px;
+  width: 1300px;
   position: relative;
-  animation: fadeIn 1.0s ease-in-out;
 }}
-
 .title-box img.ai-logo {{
     position: absolute;
     top: 10px;
     right: 15px;
-    width: 120px;
+    width: 150px;
 }}
-
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
   border-radius: 14px; 
-  margin-bottom: 12px;
+  margin-bottom: 12px; 
   white-space: pre-line;
-  color: #012a4a;
 }}
-
 .chat-container {{
-  max-height: 60vh;
+  max-height: 65vh;
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
   background: rgba(240,240,240,0.7);
   margin-bottom: 20px;
 }}
-
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
@@ -126,74 +104,18 @@ CSS = f"""
   max-width: 90%;
   word-wrap: break-word;
 }}
-
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
-.chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.95em; padding:10px; margin-top:12px; }}
-
-.fixed-chat-input {{
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    right: 20px;
-    z-index: 10002;
-}}
-
-.fixed-chat-input textarea {{
-    width: 100%;
-    min-height: 60px;
-    max-height: 180px;
-    resize: vertical;
-}}
-
-.send-button {{
-    position: fixed;
-    bottom: 20px;
-    right: 30px;
-    z-index: 10003;
-    height: 40px;
-    width: 100px;
-}}
-
-.fixed-disclaimer {{
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(255, 255, 255, 0.95);
-    color: #444;
-    text-align: center;
-    font-size: 13px;
-    padding: 8px;
-    border-top: 2px solid #FF6F00;
-    z-index: 9999;
-    animation: fadeIn 1.5s ease-in-out;
-}}
-
-section[data-testid="stSidebar"] .st-expanderHeader {{
-    color: #FF6F00 !important;
-    font-weight: 700;
-}}
+.chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = "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"  # <--- Hardcoded Groq API Key
+GROQ_API_KEY = "your_Groq_API_here"  # <-- Hardcoded key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Brand Configurations ----------------------------
-def safe_makedirs(path):
-    try:
-        os.makedirs(path, exist_ok=True)
-    except Exception as e:
-        st.warning(f"⚠️ Could not create folder {path}: {e}")
-
-safe_makedirs(".devcontainer/references/shingrix")
-safe_makedirs(".devcontainer/references/jemperli")
-safe_makedirs(".devcontainer/SalesModule/shingrix")
-safe_makedirs(".devcontainer/SalesModule/jemperli")
-
 brand_data = {
     "shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -208,94 +130,129 @@ brand_data = {
         "references_path": ".devcontainer/references/jemperli/"
     }
 }
-
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Rheumatologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------------------- Moderation Module ----------------------------
-AUDIT_LOG = ".prompt_audit_log.jsonl"
-
-BLACKLIST_TERMS = [
-    r"\boff-?label\b", r"\bunapproved\b", r"\bunauthoriz(?:ed|ed)\b",
-    r"\bcure\b", r"\bmiracle\b", r"\bfree trial\b", r"\bdiscount\b",
-    r"\bprice\b", r"\bcompare\b.*\bcompetitor\b", r"\bdosage\b", r"\bprescribe\b",
-]
-
-SENSITIVE_PATIENT_PATTERNS = [
-    r"\bdiagnos(?:e|is|ing)\b", r"\bprescrib(?:e|ing|ed)\b",
-    r"\bpatient\b", r"\bunder-?\d+\b", r"\bchild(?:ren)?\b", r"\bage\b"
-]
-
-BYPASS_PATTERNS = [
-    r"ignore (?:previous|earlier) instructions",
-    r"disregard (?:rules|policy)",
-    r"bypass (?:filter|moderation)",
-    r"act as if you are"
-]
-
-ALLOWED_STARTS = [
-    "Explain the approved indications for",
-    "Summarise approved clinical evidence for",
-    "List contraindications for",
-    "Provide the approved dosing guidance for"
-]
-
-REWRITE_TEMPLATES = {
-    "age_question": "Provide approved age indications and age-related safety info for {drug}.",
-    "dose_question": "Provide approved dosing information for {drug}.",
-}
-
-def moderate_prompt(prompt: str) -> bool:
-    # Blacklist check
-    for term in BLACKLIST_TERMS:
-        if re.search(term, prompt, re.I):
-            return False
-    return True
-
 # ---------------------------- Sidebar ----------------------------
-with st.sidebar:
-    st.header("Filters & Settings")
-    selected_brand = st.selectbox("Select Brand", ["shingrix", "jemperli"])
-    selected_specialty = st.selectbox("Specialty", ["All"] + specialties)
-    selected_objective = st.selectbox("Objective", ["All"] + objectives)
-    st.markdown("---")
-    st.subheader("Voice & Language")
-    st.session_state.voice_pref = st.selectbox("Voice", ["Old Male", "Young Female"])
-    st.session_state.language = st.selectbox("Language", ["English", "Arabic"])
+with st.sidebar.expander("Filters & Options", expanded=True):
+    brand = st.selectbox("Brand", list(brand_data.keys()))
+    selected_brand = brand_data[brand]
+    segment = st.selectbox("Segment", selected_brand["segments"])
+    persona = st.selectbox("HCP Persona", selected_brand["personas"])
+    barrier = st.multiselect("Doctor Barrier", selected_brand["barriers"])
+    specialty = st.selectbox("Specialty", specialties)
+    objective = st.selectbox("Objective", objectives)
+    st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True)
 
-# ---------------------------- PDF Upload ----------------------------
-uploaded_file = st.file_uploader("Upload PDF reference", type=["pdf"])
-if uploaded_file:
-    reader = PdfReader(uploaded_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    st.session_state.uploaded_pdf_text = text
-    st.session_state.pdf_summary = f"PDF uploaded: {uploaded_file.name} | {len(text.split())} words"
+with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
+    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 
-# ---------------------------- Chat Interface ----------------------------
+# ---------------------------- Load References ----------------------------
+def load_local_references(folder_path):
+    text_all = ""
+    if not os.path.exists(folder_path):
+        return ""
+    files = [f for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".txt"))]
+    for file in files:
+        file_path = os.path.join(folder_path, file)
+        try:
+            if file.lower().endswith(".pdf"):
+                reader = PdfReader(file_path)
+                for page in reader.pages:
+                    text_all += page.extract_text() or ""
+            elif file.lower().endswith(".txt"):
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    text_all += f.read()
+        except Exception:
+            pass
+    return text_all.strip()
+
+def load_external_references(url_list):
+    all_text = ""
+    for url in url_list:
+        try:
+            r = requests.get(url, timeout=8)
+            if r.status_code == 200:
+                all_text += r.text + "\n"
+        except:
+            pass
+    return all_text
+
+local_ref_text = load_local_references(selected_brand["references_path"])
+external_text = load_external_references([u for u in external_urls if u.strip()])
+
+# ---------------------------- PDF Upload & Summary ----------------------------
+with st.expander("📄 Upload PDF for AI Context", expanded=False):
+    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
+    if uploaded_pdf:
+        reader = PdfReader(uploaded_pdf)
+        full_text = "".join([p.extract_text() or "" for p in reader.pages])
+        st.session_state.uploaded_pdf_text = full_text
+        bullets_count = 10
+        try:
+            summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
+            ai_summary = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": "You are a helpful assistant."},
+                          {"role": "user", "content": summary_prompt}],
+                temperature=0.4
+            )
+            st.session_state.pdf_summary = ai_summary.choices[0].message.content
+        except:
+            fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
+            st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
+    if st.session_state.pdf_summary:
+        st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
+
+# ---------------------------- Audio Generation ----------------------------
+def generate_audio(text):
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    try:
+        if ELEVENLABS_AVAILABLE:
+            audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
+            with open(tmp_file.name, "wb") as f:
+                for chunk in audio_stream:
+                    f.write(chunk)
+        else:
+            tts = gTTS(text=text, lang="en", slow=True)
+            tts.save(tmp_file.name)
+        with open(tmp_file.name, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return ""
+
+# ---------------------------- AI Response ----------------------------
+def generate_ai_response(user_input):
+    combined_context = "\n".join([local_ref_text, external_text, st.session_state.uploaded_pdf_text])[:15000]
+    final_prompt = f"{user_input}\n\nContext:\n{combined_context[:5000]}"
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": "You are a pharmaceutical AI assistant."},
+                      {"role": "user", "content": final_prompt}],
+            temperature=0.65
+        )
+        return response.choices[0].message.content
+    except:
+        return f"(Fallback) {user_input}"
+
+# ---------------------------- Chat UI ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for i, entry in enumerate(st.session_state.chat_history):
-    if entry["role"] == "user":
-        st.markdown(f'<div class="chat-bubble-user">{escape(entry["content"])}</div>', unsafe_allow_html=True)
+for item in st.session_state.chat_history:
+    role = item.get("role")
+    content = item.get("content")
+    if role == "user":
+        st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(content)}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(content)}</div>', unsafe_allow_html=True)
+        if item.get("audio"):
+            st.audio(base64.b64decode(item["audio"]), format="audio/mp3")
 st.markdown('</div>', unsafe_allow_html=True)
 
-user_input = st.text_area("Type your question here...", key="chat_input")
-if st.button("Send"):
-    if not moderate_prompt(user_input):
-        st.warning("⚠️ Your prompt contains restricted content.")
-    else:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # Dummy Groq response, replace with actual client call
-        response_text = f"AI Response for: {user_input}"
-        st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-        st.experimental_rerun()
-
-# ---------------------------- Disclaimer ----------------------------
-st.markdown(
-    '<div class="fixed-disclaimer">'
-    'This AI assistant provides **approved medical content only**. Do not rely on it for off-label or patient-specific advice.'
-    '</div>', unsafe_allow_html=True
-)
+user_input = st.chat_input("Ask or continue your sales dialogue...")
+if user_input:
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    ai_resp = generate_ai_response(user_input)
+    audio_base64 = generate_audio(ai_resp)
+    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+    st.rerun()
