@@ -446,7 +446,7 @@ pdf_summary_size = st.radio(
 # Store selection in session_state if needed
 st.session_state["pdf_summary_size_value"] = pdf_summary_size
 
-    if uploaded_pdf:
+if uploaded_pdf:
         try:
             reader = PdfReader(uploaded_pdf)
             full_text = "".join([p.extract_text() or "" for p in reader.pages])
