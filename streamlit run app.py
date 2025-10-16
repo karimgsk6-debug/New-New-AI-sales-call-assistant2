@@ -141,6 +141,11 @@ CSS = f"""
   gap: 8px;
   padding: 6px 0;
   margin-bottom: 10px;
+  position: sticky;
+  top: 80px;
+  background: rgba(255,255,255,0.8);
+  z-index: 9998;
+  border-radius: 10px;
 }}
 .prompt-suggestion-btn {{
   display: flex;
@@ -167,7 +172,7 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
@@ -235,7 +240,7 @@ st.markdown(f'''
 local_ref_text,_ = load_local_references(brand_data[brand]["references_path"])
 external_text=load_external_references([u for u in external_urls if u.strip()])
 
-# ---------------------------- Prompt Suggestions (Copilot Style Fixed) ----------------------------
+# ---------------------------- Prompt Suggestions (Sticky Copilot Style) ----------------------------
 PROMPT_SUGGESTIONS = [
     {"icon":"💬","text":"Generate call flow for this HCP"},
     {"icon":"🧾","text":"Specify patient profile"},
@@ -247,14 +252,13 @@ PROMPT_SUGGESTIONS = [
     {"icon":"🚫","text":"Handle barrier for patient profile"}
 ]
 
-st.markdown("### Prompt Suggestions")
-
-cols = st.columns(len(PROMPT_SUGGESTIONS))
+st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
 for i, item in enumerate(PROMPT_SUGGESTIONS):
-    if cols[i].button(f"{item['icon']} {item['text']}", key=f"prompt_{i}"):
+    if st.button(f"{item['icon']} {item['text']}", key=f"prompt_{i}"):
         st.session_state.chat_input = item['text']
+st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Response ----------------------------
+# ---------------------------- AI Response Helpers ----------------------------
 def sanitize_user_input(text): return escape(text.strip())
 def is_safe_content(text): return not any(w in text.lower() for w in ["sex","violence","attack","terror"])
 def log_interaction(u,a): pass
@@ -300,14 +304,14 @@ for entry in st.session_state.chat_history:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat Input ----------------------------
-chat_input=st.text_area("Ask or continue dialogue:",st.session_state.chat_input,key="chat_input",height=60)
+chat_input = st.text_area("Ask or continue dialogue:", st.session_state.get("chat_input", ""), key="chat_input", height=60)
 if st.button("Send"):
     if chat_input.strip():
-        ai_reply=generate_ai_response(chat_input.strip())
-        audio_base64=generate_audio(ai_reply)
+        ai_reply = generate_ai_response(chat_input.strip())
+        audio_base64 = generate_audio(ai_reply)
         st.session_state.chat_history.append({"role":"user","content":chat_input.strip()})
         st.session_state.chat_history.append({"role":"assistant","content":ai_reply,"audio":audio_base64})
-        st.session_state.chat_input=""
+        st.session_state.chat_input = ""
         st.experimental_rerun()
 
 # ---------------------------- Enhanced Export ----------------------------
