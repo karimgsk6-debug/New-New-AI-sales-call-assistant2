@@ -435,7 +435,17 @@ if sales_module_text:
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"], key="upload_pdf")
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True, key="pdf_summary_size")
+    # PDF Summary Size Selector (safe assignment)
+pdf_summary_size = st.radio(
+    "PDF Summary Size",
+    ["Consisted", "Normal", "Detailed"],
+    horizontal=True,
+    key="pdf_summary_size"
+)
+
+# Store selection in session_state if needed
+st.session_state["pdf_summary_size_value"] = pdf_summary_size
+
     if uploaded_pdf:
         try:
             reader = PdfReader(uploaded_pdf)
