@@ -248,6 +248,24 @@ if local_ref_text or external_text:
     with st.expander(f"📚 {brand.capitalize()} Medical References", expanded=False):
         preview_text = (local_ref_text + "\n" + external_text).strip()
         st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
+        
+# ---------------------------- Sales Call Module (per-brand SalesModule folder) ----------------------------
+st.markdown(f"## 📝 Sales Call Module for {brand}")
+sales_module_path = f".devcontainer/SalesModule/{brand}"
+sales_module_text, sales_warning = load_local_references(sales_module_path)
+if sales_warning:
+    st.info(sales_warning)
+if sales_module_text:
+    with st.expander("🔍 Preview SalesModule Documents", expanded=False):
+        st.text_area(
+            "Sales Module Preview",
+            sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
+            height=250
+        )
+        sales_search_keyword = st.text_input("Search keyword in sales modules", key="sales_search_keyword")
+        if sales_search_keyword:
+            matches = [m.start() for m in re.finditer(sales_search_keyword, sales_module_text, re.IGNORECASE)]
+            st.write(f"Found {len(matches)} matches for '{sales_search_keyword}'.")
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload PDF for AI Context", expanded=False):
