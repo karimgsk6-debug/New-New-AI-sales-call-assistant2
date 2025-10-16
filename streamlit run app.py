@@ -11,6 +11,7 @@ from PyPDF2 import PdfReader
 from html import escape
 import requests
 from datetime import datetime
+import html
 
 # Optional DOCX export
 try:
@@ -28,7 +29,7 @@ except ModuleNotFoundError:
 
 from gtts import gTTS
 
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "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")
+ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
@@ -67,12 +68,10 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 130%;
 }}
-
 @keyframes fadeIn {{
   from {{ opacity: 0; transform: translateY(-10px); }}
   to {{ opacity: 1; transform: translateY(0); }}
 }}
-
 .title-box {{
   background: rgba(230,230,230,0.7);
   padding: 10px;
@@ -83,14 +82,12 @@ CSS = f"""
   position: relative;
   animation: fadeIn 1.2s ease-in-out;
 }}
-
 .title-box img.ai-logo {{
     position: absolute;
     top: 10px;
     right: 15px;
     width: 150px;
 }}
-
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
@@ -98,7 +95,6 @@ CSS = f"""
   margin-bottom: 12px;
   white-space: pre-line;
 }}
-
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
@@ -107,7 +103,6 @@ CSS = f"""
   background: rgba(240,240,240,0.7);
   margin-bottom: 20px;
 }}
-
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
@@ -116,11 +111,9 @@ CSS = f"""
   max-width: 90%;
   word-wrap: break-word;
 }}
-
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
-
 .fixed-chat-input {{
     position: fixed;
     bottom: 20px;
@@ -128,14 +121,12 @@ CSS = f"""
     right: 20px;
     z-index: 10002;
 }}
-
 .fixed-chat-input textarea {{
     width: 100%;
     min-height: 60px;
     max-height: 180px;
     resize: vertical;
 }}
-
 .send-button {{
     position: fixed;
     bottom: 20px;
@@ -144,7 +135,6 @@ CSS = f"""
     height: 40px;
     width: 100px;
 }}
-
 .fixed-disclaimer {{
     position: fixed;
     bottom: 0;
@@ -159,7 +149,6 @@ CSS = f"""
     z-index: 9999;
     animation: fadeIn 1.5s ease-in-out;
 }}
-
 section[data-testid="stSidebar"] .st-expanderHeader {{
     color: #FF6F00 !important;
     font-weight: 700;
@@ -169,7 +158,7 @@ section[data-testid="stSidebar"] .st-expanderHeader {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
@@ -181,7 +170,6 @@ def safe_makedirs(path):
     except Exception as e:
         st.warning(f"⚠️ Could not create folder {path}: {e}")
 
-# ensure directory structure exists
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
 safe_makedirs(".devcontainer/SalesModule/shingrix")
@@ -241,6 +229,24 @@ def load_external_references(url_list):
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
 
+# ---------------------------- Input Sanitization & Moderation ----------------------------
+FORBIDDEN_TOPICS = ["politics", "religion", "adult content", "illegal", "personal medical advice"]
+
+def sanitize_user_input(text):
+    text = ''.join(c for c in text if c.isprintable())
+    text = html.escape(text)
+    return text[:2000]  # max 2000 chars
+
+def is_safe_content(text):
+    text_lower = text.lower()
+    return not any(term in text_lower for term in FORBIDDEN_TOPICS)
+
+def log_interaction(user_input, ai_resp):
+    safe_dir = ".devcontainer/logs"
+    os.makedirs(safe_dir, exist_ok=True)
+    with open(os.path.join(safe_dir, "chat.log"), "a", encoding="utf-8") as f:
+        f.write(f"{datetime.now()} | USER: {user_input} | AI: {ai_resp}\n")
+
 # ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", list(brand_data.keys()), key="select_brand")
@@ -271,13 +277,10 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
             st.download_button("⬇️ Download DOCX", open(tmp.name, "rb"), file_name=f"{brand}_chat.docx")
         else:
             st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
-    # Clear Chat button (no confirmation as requested)
-    
-    # ---------------------------- Clear Chat Button ----------------------------
 if st.sidebar.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
-    
+
 # ---------------------------- Title ----------------------------
 st.markdown(f'''
 <div class="title-box">
@@ -288,13 +291,12 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Medical References (Local + External) ----------------------------
+# ---------------------------- Load References ----------------------------
 st.markdown(f"## 📚 {brand.capitalize()} Medical References")
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
     st.info(local_warning)
 
-# external_text loaded from sidebar external_urls
 external_text = load_external_references([u for u in external_urls if u.strip()])
 
 if local_ref_text or external_text:
@@ -302,7 +304,6 @@ if local_ref_text or external_text:
         preview_text = (local_ref_text + "\n" + external_text).strip()
         st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
 
-# ---------------------------- Sales Call Module (per-brand SalesModule folder) ----------------------------
 st.markdown(f"## 📝 Sales Call Module for {brand}")
 sales_module_path = f".devcontainer/SalesModule/{brand}"
 sales_module_text, sales_warning = load_local_references(sales_module_path)
@@ -325,32 +326,33 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
     st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True)
     if uploaded_pdf:
-        try:
-            reader = PdfReader(uploaded_pdf)
-            full_text = "".join([p.extract_text() or "" for p in reader.pages])
-            st.session_state.uploaded_pdf_text = full_text
-            st.success(f"✅ Loaded {len(full_text)} characters from uploaded PDF.")
-            # Create summary using Groq model (fallback to simple extraction if model call fails)
-            bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
+        if uploaded_pdf.size > 5*1024*1024:  # 5MB limit
+            st.error("❌ PDF too large. Max 5MB allowed.")
+        else:
             try:
-                summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
-                ai_summary = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": "You are a helpful assistant."},
-                              {"role": "user", "content": summary_prompt}],
-                    temperature=0.4
-                )
-                st.session_state.pdf_summary = ai_summary.choices[0].message.content
-            except Exception:
-                # fallback: extract candidate sentences
-                fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
-                st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
-        except Exception as e:
-            st.error(f"Error reading uploaded PDF: {e}")
+                reader = PdfReader(uploaded_pdf)
+                full_text = "".join([p.extract_text() or "" for p in reader.pages])
+                st.session_state.uploaded_pdf_text = full_text
+                st.success(f"✅ Loaded {len(full_text)} characters from uploaded PDF.")
+                bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
+                try:
+                    summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
+                    ai_summary = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "You are a helpful assistant."},
+                                  {"role": "user", "content": summary_prompt}],
+                        temperature=0.4
+                    )
+                    st.session_state.pdf_summary = ai_summary.choices[0].message.content
+                except Exception:
+                    fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
+                    st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
+            except Exception as e:
+                st.error(f"Error reading uploaded PDF: {e}")
     if st.session_state.pdf_summary:
         st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
 
-# ---------------------------- Call Flows (kept from earlier) ----------------------------
+# ---------------------------- Call Flows ----------------------------
 jemperli_CALL_FLOW = {
     "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
     "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
@@ -369,21 +371,18 @@ shingrix_CALL_FLOW = {
 
 # ---------------------------- Audio Generation ----------------------------
 def generate_audio(text):
-    """Generate TTS audio for the AI response"""
-    for step in ["Acknowledge", "Probing", "Action", "Confirm", "Transition"]:
-        text = text.replace(step, f"{step} ...")
-    # remove some punctuation for clearer TTS
-    text = re.sub(r'[,*]', '', text)
+    if len(text) > 2000:
+        text = text[:2000] + "..."
+    if not is_safe_content(text):
+        return ""
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     try:
         if ELEVENLABS_AVAILABLE:
-            # generate via ElevenLabs
             audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
             with open(tmp_file.name, "wb") as f:
                 for chunk in audio_stream:
                     f.write(chunk)
         else:
-            # fallback to gTTS
             tts = gTTS(text=text, lang="en", slow=True)
             tts.save(tmp_file.name)
         with open(tmp_file.name, "rb") as f:
@@ -391,120 +390,56 @@ def generate_audio(text):
             audio_base64 = base64.b64encode(audio_bytes).decode()
         return audio_base64
     except Exception as e:
-        st.warning(f"Audio generation failed: {e}")
+        st.warning(f"⚠️ Audio generation failed: {e}")
         return ""
 
-# ---------------------------- AI Response Generation ----------------------------
-def generate_ai_response(user_input):
-    # Build combined context from local refs, external refs, sales module, uploaded pdf
+# ---------------------------- AI Response ----------------------------
+def generate_ai_response(prompt):
+    safe_prompt = sanitize_user_input(prompt)
+    if not is_safe_content(safe_prompt):
+        return "(⚠️ Unsafe prompt blocked)"
     combined_context = "\n".join([
         local_ref_text or "",
         external_text or "",
         sales_module_text or "",
         st.session_state.uploaded_pdf_text or ""
     ])[:15000]
-
-    # include call flow depending on brand
-    call_flow_prompt = ""
-    if brand.lower() == "jemperli":
-        call_flow_prompt = "\n\n--- jemperli Call Flow Steps ---\n" + "\n".join([f"{k}: {v}" for k, v in jemperli_CALL_FLOW.items()])
-    elif brand.lower() == "shingrix":
-        call_flow_prompt = "\n\n--- shingrix Call Flow Steps ---\n" + "\n".join([f"{k}: {v}" for k, v in shingrix_CALL_FLOW.items()])
-
-    context_prompt = f"""
-Brand: {brand}
-Persona: {persona}
-Segment: {segment}
-Specialty: {specialty}
-Objective: {objective}
-Barriers: {', '.join(barrier) if barrier else 'None'}
-Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
-{call_flow_prompt}
-"""
-
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
-    final_prompt = f"{user_input}\n\n{context_prompt}"
-
+    messages = [
+        {"role": "system", "content": "You are a professional AI sales assistant for pharma reps."},
+        {"role": "user", "content": f"{safe_prompt}\n\nContext:\n{combined_context}"}
+    ]
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system_prompt},
-                      {"role": "user", "content": final_prompt}],
-            temperature=0.65
+            messages=messages,
+            temperature=0.4
         )
-        return response.choices[0].message.content
+        ai_resp = response.choices[0].message.content
+        if not is_safe_content(ai_resp):
+            ai_resp = "(⚠️ Response blocked due to unsafe content)"
     except Exception as e:
-        st.error(f"AI generation failed: {e}")
-        # fallback simple echo / structured template
-        fallback = f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
-        return fallback
+        ai_resp = f"(Fallback) {safe_prompt[:200]} ..."
+    log_interaction(safe_prompt, ai_resp)
+    return ai_resp
 
 # ---------------------------- Chat UI ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for item in st.session_state.chat_history:
-    if isinstance(item, dict) and item.get("role") == "user":
-        st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(item.get("content",""))}</div>', unsafe_allow_html=True)
-    elif isinstance(item, dict) and item.get("role") == "assistant":
-        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(item.get("content",""))}</div>', unsafe_allow_html=True)
-        if item.get("audio"):
-            # display audio player
-            try:
-                st.audio(base64.b64decode(item["audio"]), format="audio/mp3")
-            except Exception:
-                pass
+for entry in st.session_state.chat_history:
+    role_class = "chat-bubble-user" if entry["role"]=="user" else "chat-bubble-ai"
+    st.markdown(f'<div class="{role_class}">{entry["content"]}</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Chat Input ----------------------------
-# Use chat_input for a simple bottom input
-user_input = st.chat_input("Ask or continue your sales dialogue...")
-if user_input:
-    # store user message
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    # generate AI response
-    ai_resp = generate_ai_response(user_input)
-    # generate audio
-    audio_base64 = generate_audio(ai_resp) if ai_resp else ""
-    # store assistant message
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
-    # rerun to show message immediately
-    st.rerun()
-
-# ---------------------------- Export (bottom fallback if not used in sidebar) ----------------------------
-# Keep export options accessible also in main area if desired
-if st.session_state.chat_history:
-    with st.expander("Export / Download Chat", expanded=False):
-        text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
-        if DOCX_AVAILABLE:
-            if st.button("Export as DOCX"):
-                doc = Document()
-                doc.add_heading("AI Sales Call Assistant Export", 0)
-                doc.add_paragraph(f"Brand: {brand.upper()} | Date: {datetime.now().strftime('%Y-%m-%d')}")
-                doc.add_paragraph(text_export)
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-                doc.save(tmp.name)
-                st.download_button("⬇️ Download DOCX", open(tmp.name, "rb"), file_name=f"{brand}_chat.docx")
-        st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
+chat_input = st.text_area("Ask or continue your sales dialogue here:", "", key="chat_input")
+if st.button("Send"):
+    if chat_input.strip():
+        ai_reply = generate_ai_response(chat_input.strip())
+        st.session_state.chat_history.append({"role": "user", "content": chat_input.strip()})
+        st.session_state.chat_history.append({"role": "assistant", "content": ai_reply})
+        st.experimental_rerun()
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown("""
-<style>
-.fixed-disclaimer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(255, 255, 255, 0.95);
-    color: #444;
-    text-align: center;
-    font-size: 13px;
-    padding: 8px;
-    border-top: 2px solid #FF6F00;
-    z-index: 9999;
-}
-</style>
 <div class="fixed-disclaimer">
-<b>Disclaimer:</b> ⚠️This AI Sales Call Assistant is intended for educational and informational purposes only. 
-It does not replace official medical references, product labeling, or company-approved materials. 
-Always verify with the latest approved product information and compliance guidance before use.
+⚠️ This tool is for educational and sales training purposes only. Always consult official medical references and local regulations before sharing any medical advice.
 </div>
 """, unsafe_allow_html=True)
