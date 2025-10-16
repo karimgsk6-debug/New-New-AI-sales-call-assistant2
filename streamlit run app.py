@@ -143,10 +143,13 @@ CSS = f"""
   margin-bottom: 10px;
 }}
 .prompt-suggestion-btn {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #0078D7;
   color: white;
-  padding: 6px 12px;
-  border-radius: 18px;
+  padding: 6px 14px;
+  border-radius: 20px;
   cursor: pointer;
   white-space: nowrap;
   font-size: 13px;
@@ -155,6 +158,9 @@ CSS = f"""
 }}
 .prompt-suggestion-btn:hover {{
   background: #005a9e;
+}}
+.prompt-icon {{
+  margin-right: 6px;
 }}
 </style>
 """
@@ -171,7 +177,6 @@ def safe_makedirs(path):
     try: os.makedirs(path, exist_ok=True)
     except: pass
 
-# Example brand structure
 brand_data = {
     "shingrix": {"references_path": ".devcontainer/references/shingrix/", "segments":["R","A"], "personas":["Uncommitted"]},
     "jemperli": {"references_path": ".devcontainer/references/jemperli/", "segments":["Target"], "personas":["Data-Driven"]}
@@ -232,52 +237,20 @@ external_text=load_external_references([u for u in external_urls if u.strip()])
 
 # ---------------------------- Prompt Suggestions (Copilot Style) ----------------------------
 PROMPT_SUGGESTIONS = [
-    "Generate call flow for this HCP",
-    "Specify patient profile",
-    "Add probing questions for barriers",
-    "Emotive vaccination value",
-    "Assertive questions to gain commitment",
-    "Patient-oriented engagement",
-    "Cost-benefit value approach",
-    "Handle barrier for patient profile"
+    {"icon":"💬","text":"Generate call flow for this HCP"},
+    {"icon":"🧾","text":"Specify patient profile"},
+    {"icon":"❓","text":"Add probing questions for barriers"},
+    {"icon":"💉","text":"Emotive vaccination value"},
+    {"icon":"✅","text":"Assertive questions to gain commitment"},
+    {"icon":"👥","text":"Patient-oriented engagement"},
+    {"icon":"💰","text":"Cost-benefit value approach"},
+    {"icon":"🚫","text":"Handle barrier for patient profile"}
 ]
 
-# Copilot-style CSS for suggestions
-st.markdown("""
-<style>
-.prompt-suggestions {
-    display: flex;
-    overflow-x: auto;
-    gap: 8px;
-    padding: 6px 0;
-    margin-bottom: 12px;
-}
-.prompt-suggestion-btn {
-    background: #f3f3f3;
-    color: #111;
-    padding: 8px 16px;
-    border-radius: 24px;
-    cursor: pointer;
-    white-space: nowrap;
-    font-size: 14px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    transition: all 0.2s;
-    border: 1px solid #ccc;
-}
-.prompt-suggestion-btn:hover {
-    background: #0078D7;
-    color: white;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    transform: translateY(-1px);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Render suggestions as Copilot-style buttons
 st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
-for i, prompt in enumerate(PROMPT_SUGGESTIONS):
-    if st.button(prompt, key=f"copilot_prompt_{i}", help="Click to populate input"):
-        st.session_state.chat_input = prompt
+for i, item in enumerate(PROMPT_SUGGESTIONS):
+    if st.button(f"{item['icon']} {item['text']}", key=f"copilot_prompt_{i}", help="Click to populate input"):
+        st.session_state.chat_input = item['text']
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- AI Response ----------------------------
@@ -313,9 +286,7 @@ def generate_ai_response(user_input):
     safe_prompt=sanitize_user_input(user_input)
     if not is_safe_content(safe_prompt): return "(⚠️ Unsafe prompt blocked)"
     context="\n".join([local_ref_text,external_text,st.session_state.uploaded_pdf_text])[:15000]
-    system_prompt="You are a professional AI pharma assistant. Use context for response."
     final_prompt=f"{safe_prompt}\n\nContext:\n{context}"
-    # For demo: simple echo + context snippet
     ai_resp=f"{safe_prompt}\n\n[Using context snippet: {context[:500]}...]"
     log_interaction(safe_prompt,ai_resp)
     return ai_resp
@@ -337,6 +308,30 @@ if st.button("Send"):
         st.session_state.chat_history.append({"role":"assistant","content":ai_reply,"audio":audio_base64})
         st.session_state.chat_input=""
         st.experimental_rerun()
+
+# ---------------------------- Enhanced Export ----------------------------
+if st.button("Export Medical References"):
+    medical_refs = [
+        {"title": "Study on HCP engagement", "url": "https://example.com/study1", "context": "Highlights best practices for engagement"},
+        {"title": "Vaccination barriers report", "url": "https://example.com/study2", "context": "Analyzes common patient objections"},
+        {"title": "Cost-benefit analysis guide", "url": "https://example.com/study3", "context": "Provides financial justification for treatment"}
+    ]
+    export_text = "### Medical References Export\n\n"
+    for ref in medical_refs:
+        export_text += f"- **{ref['title']}**\n  - URL: {ref['url']}\n  - Context: {ref['context']}\n\n"
+    st.download_button("Download Medical References", data=export_text, file_name="medical_references.md", mime="text/markdown")
+
+if st.button("Export Sales Call Module"):
+    sales_module = {
+        "HCP Persona": "Data-Driven Oncologist",
+        "Key Barriers": ["Limited patient eligibility", "Concerns about cost"],
+        "Suggested Approach": ["Emphasize patient eligibility criteria", "Highlight cost-benefit outcomes"],
+        "Sample Call Flow": ["Intro -> Probe -> Objection Handling -> Commitment -> Close"]
+    }
+    export_text = "### Sales Call Module Export\n\n"
+    for key, value in sales_module.items():
+        export_text += f"- **{key}**: {', '.join(value) if isinstance(value, list) else value}\n"
+    st.download_button("Download Sales Call Module", data=export_text, file_name="sales_call_module.md", mime="text/markdown")
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown("""
