@@ -235,7 +235,7 @@ st.markdown(f'''
 local_ref_text,_ = load_local_references(brand_data[brand]["references_path"])
 external_text=load_external_references([u for u in external_urls if u.strip()])
 
-# ---------------------------- Prompt Suggestions (Copilot Style) ----------------------------
+# ---------------------------- Prompt Suggestions (Copilot Style Fixed) ----------------------------
 PROMPT_SUGGESTIONS = [
     {"icon":"💬","text":"Generate call flow for this HCP"},
     {"icon":"🧾","text":"Specify patient profile"},
@@ -247,11 +247,12 @@ PROMPT_SUGGESTIONS = [
     {"icon":"🚫","text":"Handle barrier for patient profile"}
 ]
 
-st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
+st.markdown("### Prompt Suggestions")
+
+cols = st.columns(len(PROMPT_SUGGESTIONS))
 for i, item in enumerate(PROMPT_SUGGESTIONS):
-    if st.button(f"{item['icon']} {item['text']}", key=f"copilot_prompt_{i}", help="Click to populate input"):
+    if cols[i].button(f"{item['icon']} {item['text']}", key=f"prompt_{i}"):
         st.session_state.chat_input = item['text']
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- AI Response ----------------------------
 def sanitize_user_input(text): return escape(text.strip())
