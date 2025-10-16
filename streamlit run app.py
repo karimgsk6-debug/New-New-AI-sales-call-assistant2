@@ -230,7 +230,7 @@ st.markdown(f'''
 local_ref_text,_ = load_local_references(brand_data[brand]["references_path"])
 external_text=load_external_references([u for u in external_urls if u.strip()])
 
-# ---------------------------- Prompt Suggestions ----------------------------
+# ---------------------------- Prompt Suggestions (Copilot Style) ----------------------------
 PROMPT_SUGGESTIONS = [
     "Generate call flow for this HCP",
     "Specify patient profile",
@@ -241,10 +241,43 @@ PROMPT_SUGGESTIONS = [
     "Cost-benefit value approach",
     "Handle barrier for patient profile"
 ]
+
+# Copilot-style CSS for suggestions
+st.markdown("""
+<style>
+.prompt-suggestions {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 6px 0;
+    margin-bottom: 12px;
+}
+.prompt-suggestion-btn {
+    background: #f3f3f3;
+    color: #111;
+    padding: 8px 16px;
+    border-radius: 24px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: all 0.2s;
+    border: 1px solid #ccc;
+}
+.prompt-suggestion-btn:hover {
+    background: #0078D7;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    transform: translateY(-1px);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Render suggestions as Copilot-style buttons
 st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
-for i,p in enumerate(PROMPT_SUGGESTIONS):
-    if st.button(p,key=f"prompt_{i}"):
-        st.session_state.chat_input = p
+for i, prompt in enumerate(PROMPT_SUGGESTIONS):
+    if st.button(prompt, key=f"copilot_prompt_{i}", help="Click to populate input"):
+        st.session_state.chat_input = prompt
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- AI Response ----------------------------
