@@ -223,7 +223,6 @@ def load_external_references(url_list):
             if r.status_code==200: all_text+=r.text+"\n"
         except: all_text+=f"\n[Error fetching {url}]"
     return all_text
-
 # ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand=st.selectbox("Brand",list(brand_data.keys()))
@@ -252,23 +251,25 @@ external_text=load_external_references([u for u in external_urls if u.strip()])
 
 # ---------------------------- Prompt Suggestions ----------------------------
 PROMPT_SUGGESTIONS = [
-    {"icon":"💬","text":"Generate call flow for this HCP","tooltip":"Auto-generate a suggested call flow"},
-    {"icon":"🧾","text":"Specify patient profile","tooltip":"Describe the patient profile"},
-    {"icon":"❓","text":"Add probing questions for barriers","tooltip":"Add questions to uncover barriers"},
-    {"icon":"💉","text":"Emotive vaccination value","tooltip":"Highlight vaccination benefits emotionally"},
-    {"icon":"✅","text":"Assertive questions to gain commitment","tooltip":"Ask assertive questions for commitment"},
-    {"icon":"👥","text":"Patient-oriented engagement","tooltip":"Engage patients effectively"},
-    {"icon":"💰","text":"Cost-benefit value approach","tooltip":"Show cost-benefit analysis"},
-    {"icon":"🚫","text":"Handle barrier for patient profile","tooltip":"Strategies to overcome patient barriers"}
+    {"icon":"💬","text":"Generate call flow for this HCP"},
+    {"icon":"🧾","text":"Specify patient profile"},
+    {"icon":"❓","text":"Add probing questions for barriers"},
+    {"icon":"💉","text":"Emotive vaccination value"},
+    {"icon":"✅","text":"Assertive questions to gain commitment"},
+    {"icon":"👥","text":"Patient-oriented engagement"},
+    {"icon":"💰","text":"Cost-benefit value approach"},
+    {"icon":"🚫","text":"Handle barrier for patient profile"}
 ]
 
-st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
-for i, item in enumerate(PROMPT_SUGGESTIONS):
-    if st.button(f"{item['icon']} {item['text']}", key=f"prompt_{i}", help=item["tooltip"]):
-        st.session_state.chat_input = item['text']
-st.markdown('</div>', unsafe_allow_html=True)
+# Container for prompt suggestions
+with st.container():
+    st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
+    for i, item in enumerate(PROMPT_SUGGESTIONS):
+        if st.button(f"{item['icon']} {item['text']}", key=f"prompt_{i}"):
+            st.session_state.chat_input = item['text']
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- AI Response Helpers ----------------------------
+# ---------------------------- AI Response Functions ----------------------------
 def sanitize_user_input(text): return escape(text.strip())
 def is_safe_content(text): return not any(w in text.lower() for w in ["sex","violence","attack","terror"])
 def log_interaction(u,a): pass
@@ -301,40 +302,37 @@ def generate_ai_response(user_input):
     safe_prompt=sanitize_user_input(user_input)
     if not is_safe_content(safe_prompt): return "(⚠️ Unsafe prompt blocked)"
     context="\n".join([local_ref_text,external_text,st.session_state.uploaded_pdf_text])[:15000]
-    final_prompt=f"{safe_prompt}\n\nContext:\n{context}"
     ai_resp=f"{safe_prompt}\n\n[Using context snippet: {context[:500]}...]"
     log_interaction(safe_prompt,ai_resp)
     return ai_resp
 
 # ---------------------------- Chat Container ----------------------------
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for idx, entry in enumerate(st.session_state.chat_history):
-    role_class="chat-bubble-user" if entry["role"]=="user" else "chat-bubble-ai"
-    st.markdown(f'<div class="{role_class}">{entry["content"]}</div>', unsafe_allow_html=True)
-    
-    # Feedback buttons for AI responses only
-    if entry["role"]=="assistant":
-        col1, col2, col3 = st.columns([1,1,2])
-        with col1:
-            if st.button("👍 Like", key=f"like_{idx}"):
-                st.session_state.feedback_log.append({"index":idx,"feedback":"like"})
-        with col2:
-            if st.button("👎 Dislike", key=f"dislike_{idx}"):
-                st.session_state.feedback_log.append({"index":idx,"feedback":"dislike"})
-        with col3:
-            if st.button("⚡ Need more options", key=f"more_{idx}"):
-                st.session_state.feedback_log.append({"index":idx,"feedback":"more_options"})
-st.markdown('</div>', unsafe_allow_html=True)
+chat_container = st.container()
+with chat_container:
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    for idx, entry in enumerate(st.session_state.chat_history):
+        role_class="chat-bubble-user" if entry["role"]=="user" else "chat-bubble-ai"
+        st.markdown(f'<div class="{role_class}">{entry["content"]}</div>', unsafe_allow_html=True)
+
+        # Feedback buttons for AI responses
+        if entry["role"]=="assistant":
+            feedback_cols = st.columns(4)
+            feedback_options = ["👍 Like","👎 Dislike","⚡ Need more options","💡 Suggest edit"]
+            for i, opt in enumerate(feedback_options):
+                if feedback_cols[i].button(opt, key=f"feedback_{idx}_{i}"):
+                    st.session_state.feedback_log.append({"msg_idx": idx, "feedback": opt})
+                    st.success(f"Feedback recorded: {opt}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat Input ----------------------------
-chat_input = st.text_area("Ask or continue dialogue:", st.session_state.get("chat_input", ""), key="chat_input", height=60)
+chat_input=st.text_area("Ask or continue dialogue:",st.session_state.chat_input,key="chat_input",height=60)
 if st.button("Send"):
     if chat_input.strip():
-        ai_reply = generate_ai_response(chat_input.strip())
-        audio_base64 = generate_audio(ai_reply)
+        ai_reply=generate_ai_response(chat_input.strip())
+        audio_base64=generate_audio(ai_reply)
         st.session_state.chat_history.append({"role":"user","content":chat_input.strip()})
         st.session_state.chat_history.append({"role":"assistant","content":ai_reply,"audio":audio_base64})
-        st.session_state.chat_input = ""
+        st.session_state.chat_input=""
         st.experimental_rerun()
 
 # ---------------------------- Enhanced Export ----------------------------
