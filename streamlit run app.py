@@ -107,12 +107,46 @@ CSS = f"""
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
+.fixed-chat-input {{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    z-index: 10002;
+}}
+.fixed-chat-input textarea {{
+    width: 100%;
+    min-height: 60px;
+    max-height: 180px;
+    resize: vertical;
+}}
+.send-button {{
+    position: fixed;
+    bottom: 20px;
+    right: 30px;
+    z-index: 10003;
+    height: 40px;
+    width: 100px;
+}}
+.fixed-disclaimer {{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    color: #444;
+    text-align: center;
+    font-size: 14px;
+    padding: 8px;
+    border-top: 2px solid #FF6F00;
+    z-index: 9999;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = "your_Groq_API_here"  # <-- Hardcoded key
+GROQ_API_KEY = "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"  # <-- Hardcoded key
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Brand Configurations ----------------------------
@@ -147,7 +181,36 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 
-# ---------------------------- Load References ----------------------------
+with st.sidebar.expander("📄 Export Options", expanded=False):
+    export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
+    if st.button("💾 Export Chat"):
+        text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
+        if export_format == "DOCX" and DOCX_AVAILABLE:
+            doc = Document()
+            doc.add_heading("AI Sales Call Assistant Export", 0)
+            doc.add_paragraph(f"Brand: {brand.upper()} | Date: {datetime.now().strftime('%Y-%m-%d')}")
+            doc.add_paragraph(text_export)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+            doc.save(tmp.name)
+            st.download_button("⬇️ Download DOCX", open(tmp.name, "rb"), file_name=f"{brand}_chat.docx")
+        else:
+            st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
+            
+if st.sidebar.button("🗑️ Clear Chat"):
+    st.session_state.chat_history = []
+    st.rerun()
+
+# ---------------------------- Title ----------------------------
+st.markdown(f'''
+<div class="title-box">
+    <img src="{GSK_LOGO_URL}" width="140">
+    <img src="{AI_LOGO_URL}" class="ai-logo">
+    <h1>💡 AI Sales Call Assistant</h1>
+    <p>Empowering reps for smarter <b style="color:#FF6F00;">{brand.upper()}</b> conversations</p>
+</div>
+''', unsafe_allow_html=True)
+
+# ---------------------------- Load Local & External References ----------------------------
 def load_local_references(folder_path):
     text_all = ""
     if not os.path.exists(folder_path):
@@ -180,6 +243,11 @@ def load_external_references(url_list):
 
 local_ref_text = load_local_references(selected_brand["references_path"])
 external_text = load_external_references([u for u in external_urls if u.strip()])
+
+if local_ref_text or external_text:
+    with st.expander(f"📚 {brand.capitalize()} Medical References", expanded=False):
+        preview_text = (local_ref_text + "\n" + external_text).strip()
+        st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload PDF for AI Context", expanded=False):
@@ -256,3 +324,27 @@ if user_input:
     audio_base64 = generate_audio(ai_resp)
     st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
     st.rerun()
+
+# ---------------------------- Export Options (Bottom Fallback) ----------------------------
+if st.session_state.chat_history:
+    with st.expander("Export / Download Chat", expanded=False):
+        text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
+        if DOCX_AVAILABLE:
+            if st.button("Export as DOCX"):
+                doc = Document()
+                doc.add_heading("AI Sales Call Assistant Export", 0)
+                doc.add_paragraph(f"Brand: {brand.upper()} | Date: {datetime.now().strftime('%Y-%m-%d')}")
+                doc.add_paragraph(text_export)
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+                doc.save(tmp.name)
+                st.download_button("⬇️ Download DOCX", open(tmp.name, "rb"), file_name=f"{brand}_chat.docx")
+        st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
+
+# ---------------------------- Disclaimer ----------------------------
+st.markdown(f"""
+<div class="fixed-disclaimer">
+<b>Disclaimer:</b> ⚠️This AI Sales Call Assistant is intended for educational and informational purposes only. 
+It does not replace official medical references, product labeling, or company-approved materials. 
+Always verify with the latest approved product information and compliance guidance before use.
+</div>
+""", unsafe_allow_html=True)
