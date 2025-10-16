@@ -41,7 +41,7 @@ st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 # ---------------------------- Session Defaults ----------------------------
 for key, default in [("chat_history", []), ("uploaded_pdf_text", ""), ("pdf_summary", ""), 
                      ("voice_pref", "Old Male"), ("language", "English"), ("pdf_summary_size", "Normal"),
-                     ("chat_input","")]:
+                     ("chat_input",""), ("feedback_log", [])]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -101,6 +101,20 @@ CSS = f"""
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
+.feedback-buttons {{
+  display:flex;
+  gap:8px;
+  margin-top:6px;
+}}
+.feedback-buttons button {{
+  cursor:pointer;
+  padding:4px 10px;
+  border-radius:8px;
+  border:none;
+  background:#f0f0f0;
+  transition:0.2s;
+}}
+.feedback-buttons button:hover {{ background:#0078D7; color:white; }}
 .fixed-chat-input {{
     position: fixed;
     bottom: 20px;
@@ -178,10 +192,6 @@ if not GROQ_API_KEY:
 client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------- Brand Config ----------------------------
-def safe_makedirs(path):
-    try: os.makedirs(path, exist_ok=True)
-    except: pass
-
 brand_data = {
     "shingrix": {"references_path": ".devcontainer/references/shingrix/", "segments":["R","A"], "personas":["Uncommitted"]},
     "jemperli": {"references_path": ".devcontainer/references/jemperli/", "segments":["Target"], "personas":["Data-Driven"]}
@@ -240,21 +250,21 @@ st.markdown(f'''
 local_ref_text,_ = load_local_references(brand_data[brand]["references_path"])
 external_text=load_external_references([u for u in external_urls if u.strip()])
 
-# ---------------------------- Prompt Suggestions (Sticky Copilot Style) ----------------------------
+# ---------------------------- Prompt Suggestions ----------------------------
 PROMPT_SUGGESTIONS = [
-    {"icon":"💬","text":"Generate call flow for this HCP"},
-    {"icon":"🧾","text":"Specify patient profile"},
-    {"icon":"❓","text":"Add probing questions for barriers"},
-    {"icon":"💉","text":"Emotive vaccination value"},
-    {"icon":"✅","text":"Assertive questions to gain commitment"},
-    {"icon":"👥","text":"Patient-oriented engagement"},
-    {"icon":"💰","text":"Cost-benefit value approach"},
-    {"icon":"🚫","text":"Handle barrier for patient profile"}
+    {"icon":"💬","text":"Generate call flow for this HCP","tooltip":"Auto-generate a suggested call flow"},
+    {"icon":"🧾","text":"Specify patient profile","tooltip":"Describe the patient profile"},
+    {"icon":"❓","text":"Add probing questions for barriers","tooltip":"Add questions to uncover barriers"},
+    {"icon":"💉","text":"Emotive vaccination value","tooltip":"Highlight vaccination benefits emotionally"},
+    {"icon":"✅","text":"Assertive questions to gain commitment","tooltip":"Ask assertive questions for commitment"},
+    {"icon":"👥","text":"Patient-oriented engagement","tooltip":"Engage patients effectively"},
+    {"icon":"💰","text":"Cost-benefit value approach","tooltip":"Show cost-benefit analysis"},
+    {"icon":"🚫","text":"Handle barrier for patient profile","tooltip":"Strategies to overcome patient barriers"}
 ]
 
 st.markdown('<div class="prompt-suggestions">', unsafe_allow_html=True)
 for i, item in enumerate(PROMPT_SUGGESTIONS):
-    if st.button(f"{item['icon']} {item['text']}", key=f"prompt_{i}"):
+    if st.button(f"{item['icon']} {item['text']}", key=f"prompt_{i}", help=item["tooltip"]):
         st.session_state.chat_input = item['text']
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -298,9 +308,22 @@ def generate_ai_response(user_input):
 
 # ---------------------------- Chat Container ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for entry in st.session_state.chat_history:
+for idx, entry in enumerate(st.session_state.chat_history):
     role_class="chat-bubble-user" if entry["role"]=="user" else "chat-bubble-ai"
     st.markdown(f'<div class="{role_class}">{entry["content"]}</div>', unsafe_allow_html=True)
+    
+    # Feedback buttons for AI responses only
+    if entry["role"]=="assistant":
+        col1, col2, col3 = st.columns([1,1,2])
+        with col1:
+            if st.button("👍 Like", key=f"like_{idx}"):
+                st.session_state.feedback_log.append({"index":idx,"feedback":"like"})
+        with col2:
+            if st.button("👎 Dislike", key=f"dislike_{idx}"):
+                st.session_state.feedback_log.append({"index":idx,"feedback":"dislike"})
+        with col3:
+            if st.button("⚡ Need more options", key=f"more_{idx}"):
+                st.session_state.feedback_log.append({"index":idx,"feedback":"more_options"})
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat Input ----------------------------
