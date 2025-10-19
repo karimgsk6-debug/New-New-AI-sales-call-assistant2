@@ -433,6 +433,39 @@ for item in st.session_state.chat_history:
             except Exception:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
+# ---------------------------- Copilot Prompt Suggestions ----------------------------
+copilot_prompts = [
+    "Generate call flow for this HCP...",
+    "Summarize latest clinical data for brand...",
+    "Create objection handling script for doctor barrier...",
+    "Draft follow-up email after sales call...",
+    "Suggest patient types for discussion..."
+]
+
+# Initialize prefilled_prompt safely
+if "prefilled_prompt" not in st.session_state:
+    st.session_state.prefilled_prompt = ""
+
+st.markdown("### 💡 Copilot Suggestions")
+cols = st.columns(len(copilot_prompts))
+for i, prompt in enumerate(copilot_prompts):
+    if cols[i].button(prompt):
+        st.session_state.prefilled_prompt = prompt
+        st.experimental_rerun()  # Prefill input immediately
+
+# ---------------------------- Chat Input (fixed) ----------------------------
+user_input = st.chat_input(
+    "Ask or continue your sales dialogue...",
+    value=st.session_state.prefilled_prompt or ""  # Always a string
+)
+# Reset prefilled_prompt after input is submitted
+if user_input:
+    st.session_state.prefilled_prompt = ""
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    ai_resp = generate_ai_response(user_input)
+    audio_base64 = generate_audio(ai_resp) if ai_resp else ""
+    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+    st.rerun()
 
 # ---------------------------- Chat Input (fixed) ----------------------------
 user_input = st.chat_input("Ask or continue your sales dialogue...", value=st.session_state.get("prefilled_prompt", ""))
