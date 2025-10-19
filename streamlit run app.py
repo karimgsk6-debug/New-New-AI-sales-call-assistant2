@@ -47,7 +47,7 @@ for key, default in [
     ("voice_pref", "Old Male"),
     ("language", "English"),
     ("pdf_summary_size", "Normal"),
-    ("chat_input",""),
+    ("chat_input", ""),
     ("prompt_index", 0),
 ]:
     if key not in st.session_state:
@@ -229,7 +229,7 @@ st.markdown("### 📚 Medical References & Sales Module")
 if combined_refs:
     st.text_area("Preview:", combined_refs[:3000], height=200)
 
-# ---------------------------- Prompt Suggestions ----------------------------
+# ---------------------------- Prompt Suggestions Dropdown ----------------------------
 PROMPTS = [
     "Generate call flow for this HCP",
     "Specify patient profile",
@@ -240,11 +240,13 @@ PROMPTS = [
     "Cost-benefit value approach",
     "Handle barrier for patient profile"
 ]
+
 def get_next_prompts():
     idx = st.session_state.prompt_index
-    prompts = PROMPTS[idx:idx+2]
-    return prompts
+    return PROMPTS[idx:idx+2] if idx<len(PROMPTS) else []
+
 next_prompts = get_next_prompts()
+selected_prompt = st.selectbox("💡 Suggested Prompts", next_prompts, index=0 if next_prompts else -1)
 
 # ---------------------------- AI Generation ----------------------------
 def generate_ai_response(user_input):
@@ -280,14 +282,14 @@ for item in st.session_state.chat_history:
     elif item["role"]=="assistant":
         st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(item["content"])}</div>', unsafe_allow_html=True)
         if item.get("audio"): st.audio(base64.b64decode(item["audio"]),format="audio/mp3")
-        # Feedback icons
+        # Feedback
         cols=st.columns(4)
         if cols[0].button("👍", key=f"like_{item['content']}"): st.session_state.prompt_index+=1
         if cols[1].button("👎", key=f"dislike_{item['content']}"): st.session_state.prompt_index+=1
         if cols[2].button("🔄", key=f"more_{item['content']}"): st.session_state.prompt_index+=1
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Chat Input with Send ----------------------------
+# ---------------------------- Chat Input ----------------------------
 st.markdown('<div class="fixed-chat-input">', unsafe_allow_html=True)
 chat_input = st.text_input("Ask or continue your sales dialogue...", key="chat_input")
 send_pressed = st.button("Send")
@@ -301,27 +303,17 @@ if chat_input and send_pressed:
     st.experimental_rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Disclaimer ----------------------------
-st.markdown(f"""
-<div class="fixed-disclaimer">
-⚠️ Disclaimer: Please remember that "AI" can make mistakes. This AI assistant provides medical and product educational approved content by GSK for informational purposes only and should not replace professional judgment.
-</div>
-""", unsafe_allow_html=True)
-
 # ---------------------------- Export ----------------------------
 if st.session_state.chat_history:
     with st.expander("Export Chat", expanded=False):
-        text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
-        # Word
         if DOCX_AVAILABLE and st.button("Export Word (.docx)"):
-            doc = Document()
+            doc=Document()
             doc.add_heading("AI Sales Call Assistant Export",0)
             for e in st.session_state.chat_history:
                 doc.add_paragraph(f"{e['role'].capitalize()}: {e['content']}")
             tmp=tempfile.NamedTemporaryFile(delete=False,suffix=".docx")
             doc.save(tmp.name)
             st.download_button("⬇️ Download Word",open(tmp.name,"rb"),file_name=f"{brand}_chat.docx")
-        # PDF
         if st.button("Export PDF"):
             pdf=FPDF()
             pdf.add_page()
@@ -331,3 +323,10 @@ if st.session_state.chat_history:
             tmp=tempfile.NamedTemporaryFile(delete=False,suffix=".pdf")
             pdf.output(tmp.name)
             st.download_button("⬇️ Download PDF",open(tmp.name,"rb"),file_name=f"{brand}_chat.pdf")
+
+# ---------------------------- Disclaimer ----------------------------
+st.markdown(f"""
+<div class="fixed-disclaimer">
+⚠️ Disclaimer: Please remember that "AI" can make mistakes. This AI assistant provides medical and product educational approved content by GSK for informational purposes only and should not replace professional judgment.
+</div>
+""", unsafe_allow_html=True)
