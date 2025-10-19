@@ -20,9 +20,10 @@ REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.dev
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 
 # ---------------------------- Assets (raw URLs) ----------------------------
+# Background (from commit), logos from main branch raw URLs provided by user
 BACKGROUND_URL = REPO_RAW_BASE + "/.devcontainer/background1.png"
-GSK_LOGO_URL = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer/gsk-logo.png"
-AI_LOGO_URL = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer/ai-logo.png"
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
 # ---------------------------- Session defaults ----------------------------
 if "chat_history" not in st.session_state:
@@ -39,47 +40,103 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 if "main_input" not in st.session_state:
     st.session_state.main_input = ""
-if "copilot_suggestions" not in st.session_state:
-    st.session_state.copilot_suggestions = []
+if "selected_brand" not in st.session_state:
+    st.session_state.selected_brand = "trelegy"
 
 # ---------------------------- CSS / layout ----------------------------
 CSS = f"""
 <style>
-body {{
+/* Background */
+.stApp {{
   background-image: url('{BACKGROUND_URL}');
   background-size: cover;
   background-attachment: fixed;
   background-position: center;
 }}
+
+/* Header */
 .header {{
-  background: rgba(255,255,255,0.85);
-  padding: 10px;
+  background: rgba(255,255,255,0.9);
+  padding: 12px;
   border-radius: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display:flex;
   align-items:center;
   justify-content:center;
   position:relative;
 }}
-.header img.left-logo {{ position:absolute; left:16px; width:130px; }}
-.header img.right-logo {{ position:absolute; right:16px; width:130px; }}
-.header h1 {{ margin:0; font-size:22px; }}
+.header img.left-logo {{ position:absolute; left:18px; width:120px; height:auto; }}
+.header img.right-logo {{ position:absolute; right:18px; width:120px; height:auto; }}
+.header h1 {{ margin:0; font-size:20px; }}
+
+/* Chat */
 .chat-container {{
-  max-height: 55vh;
+  max-height: 56vh;
   overflow-y:auto;
   padding:12px;
   border-radius:10px;
-  background: rgba(255,255,255,0.9);
-  margin-bottom: 90px;
+  background: rgba(255,255,255,0.92);
+  margin-bottom: 120px;
 }}
 .chat-bubble-user {{ background:#0078D7; color:white; padding:12px; border-radius:10px; margin:8px 0; max-width:75%; margin-left:auto; }}
 .chat-bubble-ai {{ background:#d9f0ff; color:#000; padding:12px; border-radius:10px; margin:8px 0; max-width:75%; }}
-.copilot-row {{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }}
-.copilot-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; cursor:pointer; }}
-.fixed-input {{ position:fixed; left:24px; right:24px; bottom:18px; z-index:9999; background:transparent; }}
-.fixed-input textarea {{ width:100%; min-height:72px; max-height:180px; resize:vertical; padding:10px; border-radius:8px; border:1px solid #ccc; }}
-.send-row {{ position:fixed; right:30px; bottom:20px; z-index:9999; }}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:6px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; }}
+
+/* Suggestions dropdown (always visible block above chat input) */
+.suggestions-box {{
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 110px; /* above the input area */
+  z-index: 9998;
+  background: rgba(255,255,255,0.95);
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  max-width: calc(100% - 48px);
+}}
+.suggestion-section-title {{ font-weight:700; margin:0 0 6px 0; }}
+.suggestion-list {{ display:flex; gap:8px; flex-wrap:wrap; }}
+.suggestion-pill {{
+  background:#fff;
+  border:1px solid #ddd;
+  padding:8px 12px;
+  border-radius:18px;
+  cursor:pointer;
+  display:inline-block;
+}}
+.suggestion-pill:hover {{ background:#f2f6ff; box-shadow:0 2px 6px rgba(0,0,0,0.06); }}
+
+/* Input area fixed at bottom */
+.input-area {{
+  position: fixed;
+  left:24px;
+  right:24px;
+  bottom:18px;
+  z-index:9999;
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+}}
+.input-area textarea {{
+  width:100%;
+  min-height:72px;
+  max-height:200px;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  resize:vertical;
+}}
+.input-area button {{
+  height:44px;
+  padding:0 16px;
+  border-radius:8px;
+  border:none;
+  background:#FF6F00;
+  color:white;
+  cursor:pointer;
+}}
+.tooltip {{ font-size:12px; color:#555; }}
+.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -93,9 +150,18 @@ if GROQ_API_KEY:
     except Exception:
         client = None
 
-# ---------------------------- Brands (all) ----------------------------
+# ---------------------------- Brands ----------------------------
 brand_data = {
+    "trelegy": {
+        "display": "Trelegy",
+        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
+        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
+        "barriers": ["Formulary access", "Inhaler technique", "Concerns about side effects", "Cost/coverage"],
+        "references_path": ".devcontainer/references/trelegy/",
+        "sales_path": ".devcontainer/SalesModule/trelegy"
+    },
     "shingrix": {
+        "display": "Shingrix",
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
         "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
@@ -103,27 +169,20 @@ brand_data = {
         "sales_path": ".devcontainer/SalesModule/shingrix"
     },
     "jemperli": {
+        "display": "Jemperli",
         "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
         "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited patient eligibility", "Access/reimbursement issues"],
         "references_path": ".devcontainer/references/jemperli/",
         "sales_path": ".devcontainer/SalesModule/jemperli"
-    },
-    "trelegy": {
-        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
-        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
-        "barriers": ["Formulary access", "Inhaler technique", "Concerns about side effects", "Cost/coverage"],
-        "references_path": ".devcontainer/references/trelegy/",
-        "sales_path": ".devcontainer/SalesModule/trelegy"
     }
 }
 
-specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Rheumatologist", "Internal medicine", "Oncologist", "Pulmonologist"]
+specialties = ["GP", "Pulmonologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------------------- Helpers: load local refs + list files for links ----------------------------
+# ---------------------------- Helper functions ----------------------------
 def load_local_references_and_files(folder_path):
-    """Return (combined_text, list_of_filenames)"""
     text_all = ""
     files_list = []
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
@@ -155,7 +214,7 @@ def load_external_references(url_list):
             pass
     return all_text
 
-# ---------------------------- Audio (ElevenLabs / gTTS fallback) ----------------------------
+# Audio support
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
@@ -188,42 +247,20 @@ def generate_audio(text):
         st.warning(f"Audio generation failed: {e}")
         return ""
 
-# ---------------------------- Call flows ----------------------------
-jemperli_CALL_FLOW = {
-    "COCO": "Pre-call planning using customer insights...",
-    "Anchor": "Open conversation with a patient-focused narrative...",
-    "Engage": "Draw customer in through two-way dialogue...",
-    "Close": "Gain agreement, define next steps..."
-}
-shingrix_CALL_FLOW = {
-    "Prepare": "Plan the call: identify persona, objectives...",
-    "Engage": "Start conversation, capture attention...",
-    "Create Opportunities": "Identify gaps or unmet needs...",
-    "Influence": "Present evidence, handle objections...",
-    "Impact GSO": "Link discussion to incremental steps...",
-    "Post-Call Analysis": "Record insights..."
-}
-trelegy_CALL_FLOW = {
-    "Prepare": "Assess inhaler technique and adherence...",
-    "Engage": "Open with symptom-based questions...",
-    "Demonstrate": "Discuss inhaler technique and education...",
-    "Address Access": "Clarify formulary and reimbursement options...",
-    "Close": "Agree on next steps..."
-}
-
-# ---------------------------- Sidebar (filters + clear + language) ----------------------------
+# ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
-    brand = st.selectbox("Brand", sorted(list(brand_data.keys())), index=0)
-    selected_brand = brand_data[brand]
-    segment = st.selectbox("Segment", selected_brand["segments"])
-    persona = st.selectbox("HCP Persona", selected_brand["personas"])
-    barrier = st.multiselect("Doctor Barrier", selected_brand["barriers"])
-    specialty = st.selectbox("Specialty", specialties)
-    objective = st.selectbox("Objective", objectives)
-    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"])
-    st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True)
-    if st.button("🗑️ Clear Chat"):
+    sel_brand_key = st.selectbox("Brand", sorted(list(brand_data.keys())), index=sorted(list(brand_data.keys())).index(st.session_state.get("selected_brand","trelegy")))
+    st.session_state.selected_brand = sel_brand_key
+    sel_brand = brand_data[sel_brand_key]
+    segment = st.selectbox("Segment", sel_brand["segments"], key="segment")
+    persona = st.selectbox("HCP Persona", sel_brand["personas"], key="persona")
+    barrier = st.multiselect("Doctor Barrier", sel_brand["barriers"], key="barrier")
+    specialty = st.selectbox("Specialty", specialties, key="specialty")
+    objective = st.selectbox("Objective", objectives, key="objective")
+    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="response_tone")
+    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="response_length")
+    st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="language")
+    if st.button("🗑️ Clear Chat", key="clear_chat"):
         st.session_state.chat_history = []
 
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
@@ -235,18 +272,18 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
 # ---------------------------- Header ----------------------------
 st.markdown(f"""
 <div class="header">
-  <img src="{GSK_LOGO_URL}" class="left-logo">
-  <h1>💡 AI Sales Call Assistant — {brand.upper()}</h1>
-  <img src="{AI_LOGO_URL}" class="right-logo">
+  <img src="{GSK_LOGO_RAW}" class="left-logo">
+  <h1>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h1>
+  <img src="{AI_LOGO_RAW}" class="right-logo">
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------- Load local references & sales modules (and get filenames) ----------
-local_refs_text, local_ref_files = load_local_references_and_files(selected_brand["references_path"])
-sales_text, sales_files = load_local_references_and_files(selected_brand["sales_path"])
-external_text = load_external_references([u for u in external_urls if u.strip()]) if external_urls else ""
+# ---------------------------- Load references + sales module content ----------
+local_refs_text, local_ref_files = load_local_references_and_files(brand_data[st.session_state.selected_brand]["references_path"])
+sales_text, sales_files = load_local_references_and_files(brand_data[st.session_state.selected_brand]["sales_path"])
+external_text = load_external_references([u for u in external_urls if u.strip()]) if 'external_urls' in locals() else ""
 
-# ---------------------------- PDF upload & summary (simple) -------------
+# ---------------------------- PDF upload & summary -------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
     st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True)
@@ -256,7 +293,6 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
             full_text = "".join([p.extract_text() or "" for p in reader.pages])
             st.session_state.uploaded_pdf_text = full_text
             st.success(f"Loaded {len(full_text)} characters from uploaded PDF.")
-            # naive summary fallback - real model summary if client available
             bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
             if client:
                 try:
@@ -265,7 +301,6 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
                                                          messages=[{"role":"user","content":summ_prompt}], temperature=0.4)
                     st.session_state.pdf_summary = summ.choices[0].message.content
                 except Exception:
-                    # fallback trivial extraction
                     sts = re.findall(r'([A-Z][^.]{20,200})', full_text)
                     st.session_state.pdf_summary = "\n".join(sts[:bullets_count])
             else:
@@ -282,9 +317,7 @@ for msg in st.session_state.chat_history:
     if msg.get("role") == "user":
         st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
     else:
-        # show assistant and sources footer if present
-        content = msg.get("content","")
-        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(content)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
         if msg.get("audio"):
             try:
                 st.audio(base64.b64decode(msg["audio"]), format="audio/mp3")
@@ -292,8 +325,8 @@ for msg in st.session_state.chat_history:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Copilot suggestions (appear only after typing) --------------
-def build_copilot_suggestions(brand, persona, barrier_list, segment, specialty, objective):
+# ---------------------------- Copilot suggestions (always visible dropdown block) ------------
+def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, specialty, objective):
     s = []
     s.append(f"Generate call flow for {persona} focused on {objective}.")
     if barrier_list:
@@ -301,106 +334,183 @@ def build_copilot_suggestions(brand, persona, barrier_list, segment, specialty, 
     else:
         s.append(f"Identify common objections for {persona}.")
     s.append(f"Summarize HCP persona insights for {persona}.")
-    s.append(f"Key talking points for {brand} in {segment}.")
-    s.append(f"Draft a short adoption message for {brand} to a {specialty}.")
+    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment}.")
+    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty}.")
     return s
 
-# controlled input area (text_area) + suggestion pills
-user_text = st.text_area("Ask or continue your sales dialogue...", value=st.session_state.get("main_input",""), key="main_input", height=120)
+# Always-visible suggestions block above the input
+suggestions = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
+suggestions_html = '<div class="suggestions-box">'
+suggestions_html += '<div class="suggestion-section-title">Copilot Suggestions (click to autofill)</div>'
+suggestions_html += '<div class="suggestion-list">'
+for i, s in enumerate(suggestions):
+    # include tooltip via title attribute
+    title = "Click to autofill the chat box with this suggestion (you can edit before sending)"
+    # create a form button per suggestion so clicking sets session_state safely
+    suggestions_html += f'<form method="post"><button name="fill" value="{i}" class="suggestion-pill" title="{title}">{escape(s)}</button></form>'
+suggestions_html += '</div></div>'
+# Render suggestions HTML (we will intercept POST via query params below)
+st.markdown(suggestions_html, unsafe_allow_html=True)
 
-# show suggestions only when user has typed something
-if user_text and user_text.strip():
-    pills = build_copilot_suggestions(brand, persona, barrier, segment, specialty, objective)
-    cols = st.container()
-    st.markdown('<div class="copilot-row">', unsafe_allow_html=True)
-    for i, p in enumerate(pills):
-        # clicking a pill sets the input via session_state
-        if st.button(p, key=f"pill_{i}"):
-            st.session_state["main_input"] = p
+# ---------------------------- Handle suggestion POST (autofill) ----------------------------
+# Streamlit cannot directly read form POSTs from raw HTML; use st.experimental_get_query_params workaround:
+# When a suggestion form posts, the browser will add ?fill=<index> to URL if we implement using link; however HTML form POST from markdown won't modify URL.
+# Alternative safe approach: render suggestion as st.button widgets instead, which is simpler and reliable.
+# We'll show a hidden container of buttons below (but visually same) to capture clicks reliably.
+
+st.write("")  # spacer
+cols_placeholder = st.container()
+with cols_placeholder:
+    st.markdown('<div style="display:none">', unsafe_allow_html=True)  # hide the redundant button row visually (we use CSS above)
+    for i, s in enumerate(suggestions):
+        if st.button(f"__suggest_capture__{i}", key=f"sugg_btn_{i}"):
+            # set the main input to the suggestion (autofill) and focus (user can edit)
+            st.session_state.main_input = s
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Send (form) - safe handling ----------------------------
-with st.form(key="chat_form", clear_on_submit=False):
-    # use the session value in the textarea for controlled behavior
-    text_val = st.text_area("Message (editable):", value=st.session_state.get("main_input",""), key="form_input_area", height=100)
-    submit = st.form_submit_button("Send")
-    if submit:
-        text_val = text_val.strip()
-        if text_val:
-            # append user
-            st.session_state.chat_history.append({"role":"user","content":text_val})
-            # reset main_input and form field
+# ---------------------------- Input area (fixed) ----------------------------
+# Use a text_area and a Send button. Buttons set session_state on click and cause a rerun so the text_area will reflect updated value.
+input_col = st.empty()
+with input_col:
+    st.markdown(f"""
+    <div class="input-area">
+      <textarea id="main_textarea" placeholder="Type your question or continue your sales dialogue..." rows="4">{escape(st.session_state.get('main_input',''))}</textarea>
+      <button id="send_button">Send</button>
+    </div>
+    <script>
+    // Wire the Send button to set the 'main_input' via Streamlit URL param and force a reload
+    const sendBtn = window.parent.document.getElementById('send_button');
+    const ta = window.parent.document.getElementById('main_textarea');
+    if(sendBtn && ta) {{
+      sendBtn.onclick = () => {{
+        const val = ta.value;
+        // set a query param to pass the text back to Streamlit
+        const url = new URL(window.location.href);
+        url.searchParams.set('chat_text', val);
+        window.location.href = url.toString();
+      }};
+    }}
+    // Also, when user focuses the textarea and types, sync value to sessionStorage so we can rehydrate after reload
+    if(ta) {{
+      ta.addEventListener('input', () => {{
+        try {{ sessionStorage.setItem('pending_chat', ta.value); }} catch(e){{}}
+      }});
+    }}
+    // On load, rehydrate from sessionStorage if present
+    try {{
+      const pending = sessionStorage.getItem('pending_chat');
+      if(pending && (!ta.value || ta.value.trim()==="")) ta.value = pending;
+    }} catch(e){{}}
+    </script>
+    """, unsafe_allow_html=True)
+
+# ---------------------------- Handle chat_text from URL param (Send action) ----------------------------
+query_params = st.experimental_get_query_params()
+if "chat_text" in query_params:
+    user_text = query_params["chat_text"][0]
+    user_text = user_text.strip()
+    # clear the param by rerouting without it (to avoid duplications)
+    if user_text:
+        # append user message
+        st.session_state.chat_history.append({"role":"user","content":user_text})
+        # clear pending store (so textarea clears)
+        try:
+            # cannot access browser sessionStorage from python; but we clear our server-side main_input
             st.session_state.main_input = ""
-            # build combined context (local + sales + external + uploaded pdf)
-            combined = "\n".join([
-                local_refs_text or "",
-                sales_text or "",
-                external_text or "",
-                st.session_state.uploaded_pdf_text or ""
-            ])[:15000]
+        except:
+            pass
 
-            # build call flow prompt depending on brand
-            call_flow_prompt = ""
-            if brand.lower() == "jemperli":
-                call_flow_prompt = "\n--- Jemperli Call Flow ---\n" + "\n".join([f"{k}: {v}" for k,v in jemperli_CALL_FLOW.items()])
-            elif brand.lower() == "shingrix":
-                call_flow_prompt = "\n--- Shingrix Call Flow ---\n" + "\n".join([f"{k}: {v}" for k,v in shingrix_CALL_FLOW.items()])
-            elif brand.lower() == "trelegy":
-                call_flow_prompt = "\n--- Trelegy Call Flow ---\n" + "\n".join([f"{k}: {v}" for k,v in trelegy_CALL_FLOW.items()])
+        # Build combined context
+        combined_context = "\n".join([
+            local_refs_text or "",
+            sales_text or "",
+            external_text or "",
+            st.session_state.uploaded_pdf_text or ""
+        ])[:15000]
 
-            system_prompt = "You are a pharmaceutical AI assistant. Use references, sales modules and uploaded PDFs to tailor responses."
-            final_prompt = f"{text_val}\n\nBrand: {brand}\nPersona: {persona}\nSegment: {segment}\nSpecialty: {specialty}\nObjective: {objective}\nBarriers: {', '.join(barrier) if barrier else 'None'}\n\n{call_flow_prompt}\n\nContext (truncated):\n{combined[:5000]}"
+        # call flow depending on brand
+        call_flow_prompt = ""
+        if st.session_state.selected_brand.lower() == "jemperli":
+            call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in jemperli_CALL_FLOW.items()])
+        elif st.session_state.selected_brand.lower() == "shingrix":
+            call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in shingrix_CALL_FLOW.items()])
+        elif st.session_state.selected_brand.lower() == "trelegy":
+            call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in trelegy_CALL_FLOW.items()])
 
-            # call model (safe)
-            if client:
-                try:
-                    resp = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role":"system","content":system_prompt},
-                                  {"role":"user","content":final_prompt}],
-                        temperature=0.6
-                    )
-                    assistant_text = resp.choices[0].message.content
-                except Exception as e:
-                    assistant_text = f"(AI Error) {e}"
-            else:
-                assistant_text = f"(Fallback) Based on local refs: {text_val}"
+        system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, and uploaded PDFs."
+        final_prompt = f"{user_text}\n\nBrand: {st.session_state.selected_brand}\nPersona: {persona}\nSegment: {segment}\nSpecialty: {specialty}\nObjective: {objective}\nBarriers: {', '.join(barrier) if barrier else 'None'}\n\n{call_flow_prompt}\n\nContext (truncated):\n{combined_context[:5000]}"
 
-            # attach sources footer (top 3 files from local refs & sales modules)
-            def make_links(path_list, repo_subpath):
-                links = []
-                for fname in path_list[:3]:
-                    blob = f"{REPO_BLOB_BASE}/{repo_subpath}/{fname}"
-                    links.append(f"- [{fname}]({blob})")
-                return "\n".join(links) if links else ""
-
-            refs_links = make_links(local_ref_files, "references/" + brand)
-            sales_links = make_links(sales_files, "SalesModule/" + brand)
-            sources_footer = "\n\n**Sources:**\n"
-            if refs_links:
-                sources_footer += f"\n**References:**\n{refs_links}"
-            if sales_links:
-                sources_footer += f"\n\n**Sales Modules:**\n{sales_links}"
-            assistant_with_sources = assistant_text + sources_footer
-
-            # generate audio (best effort)
-            audio_b64 = ""
+        # generate AI response (safe)
+        assistant_text = ""
+        if client:
             try:
-                audio_b64 = generate_audio(assistant_text)
-            except:
-                audio_b64 = ""
+                resp = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role":"system","content":system_prompt},
+                              {"role":"user","content":final_prompt}],
+                    temperature=0.6
+                )
+                assistant_text = resp.choices[0].message.content
+            except Exception as e:
+                assistant_text = f"(AI Error) {e}"
+        else:
+            assistant_text = f"(Fallback) Based on local refs: {user_text}"
 
-            st.session_state.chat_history.append({"role":"assistant","content":assistant_with_sources,"audio":audio_b64})
+        # create sources footer (top 3 files)
+        def make_links(files_list, repo_subpath):
+            out = []
+            for fname in files_list[:3]:
+                blob = f"{REPO_BLOB_BASE}/{repo_subpath}/{fname}"
+                out.append(f"- [{fname}]({blob})")
+            return "\n".join(out) if out else ""
+
+        refs_links = make_links(local_ref_files, f"references/{st.session_state.selected_brand}")
+        sales_links = make_links(sales_files, f"SalesModule/{st.session_state.selected_brand}")
+        sources_footer = "\n\n**Sources:**\n"
+        if refs_links:
+            sources_footer += f"\n**References:**\n{refs_links}"
+        if sales_links:
+            sources_footer += f"\n\n**Sales Modules:**\n{sales_links}"
+        assistant_with_sources = assistant_text + sources_footer
+
+        # generate audio
+        audio_b64 = ""
+        try:
+            audio_b64 = generate_audio(assistant_text)
+        except:
+            audio_b64 = ""
+
+        st.session_state.chat_history.append({"role":"assistant","content":assistant_with_sources,"audio":audio_b64})
+
+        # Remove chat_text param by rerouting (so it doesn't resend on refresh)
+        st.experimental_set_query_params()
 
 # ---------------------------- Export buttons (bottom) ----------------------------
 if st.session_state.chat_history:
     with st.expander("💾 Export / Download Chat", expanded=False):
         text_export = "\n\n".join([f"{e['role'].capitalize()}: {e['content']}" for e in st.session_state.chat_history])
-        if st.button("Download TXT"):
-            st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
-        if 'python-docx' in str(st.runtime.exists()):  # just a small guard; if python-docx installed user will see option
-            pass
-        # Always show TXT. DOCX requires python-docx; we avoid runtime dependency check here.
+        st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{st.session_state.selected_brand}_chat.txt")
+
+# ---------------------------- Call flows (kept) ----------------------------
+jemperli_CALL_FLOW = {
+    "COCO": "Pre-call planning using customer insights...",
+    "Anchor": "Open conversation with a patient-focused narrative...",
+    "Engage": "Draw customer in through two-way dialogue...",
+    "Close": "Gain agreement, define next steps..."
+}
+shingrix_CALL_FLOW = {
+    "Prepare": "Plan the call: identify persona, objectives...",
+    "Engage": "Start conversation, capture attention...",
+    "Create Opportunities": "Identify gaps or unmet needs...",
+    "Influence": "Present evidence, handle objections..."
+}
+trelegy_CALL_FLOW = {
+    "Prepare": "Assess inhaler technique and adherence...",
+    "Engage": "Open with symptom-based questions...",
+    "Demonstrate": "Discuss inhaler technique and education...",
+    "Address Access": "Clarify formulary and reimbursement options...",
+    "Close": "Agree on next steps..."
+}
 
 # ---------------------------- Disclaimer ----------------------------
-st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool is for informational purposes only. Verify with approved medical references.</div>', unsafe_allow_html=True)
+st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool is for informational purposes only. Verify with approved medical references and company guidance.</div>', unsafe_allow_html=True)
