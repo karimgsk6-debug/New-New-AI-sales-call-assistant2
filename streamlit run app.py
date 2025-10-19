@@ -52,9 +52,29 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
-# Fix for TypeError with chat_input
-if "prefilled_prompt" not in st.session_state or not isinstance(st.session_state.prefilled_prompt, str):
+# ---------------------------- Chat Input (fixed) ----------------------------
+# Ensure prefilled_prompt exists and is always a string
+if "prefilled_prompt" not in st.session_state or st.session_state.prefilled_prompt is None:
     st.session_state.prefilled_prompt = ""
+
+user_input = st.chat_input(
+    "Ask or continue your sales dialogue...",
+    value=st.session_state.prefilled_prompt
+)
+
+if user_input:
+    # store user message
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    # generate AI response
+    ai_resp = generate_ai_response(user_input)
+    # generate audio
+    audio_base64 = generate_audio(ai_resp) if ai_resp else ""
+    # store assistant message
+    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+    # clear prefilled prompt after sending
+    st.session_state.prefilled_prompt = ""
+    # rerun to show message immediately
+    st.rerun()
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
@@ -417,14 +437,6 @@ for item in st.session_state.chat_history:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Chat Input (Copilot Prefill Fix) ----------------------------
-user_input = st.chat_input("Ask or continue your sales dialogue...", value=st.session_state.prefilled_prompt)
-if user_input:
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    ai_resp = generate_ai_response(user_input)
-    audio_base64 = generate_audio(ai_resp) if ai_resp else ""
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
-    st.rerun()
 
 # ---------------------------- Export / Download ----------------------------
 if st.session_state.chat_history:
