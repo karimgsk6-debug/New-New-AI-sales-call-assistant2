@@ -51,8 +51,14 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
-if "prefilled_prompt" not in st.session_state:
+# Ensure prefilled_prompt is always a string
+if "prefilled_prompt" not in st.session_state or not isinstance(st.session_state.prefilled_prompt, str):
     st.session_state.prefilled_prompt = ""
+
+# Use it safely in chat_input
+user_input = st.chat_input(
+    "Ask or continue your sales dialogue...",
+    value=st.session_state.prefilled_prompt)
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
