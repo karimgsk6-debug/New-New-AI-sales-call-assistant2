@@ -262,16 +262,33 @@ for s in suggestions:
         st.session_state.prefill_input = s
 
 # ---------------------------- Chat Input ----------------------------
-user_input = st.text_area("Ask your AI sales question or continue dialogue...", st.session_state.get("prefill_input", ""))
-if st.button("Send"):
+if "prefill_input" not in st.session_state:
+    st.session_state.prefill_input = ""
+
+user_input = st.text_area(
+    "Ask your AI sales question or continue dialogue...",
+    st.session_state.prefill_input,
+    key="chat_input"
+)
+
+# Send button
+if st.button("Send", key="send_button"):
     if user_input.strip():
+        # store user message
         st.session_state.chat_history.append({"role":"user","content":user_input})
-        st.session_state.prefill_input = ""  # reset
+        st.session_state.prefill_input = ""  # reset prefill input
+
+        # prepare context
         combined_context = load_local_references(selected_brand["references_path"]) + "\n" + load_external_references([])
+
+        # generate AI response
         ai_resp = generate_ai_response(user_input, combined_context)
         audio_base64 = generate_audio(ai_resp)
+
+        # store assistant message
         st.session_state.chat_history.append({"role":"assistant","content":ai_resp,"audio":audio_base64})
-        st.experimental_rerun()  # safe rerun
+
+        # no need for st.experimental_rerun() anymore
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool provides sales guidance. Verify all medical content before use. All interactions are logged.</div>', unsafe_allow_html=True)
