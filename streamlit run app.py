@@ -68,7 +68,7 @@ if "main_input" not in st.session_state:
     st.session_state.main_input = ""
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/96cd8e2758e6fb6098c7607cb79be86bb746e26d/.devcontainer/.devcontainer/background1.png"
+BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/.devcontainer/background1.png"
 GSK_LOGO_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/gsk-logo.png"
 AI_LOGO_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/ai-logo.png"
 
