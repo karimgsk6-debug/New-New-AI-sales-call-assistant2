@@ -1,3 +1,10 @@
+streamlit==1.27.0
+Pillow==10.1.0
+PyPDF2==3.1.1
+requests==2.31.0
+gTTS==2.3.2
+groq==0.2.8
+python-docx==0.8.12
 streamlit
 Pillow
 requests
@@ -11,12 +18,3 @@ Pillow
 requests
 groq
 elevenlabs
-streamlit>=1.25.0
-Pillow>=10.0.0
-PyPDF2>=3.0.0
-requests>=2.31.0
-gTTS>=2.3.2
-elevenlabs>=0.2.0
-docx>=0.2.4
-fpdf>=1.7.2
-groq>=0.1.0
