@@ -11,7 +11,7 @@ from PyPDF2 import PdfReader
 from html import escape
 import requests
 
-# DOCX export
+# Optional DOCX export
 try:
     from docx import Document
     DOCX_AVAILABLE = True
@@ -27,26 +27,25 @@ except ModuleNotFoundError:
 
 from gtts import gTTS
 
+# ---------------------------- Secrets ----------------------------
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+# ---------------------------- Page Config ----------------------------
 st.set_page_config(page_title="GSK AI Sales Call Assistant", layout="wide")
 
 # ---------------------------- Session Defaults ----------------------------
-if "chat_history" not in st.session_state or not isinstance(st.session_state.chat_history, list):
-    st.session_state.chat_history = []
-if "uploaded_pdf_text" not in st.session_state:
-    st.session_state.uploaded_pdf_text = ""
-if "pdf_summary" not in st.session_state:
-    st.session_state.pdf_summary = ""
-if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Old Male"
-if "language" not in st.session_state:
-    st.session_state.language = "English"
-if "pdf_summary_size" not in st.session_state:
-    st.session_state.pdf_summary_size = "Normal"
+if "chat_history" not in st.session_state: st.session_state.chat_history = []
+if "uploaded_pdf_text" not in st.session_state: st.session_state.uploaded_pdf_text = ""
+if "pdf_summary" not in st.session_state: st.session_state.pdf_summary = ""
+if "voice_pref" not in st.session_state: st.session_state.voice_pref = "Old Male"
+if "language" not in st.session_state: st.session_state.language = "English"
+if "pdf_summary_size" not in st.session_state: st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
@@ -137,16 +136,13 @@ body {{
   padding: 8px;
   margin-bottom: 10px;
   font-size: 14px;
+  cursor: pointer;
 }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-# ---------------------------- Brands ----------------------------
+# ---------------------------- Brand Data ----------------------------
 brand_data = {
     "shingrix": {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
@@ -161,7 +157,6 @@ brand_data = {
         "references_path": ".devcontainer/references/jemperli/"
     }
 }
-
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Rheumatologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
@@ -244,35 +239,39 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Chat & Copilot Suggestions ----------------------------
+# ---------------------------- Chat Container ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for msg in st.session_state.chat_history:
     role_class = "chat-bubble-user" if msg["role"]=="user" else "chat-bubble-ai"
     st.markdown(f'<div class="{role_class}">{escape(msg["content"])}</div>', unsafe_allow_html=True)
-    if "audio" in msg: 
+    if "audio" in msg and msg["audio"]:
         st.markdown(f'<div class="chat-bubble-audio"><audio controls><source src="data:audio/mp3;base64,{msg["audio"]}" type="audio/mpeg"></audio></div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Dynamic Prompt Suggestions Above Input ----------------------------
+# ---------------------------- Dynamic Prompt Suggestions ----------------------------
 context_preview = f"Brand:{brand}, Persona:{persona}, Segment:{segment}, Specialty:{specialty}, Objective:{objective}, Barriers:{', '.join(barrier) if barrier else 'None'}"
 suggestions = [
     f"Generate a call flow for {persona} with focus on {objective}.",
     f"Handle objections: {', '.join(barrier)} for {persona}.",
     f"Use latest medical references and summarize key points for {segment}.",
 ]
-st.markdown('<div class="prompt-suggestions"><b>Prompt Suggestions:</b><br>' + "<br>".join(suggestions) + "</div>", unsafe_allow_html=True)
+
+# Make suggestions clickable
+for s in suggestions:
+    if st.button(s):
+        st.session_state.prefill_input = s
 
 # ---------------------------- Chat Input ----------------------------
-user_input = st.chat_input("Ask your AI sales question or continue dialogue...")
-if user_input:
-    st.session_state.chat_history.append({"role":"user","content":user_input})
-    combined_context = load_local_references(selected_brand["references_path"]) + "\n" + load_external_references([])
-    ai_resp = generate_ai_response(user_input, combined_context)
-    audio_base64 = generate_audio(ai_resp)
-    st.session_state.chat_history.append({"role":"assistant","content":ai_resp,"audio":audio_base64})
-    st.experimental_rerun()
-
-st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool provides sales guidance. Verify all medical content before use. All interactions are logged.</div>', unsafe_allow_html=True)
+user_input = st.text_area("Ask your AI sales question or continue dialogue...", st.session_state.get("prefill_input", ""))
+if st.button("Send"):
+    if user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input})
+        st.session_state.prefill_input = ""  # reset
+        combined_context = load_local_references(selected_brand["references_path"]) + "\n" + load_external_references([])
+        ai_resp = generate_ai_response(user_input, combined_context)
+        audio_base64 = generate_audio(ai_resp)
+        st.session_state.chat_history.append({"role":"assistant","content":ai_resp,"audio":audio_base64})
+        st.experimental_rerun()  # safe rerun
 
 # ---------------------------- Disclaimer ----------------------------
 st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool provides sales guidance. Verify all medical content before use. All interactions are logged.</div>', unsafe_allow_html=True)
