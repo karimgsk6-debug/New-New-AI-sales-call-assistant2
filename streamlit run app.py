@@ -1,4 +1,4 @@
-# app.py
+# app.py (final merged & fixed)
 import streamlit as st
 from PIL import Image
 from io import BytesIO
@@ -63,6 +63,9 @@ if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 if "prefill_input" not in st.session_state:
     st.session_state.prefill_input = ""
+# Ensure main_input exists in session_state (text area will use this key)
+if "main_input" not in st.session_state:
+    st.session_state.main_input = ""
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
@@ -74,19 +77,22 @@ CSS = f"""
 body {{
     background-image: url('{BACKGROUND_URL}');
     background-attachment: fixed;
-    background-size: auto 130%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }}
 @keyframes fadeIn {{
   from {{ opacity: 0; transform: translateY(-10px); }}
   to {{ opacity: 1; transform: translateY(0); }}
 }}
 .title-box {{
- background: rgba(230,230,230,0.7);
- padding: 10px;
+ background: rgba(230,230,230,0.85);
+ padding: 12px;
  margin: 12px auto;
- width: 1300px;
+ width: 1200px;
  position: relative;
  animation: fadeIn 1.2s ease-in-out;
+ border-radius: 10px;
 }}
 .title-box img.ai-logo {{
    position: absolute;
@@ -106,13 +112,13 @@ body {{
   overflow-y: auto;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(240,240,240,0.7);
-  margin-bottom: 70px;
+  background: rgba(255,255,255,0.85);
+  margin-bottom: 20px;
 }}
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
  display:block;
  padding:12px;
- margin:5px 0;
+ margin:8px 0;
  border-radius:12px;
  max-width: 90%;
  word-wrap: break-word;
@@ -122,37 +128,11 @@ body {{
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
 .fixed-chat-input {{
    position: fixed;
-   bottom: 40px;
+   bottom: 20px;
    left: 20px;
    right: 20px;
    z-index: 10002;
-}}
-.fixed-chat-input textarea {{
-   width: 100%;
-   min-height: 60px;
-   max-height: 180px;
-   resize: vertical;
-}}
-.send-button {{
-   position: fixed;
-   bottom: 40px;
-   right: 30px;
-   z-index: 10003;
-   height: 40px;
-   width: 100px;
-}}
-.fixed-disclaimer {{
-   position: fixed;
-   bottom: 0;
-   left: 0;
-   right: 0;
-   background: rgba(255, 255, 255, 0.95);
-   color: #444;
-   text-align: center;
-   font-size: 13px;
-   padding: 8px;
-   border-top: 2px solid #FF6F00;
-   z-index: 9999;
+   max-width: calc(100% - 40px);
 }}
 .copilot-row {{
     display:flex;
@@ -168,6 +148,19 @@ body {{
     cursor:pointer;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }}
+.fixed-disclaimer {{
+   position: fixed;
+   bottom: 0;
+   left: 0;
+   right: 0;
+   background: rgba(255, 255, 255, 0.95);
+   color: #444;
+   text-align: center;
+   font-size: 13px;
+   padding: 8px;
+   border-top: 2px solid #FF6F00;
+   z-index: 9999;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -179,7 +172,6 @@ def safe_makedirs(path):
     except Exception:
         pass
 
-# ensure directory structure exists
 safe_makedirs(".devcontainer/references/shingrix")
 safe_makedirs(".devcontainer/references/jemperli")
 safe_makedirs(".devcontainer/references/trelegy")
@@ -211,9 +203,10 @@ brand_data = {
 specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Rheumatologist", "Internal medicine", "Oncologist", "Pulmonologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------------------- Helper functions ----------------------------
+# ---------------------------- Helpers ----------------------------
 def load_local_references(folder_path):
     text_all = ""
+    warning = None
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
         return "", f"⚠️ Folder does not exist: {folder_path}"
     files = [f for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".txt"))]
@@ -249,7 +242,6 @@ def load_external_references(url_list):
 def generate_audio(text):
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     try:
-        # small cleanup for TTS clarity
         tts_text = re.sub(r'[,*]{1,}', '', text)
         if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
             audio_stream = elevenlabs.generate(text=tts_text, voice=ELEVENLABS_VOICE_ID, stream=True)
@@ -267,7 +259,7 @@ def generate_audio(text):
         return ""
 
 def generate_ai_response(user_input, brand, persona, segment, specialty, objective, barrier_list, local_ref_text, external_text, sales_module_text):
-    # Build combined context
+    # Build combined context (local refs + external + sales module + uploaded pdf)
     combined_context = "\n".join([
         local_ref_text or "",
         external_text or "",
@@ -297,9 +289,9 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
     system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
     final_prompt = f"{user_input}\n\n{context_prompt}"
 
-    # If GROQ client not available, return fallback
+    # If GROQ client not available, return fallback message (so app doesn't crash)
     if client is None:
-        return f"(Fallback) No GROQ client available. Received: {user_input}"
+        return f"(Fallback) No GROQ client available. Using local references to build answer. Received: {user_input}"
 
     try:
         response = client.chat.completions.create(
@@ -310,7 +302,6 @@ Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
         )
         return response.choices[0].message.content
     except Exception as e:
-        # Do not crash the app; return helpful fallback
         return f"(AI Error) Could not generate response: {e}"
 
 # ---------------------------- Call flows ----------------------------
@@ -388,31 +379,26 @@ st.markdown(f'''
 ''', unsafe_allow_html=True)
 
 # ---------------------------- Medical & Sales References ----------------------------
-st.markdown(f"## 📚 {brand.capitalize()} Medical References")
+# Load local references and sales module once per render so we can pass into the AI call
 local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
 if local_warning:
     st.info(local_warning)
 
 external_text = load_external_references([u for u in external_urls if u.strip()]) if external_urls else ""
+sales_module_text, sales_warning = load_local_references(f".devcontainer/SalesModule/{brand}")
+if sales_warning:
+    st.info(sales_warning)
 
+st.markdown(f"## 📚 {brand.capitalize()} Medical References")
 if local_ref_text or external_text:
     with st.expander("🔍 Preview Combined Medical References", expanded=False):
         preview_text = (local_ref_text + "\n" + external_text).strip()
         st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
 
-# Sales Module preview
 st.markdown(f"## 📝 Sales Call Module for {brand}")
-sales_module_path = f".devcontainer/SalesModule/{brand}"
-sales_module_text, sales_warning = load_local_references(sales_module_path)
-if sales_warning:
-    st.info(sales_warning)
 if sales_module_text:
     with st.expander("🔍 Preview SalesModule Documents", expanded=False):
         st.text_area("Sales Module Preview", sales_module_text[:3000] + ("..." if len(sales_module_text) > 3000 else ""), height=250)
-        sales_search_keyword = st.text_input("Search keyword in sales modules", key="sales_search_keyword")
-        if sales_search_keyword:
-            matches = [m.start() for m in re.finditer(sales_search_keyword, sales_module_text, re.IGNORECASE)]
-            st.write(f"Found {len(matches)} matches for '{sales_search_keyword}'.")
 
 # ---------------------------- PDF Upload & Summary ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
@@ -421,13 +407,13 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     if uploaded_pdf:
         try:
             reader = PdfReader(uploaded_pdf)
-            full_text = "".join([p.extract_text() or "" for p in reader.pages])
-            st.session_state.uploaded_pdf_text = full_text
-            st.success(f"✅ Loaded {len(full_text)} characters from uploaded PDF.")
+            full_text_pdf = "".join([p.extract_text() or "" for p in reader.pages])
+            st.session_state.uploaded_pdf_text = full_text_pdf
+            st.success(f"✅ Loaded {len(full_text_pdf)} characters from uploaded PDF.")
             bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
             try:
                 if client:
-                    summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
+                    summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text_pdf[:12000]}"
                     ai_summary = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role": "system", "content": "You are a helpful assistant."},
@@ -436,11 +422,10 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
                     )
                     st.session_state.pdf_summary = ai_summary.choices[0].message.content
                 else:
-                    # fallback simple extraction
-                    fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
+                    fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text_pdf)
                     st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
             except Exception:
-                fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
+                fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text_pdf)
                 st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
         except Exception as e:
             st.error(f"Error reading uploaded PDF: {e}")
@@ -463,7 +448,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Copilot suggestions (appear only when typing) ----------------------------
 def make_brand_suggestions(brand, persona, barrier_list, segment, specialty, objective):
-    # Use brand & context to craft helpful sales prompts
     suggestions = []
     suggestions.append(f"Generate call flow for {persona} focused on {objective}.")
     if barrier_list:
@@ -475,53 +459,58 @@ def make_brand_suggestions(brand, persona, barrier_list, segment, specialty, obj
     suggestions.append(f"Draft a short adoption message for {brand} to a {specialty}.")
     return suggestions
 
-# ---------------------------- Chat input + Copilot UI ----------------------------
-# Use a text_area as editable input (prefillable)
-user_text = st.text_area("Ask or continue your sales dialogue...", value=st.session_state.get("prefill_input", ""), key="main_input", height=120)
-
-# Show copilot suggestions only when user has started typing (non-empty)
-if user_text and user_text.strip():
+# Render suggestions only when user has started typing (main_input non-empty)
+current_input = st.session_state.get("main_input", "")
+if current_input and current_input.strip():
     suggestions = make_brand_suggestions(brand, persona, barrier, segment, specialty, objective)
-    # render pills as buttons that autofill input
-    cols = st.container()
-    # display pills
     st.markdown('<div class="copilot-row">', unsafe_allow_html=True)
     for i, s in enumerate(suggestions):
-        # when clicked, set prefill and update the text_area value (via session_state)
+        # when clicked, set the text area content (autofill) by modifying session_state["main_input"]
         if st.button(s, key=f"copilot_{i}"):
+            # safe set inside a widget handler
+            st.session_state.main_input = s
+            # set prefill as well
             st.session_state.prefill_input = s
-            # set also the widget value via st.session_state
-            st.session_state["main_input"] = s
-            # update local variable so UI shows the filled text immediately
-            user_text = s
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Send button behavior (no experimental_rerun)
-if st.button("Send", key="send_button"):
-    if user_text and user_text.strip():
-        # store user message
-        st.session_state.chat_history.append({"role": "user", "content": user_text})
-        # reset prefill
-        st.session_state.prefill_input = ""
-        st.session_state["main_input"] = ""  # clear input widget
+# ---------------------------- Chat Input FORM (safe submit) ----------------------------
+with st.form(key="chat_form", clear_on_submit=False):
+    # Use the session_state main_input as controlled value
+    user_text = st.text_area("Ask or continue your sales dialogue...", value=st.session_state.get("main_input", ""), key="main_textarea", height=120)
+    submit = st.form_submit_button("Send")
 
-        # prepare references & context
-        local_ref_text2, _ = load_local_references(selected_brand["references_path"])
-        sales_module_text2, _ = load_local_references(f".devcontainer/SalesModule/{brand}")
-        external_text2 = load_external_references([u for u in external_urls if u.strip()]) if external_urls else ""
+    if submit:
+        user_text = user_text.strip()
+        if user_text:
+            # store user message
+            st.session_state.chat_history.append({"role": "user", "content": user_text})
+            # reset main_input safely here
+            st.session_state.main_input = ""
+            st.session_state.prefill_input = ""
 
-        # generate AI response
-        ai_resp = generate_ai_response(user_text, brand, persona, segment, specialty, objective, barrier, local_ref_text2, external_text2, sales_module_text2)
+            # prepare references & context (already loaded above)
+            local_ref_text2 = local_ref_text
+            sales_module_text2 = sales_module_text
+            external_text2 = external_text
 
-        # generate audio (best-effort)
-        audio_base64 = generate_audio(ai_resp) if ai_resp else ""
+            # generate AI response (uses local refs + sales module)
+            ai_resp = generate_ai_response(user_text, brand, persona, segment, specialty, objective, barrier, local_ref_text2, external_text2, sales_module_text2)
 
-        # store assistant message
-        st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+            # generate audio
+            audio_base64 = generate_audio(ai_resp) if ai_resp else ""
 
-        # let Streamlit re-render naturally (no experimental_rerun)
-        # show a small success so user sees the message appended
-        st.success("Message sent — AI response added to chat.")
+            # store assistant message with link note to references
+            assistant_content = ai_resp
+            # append a short footer listing which sources were used (local paths)
+            sources_footer = "\n\nSources used:\n"
+            sources_footer += f"- Local refs: {selected_brand['references_path']}\n"
+            sources_footer += f"- Sales module: .devcontainer/SalesModule/{brand}\n"
+            assistant_content = assistant_content + sources_footer
+
+            st.session_state.chat_history.append({"role": "assistant", "content": assistant_content, "audio": audio_base64})
+
+            # success feedback (no experimental_rerun)
+            st.success("Message sent — AI response added to chat.")
 
 # ---------------------------- Export bottom fallback ----------------------------
 if st.session_state.chat_history:
