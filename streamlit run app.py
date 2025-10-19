@@ -95,12 +95,12 @@ html, body [data-testid="stAppViewContainer"] {{
 }}
 
 .title-box {{
-  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.85));
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
   padding: 12px;
   border-radius: 12px;
   text-align: left;
   margin: 12px auto;
-  width: 1200px;
+  width: 1600px;
   position: relative;
   animation: fadeIn 0.9s ease-in-out;
   box-shadow: 0 6px 18px rgba(2,6,23,0.06);
@@ -115,9 +115,9 @@ html, body [data-testid="stAppViewContainer"] {{
 
 .title-box img.ai-logo {{
     position: absolute;
-    top: 8px;
+    top: 10px;
     right: 12px;
-    width: 130px;
+    width: 140px;
 }}
 
 .pdf-summary-box {{
@@ -238,7 +238,7 @@ html, body [data-testid="stAppViewContainer"] {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
@@ -313,10 +313,10 @@ def load_external_references(url_list):
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", list(brand_data.keys()), key="select_brand")
     selected_brand = brand_data[brand]
+    specialty = st.selectbox("Specialty", specialties, key="select_specialty")
     segment = st.selectbox("Segment", selected_brand["segments"], key="select_segment")
     persona = st.selectbox("HCP Persona", selected_brand["personas"], key="select_persona")
     barrier = st.multiselect("Doctor Barrier", selected_brand["barriers"], key="select_barrier")
-    specialty = st.selectbox("Specialty", specialties, key="select_specialty")
     objective = st.selectbox("Objective", objectives, key="select_objective")
     response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="select_tone")
     response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="select_length")
