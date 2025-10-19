@@ -30,7 +30,6 @@ from gtts import gTTS
 
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
-
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
     elevenlabs.api_key = ELEVENLABS_API_KEY
 else:
@@ -52,29 +51,9 @@ if "language" not in st.session_state:
     st.session_state.language = "English"
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
-# ---------------------------- Chat Input (fixed) ----------------------------
-# Ensure prefilled_prompt exists and is always a string
+# Copilot prefill
 if "prefilled_prompt" not in st.session_state or st.session_state.prefilled_prompt is None:
     st.session_state.prefilled_prompt = ""
-
-user_input = st.chat_input(
-    "Ask or continue your sales dialogue...",
-    value=st.session_state.prefilled_prompt
-)
-
-if user_input:
-    # store user message
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    # generate AI response
-    ai_resp = generate_ai_response(user_input)
-    # generate audio
-    audio_base64 = generate_audio(ai_resp) if ai_resp else ""
-    # store assistant message
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
-    # clear prefilled prompt after sending
-    st.session_state.prefilled_prompt = ""
-    # rerun to show message immediately
-    st.rerun()
 
 # ---------------------------- Assets ----------------------------
 BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
@@ -91,10 +70,12 @@ CSS = f"""
   background-attachment: fixed;
   background-size: auto 130%;
 }}
+
 @keyframes fadeIn {{
   from {{ opacity: 0; transform: translateY(-10px); }}
   to {{ opacity: 1; transform: translateY(0); }}
 }}
+
 .title-box {{
   background: rgba(230,230,230,0.7);
   padding: 10px;
@@ -105,12 +86,14 @@ CSS = f"""
   position: relative;
   animation: fadeIn 1.2s ease-in-out;
 }}
+
 .title-box img.ai-logo {{
     position: absolute;
     top: 10px;
     right: 15px;
     width: 150px;
 }}
+
 .pdf-summary-box {{
   background: #E6F0FF; 
   padding: 12px; 
@@ -118,6 +101,7 @@ CSS = f"""
   margin-bottom: 12px;
   white-space: pre-line;
 }}
+
 .chat-container {{
   max-height: 65vh;
   overflow-y: auto;
@@ -126,6 +110,7 @@ CSS = f"""
   background: rgba(240,240,240,0.7);
   margin-bottom: 20px;
 }}
+
 .chat-bubble-user, .chat-bubble-ai, .chat-bubble-audio {{
   display:block;
   padding:12px;
@@ -134,9 +119,11 @@ CSS = f"""
   max-width: 90%;
   word-wrap: break-word;
 }}
+
 .chat-bubble-user {{ background: #0078D7; color:white; margin-left:auto; }}
 .chat-bubble-ai {{ background: #d9f0ff; margin-right:auto; color:#000; }}
 .chat-bubble-audio {{ background: #e2e2e2; margin-right:auto; font-size:0.9em; padding:10px; margin-top:12px; }}
+
 .fixed-chat-input {{
     position: fixed;
     bottom: 20px;
@@ -144,12 +131,14 @@ CSS = f"""
     right: 20px;
     z-index: 10002;
 }}
+
 .fixed-chat-input textarea {{
     width: 100%;
     min-height: 60px;
     max-height: 180px;
     resize: vertical;
 }}
+
 .send-button {{
     position: fixed;
     bottom: 20px;
@@ -158,6 +147,7 @@ CSS = f"""
     height: 40px;
     width: 100px;
 }}
+
 .fixed-disclaimer {{
     position: fixed;
     bottom: 0;
@@ -172,6 +162,7 @@ CSS = f"""
     z-index: 9999;
     animation: fadeIn 1.5s ease-in-out;
 }}
+
 section[data-testid="stSidebar"] .st-expanderHeader {{
     color: #FF6F00 !important;
     font-weight: 700;
@@ -181,7 +172,7 @@ section[data-testid="stSidebar"] .st-expanderHeader {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ Client ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
     st.warning("⚠️ Missing GROQ_API_KEY in Streamlit Secrets")
 client = Groq(api_key=GROQ_API_KEY)
@@ -251,7 +242,8 @@ def load_external_references(url_list):
         except Exception as e:
             all_text += f"\n[Error fetching {url}: {e}]"
     return all_text
-    # ---------------------------- Sidebar ----------------------------
+
+# ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand = st.selectbox("Brand", list(brand_data.keys()), key="select_brand")
     selected_brand = brand_data[brand]
@@ -261,7 +253,6 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     specialty = st.selectbox("Specialty", specialties, key="select_specialty")
     objective = st.selectbox("Objective", objectives, key="select_objective")
     response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="select_tone")
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="select_length")
     st.session_state.language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="select_language")
 
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
@@ -282,7 +273,6 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
         else:
             st.download_button("⬇️ Download TXT", text_export.encode(), file_name=f"{brand}_chat.txt")
 
-# Clear Chat button
 if st.sidebar.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
@@ -297,145 +287,55 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# ---------------------------- Medical References ----------------------------
-st.markdown(f"## 📚 {brand.capitalize()} Medical References")
-local_ref_text, local_warning = load_local_references(selected_brand["references_path"])
-if local_warning:
-    st.info(local_warning)
-external_text = load_external_references([u for u in external_urls if u.strip()])
+# ---------------------------- PDF Upload ----------------------------
+uploaded_file = st.file_uploader("📄 Upload PDF for reference", type=["pdf"])
+if uploaded_file is not None:
+    reader = PdfReader(uploaded_file)
+    pdf_text = ""
+    for page in reader.pages:
+        pdf_text += page.extract_text() or ""
+    st.session_state.uploaded_pdf_text = pdf_text
+    st.session_state.pdf_summary = pdf_text[:1500]  # short summary
 
-if local_ref_text or external_text:
-    with st.expander("🔍 Preview Combined Medical References", expanded=False):
-        preview_text = (local_ref_text + "\n" + external_text).strip()
-        st.text_area("Medical Reference Preview", preview_text[:3000], height=250)
-
-# ---------------------------- Sales Call Module ----------------------------
-st.markdown(f"## 📝 Sales Call Module for {brand}")
-sales_module_path = f".devcontainer/SalesModule/{brand}"
-sales_module_text, sales_warning = load_local_references(sales_module_path)
-if sales_warning:
-    st.info(sales_warning)
-if sales_module_text:
-    with st.expander("🔍 Preview SalesModule Documents", expanded=False):
-        st.text_area(
-            "Sales Module Preview",
-            sales_module_text[:3000] + "..." if len(sales_module_text) > 3000 else sales_module_text,
-            height=250
-        )
-        sales_search_keyword = st.text_input("Search keyword in sales modules", key="sales_search_keyword")
-        if sales_search_keyword:
-            matches = [m.start() for m in re.finditer(sales_search_keyword, sales_module_text, re.IGNORECASE)]
-            st.write(f"Found {len(matches)} matches for '{sales_search_keyword}'.")
-
-# ---------------------------- PDF Upload & Summary ----------------------------
-with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
-    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True)
-    if uploaded_pdf:
-        try:
-            reader = PdfReader(uploaded_pdf)
-            full_text = "".join([p.extract_text() or "" for p in reader.pages])
-            st.session_state.uploaded_pdf_text = full_text
-            st.success(f"✅ Loaded {len(full_text)} characters from uploaded PDF.")
-            bullets_count = {"Consisted": 5, "Normal": 10, "Detailed": 20}.get(st.session_state.pdf_summary_size, 10)
-            try:
-                summary_prompt = f"Summarize this document into {bullets_count} bullet points:\n{full_text[:12000]}"
-                ai_summary = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": "You are a helpful assistant."},
-                              {"role": "user", "content": summary_prompt}],
-                    temperature=0.4
-                )
-                st.session_state.pdf_summary = ai_summary.choices[0].message.content
-            except Exception:
-                fallback_bullets = re.findall(r'([A-Z][^.]{20,200})', full_text)
-                st.session_state.pdf_summary = "\n".join(fallback_bullets[:bullets_count])
-        except Exception as e:
-            st.error(f"Error reading uploaded PDF: {e}")
-    if st.session_state.pdf_summary:
-        st.markdown(f'<div class="pdf-summary-box">{escape(st.session_state.pdf_summary)}</div>', unsafe_allow_html=True)
-
-# ---------------------------- AI Response & Audio ----------------------------
-jemperli_CALL_FLOW = {
-    "COCO": "Pre-call planning using customer insights, select patient type, develop thought-provoking questions.",
-    "Anchor": "Open conversation with a patient-focused narrative, tailor messaging to the HCP challenge/unmet need.",
-    "Engage": "Draw customer in through two-way dialogue, connect clinical data and product messages.",
-    "Close": "Gain agreement, define next steps, extend engagement via omni-channel, record insights."
-}
-
-shingrix_CALL_FLOW = {
-    "Prepare": "Plan the call: identify persona, objectives, patient types, key insights.",
-    "Engage": "Start conversation, capture attention, set discussion context.",
-    "Create Opportunities": "Identify gaps or unmet needs; introduce solutions with clinical/product data.",
-    "Influence": "Present evidence, handle objections, highlight value and outcomes.",
-    "Impact GSO": "Link discussion to incremental steps and overall GSO; clarify next steps.",
-    "Post-Call Analysis": "Record insights, update CRM, evaluate metrics to inform future calls."
-}
-
-def generate_audio(text):
-    text = re.sub(r'[,*]', '', text)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    try:
-        if ELEVENLABS_AVAILABLE:
-            audio_stream = elevenlabs.generate(text=text, voice=ELEVENLABS_VOICE_ID, stream=True)
-            with open(tmp_file.name, "wb") as f:
-                for chunk in audio_stream:
-                    f.write(chunk)
-        else:
-            tts = gTTS(text=text, lang="en", slow=True)
-            tts.save(tmp_file.name)
-        with open(tmp_file.name, "rb") as f:
-            audio_bytes = f.read()
-            audio_base64 = base64.b64encode(audio_bytes).decode()
-        return audio_base64
-    except Exception as e:
-        st.warning(f"Audio generation failed: {e}")
-        return ""
-
-def generate_ai_response(user_input):
-    combined_context = "\n".join([local_ref_text or "", external_text or "", sales_module_text or "", st.session_state.uploaded_pdf_text or ""])[:15000]
-    call_flow_prompt = ""
-    if brand.lower() == "jemperli":
-        call_flow_prompt = "\n\n--- jemperli Call Flow Steps ---\n" + "\n".join([f"{k}: {v}" for k, v in jemperli_CALL_FLOW.items()])
-    elif brand.lower() == "shingrix":
-        call_flow_prompt = "\n\n--- shingrix Call Flow Steps ---\n" + "\n".join([f"{k}: {v}" for k, v in shingrix_CALL_FLOW.items()])
-    context_prompt = f"""
-Brand: {brand}
-Persona: {persona}
-Segment: {segment}
-Specialty: {specialty}
-Objective: {objective}
-Barriers: {', '.join(barrier) if barrier else 'None'}
-Medical + Sales + Uploaded PDF Context (truncated):\n{combined_context[:5000]}
-{call_flow_prompt}
-"""
-    system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow the structured brand-specific call flow."
-    final_prompt = f"{user_input}\n\n{context_prompt}"
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system_prompt},
-                      {"role": "user", "content": final_prompt}],
-            temperature=0.65
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        st.error(f"AI generation failed: {e}")
-        return f"(Fallback) Based on brand {brand}, persona {persona}: {user_input}"
+if st.session_state.pdf_summary:
+    st.markdown(f'<div class="pdf-summary-box"><b>PDF Summary:</b>\n{st.session_state.pdf_summary}</div>', unsafe_allow_html=True)
 
 # ---------------------------- Chat UI ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for item in st.session_state.chat_history:
-    if isinstance(item, dict) and item.get("role") == "user":
-        st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(item.get("content",""))}</div>', unsafe_allow_html=True)
-    elif isinstance(item, dict) and item.get("role") == "assistant":
-        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(item.get("content",""))}</div>', unsafe_allow_html=True)
-        if item.get("audio"):
-            try:
-                st.audio(base64.b64decode(item["audio"]), format="audio/mp3")
-            except Exception:
-                pass
+for msg in st.session_state.chat_history:
+    if msg["role"] == "user":
+        st.markdown(f'<div class="chat-bubble-user">{escape(msg["content"])}</div>', unsafe_allow_html=True)
+    elif msg["role"] == "assistant":
+        st.markdown(f'<div class="chat-bubble-ai">{escape(msg["content"])}</div>', unsafe_allow_html=True)
+        if "audio" in msg and msg["audio"]:
+            st.audio(base64.b64decode(msg["audio"]))
 st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------- Fixed Chat Input ----------------------------
+user_input = st.chat_input(
+    "Ask or continue your sales dialogue...",
+    value=st.session_state.prefilled_prompt
+)
+
+if user_input:
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    # Generate AI response placeholder
+    ai_resp = f"Simulated AI response for '{user_input}' (brand: {brand})"  # Replace with actual AI call
+    # Optional audio
+    audio_base64 = None
+    if ELEVENLABS_AVAILABLE:
+        try:
+            audio_data = elevenlabs.generate(
+                text=ai_resp,
+                voice=ELEVENLABS_VOICE_ID,
+                model="eleven_multilingual_v1"
+            )
+            audio_base64 = base64.b64encode(audio_data).decode("utf-8")
+        except Exception:
+            audio_base64 = None
+    st.session_state.chat_history.append({"role": "assistant", "content": ai_resp, "audio": audio_base64})
+    st.session_state.prefilled_prompt = ""
+    st.rerun()
 
 
 # ---------------------------- Export / Download ----------------------------
