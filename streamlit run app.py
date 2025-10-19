@@ -48,7 +48,7 @@ if "language" not in st.session_state: st.session_state.language = "English"
 if "pdf_summary_size" not in st.session_state: st.session_state.pdf_summary_size = "Normal"
 
 # ---------------------------- Assets ----------------------------
-BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Background1.jpeg"
+BACKGROUND_URL = "https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/3d1d78cf288cca4465d7759148fb705ff51d7ac3/.devcontainer/Background1.jpeg"
 GSK_LOGO_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/gsk-logo.png"
 AI_LOGO_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/ai-logo.png"
 
