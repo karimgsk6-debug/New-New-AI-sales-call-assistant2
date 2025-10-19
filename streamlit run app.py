@@ -57,7 +57,7 @@ BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-s
  background-size: auto 130%;
 
 @keyframes fadeIn {{
-  from {{ opacity: 0; transform: translateY(-10px); }}
+  from {{ opacity: 0; transform: translateY(-10px);
   to {{ opacity: 1; transform: translateY(0); }}
 }}
 
