@@ -81,7 +81,7 @@ CSS = f"""
     position: absolute;
     top: 10px;
     right: 15px;
-    width: 150px;
+    width: 140px;
 }}
 .pdf-summary-box {{
   background: #E6F0FF; 
