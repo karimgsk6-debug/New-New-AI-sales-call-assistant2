@@ -1,7 +1,9 @@
-# app.py - Final merged version with fixes and Copilot dropdown
+# app.py - Final merged app with inline citation snippets (TF-IDF), Copilot suggestions,
+# background + header logos, multi-brand support, PDF upload, TTS, exports, and improved UI.
+
 import streamlit as st
 from PIL import Image
-import re, os, tempfile, base64, requests
+import re, os, tempfile, base64, requests, math
 from io import BytesIO
 from datetime import datetime
 from groq import Groq
@@ -9,12 +11,23 @@ from PyPDF2 import PdfReader
 from html import escape
 from gtts import gTTS
 
+# TF-IDF tools
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+
 # Optional DOCX export
 try:
     from docx import Document
     DOCX_AVAILABLE = True
 except Exception:
     DOCX_AVAILABLE = False
+
+# ElevenLabs fallback flag
+try:
+    import elevenlabs
+    ELEVENLABS_AVAILABLE = True
+except Exception:
+    ELEVENLABS_AVAILABLE = False
 
 # ---------------------------- Page config ----------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
@@ -27,8 +40,8 @@ REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.dev
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 
 # ---------------------------- Assets (raw URLs) ----------------------------
+# Note: this path worked in prior messages; if it doesn't resolve for you, place images in repo and use local st.image()
 BACKGROUND_URL = REPO_RAW_BASE + "/.devcontainer/background1.png"
-# logos provided in main branch as requested
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
@@ -41,19 +54,17 @@ if "pdf_summary" not in st.session_state:
     st.session_state.pdf_summary = ""
 if "voice_pref" not in st.session_state:
     st.session_state.voice_pref = "Old Male"
-# do NOT pre-create a 'language' key that conflicts with widget key; we will read widget value into a variable
 if "pdf_summary_size" not in st.session_state:
     st.session_state.pdf_summary_size = "Normal"
 if "main_input" not in st.session_state:
     st.session_state.main_input = ""
-# track selected brand key
 if "selected_brand" not in st.session_state:
     st.session_state.selected_brand = "trelegy"
 
 # ---------------------------- CSS / layout ----------------------------
 CSS = f"""
 <style>
-/* Background for the whole app */
+/* App background */
 .stApp {{
   background-image: url('{BACKGROUND_URL}');
   background-size: cover;
@@ -61,43 +72,82 @@ CSS = f"""
   background-position: center;
 }}
 
-/* Header */
-.header {{
+/* Title box */
+.title-box {{
   background: rgba(255,255,255,0.92);
   padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 10px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  position: relative;
   display:flex;
   align-items:center;
   justify-content:center;
-  position:relative;
 }}
-.header img.left-logo {{ position:absolute; left:16px; width:120px; height:auto; }}
-.header img.right-logo {{ position:absolute; right:16px; width:120px; height:auto; }}
-.header h1 {{ margin:0; font-size:20px; }}
+.title-box img.left-logo {{ position:absolute; left:16px; width:130px; height:auto; }}
+.title-box img.right-logo {{ position:absolute; right:16px; width:130px; height:auto; }}
+.title-box h1 {{ margin:0; font-size:22px; }}
 
-/* Chat container */
+/* Main chat area */
 .chat-container {{
   max-height: 56vh;
   overflow-y:auto;
-  padding:12px;
-  border-radius:10px;
-  background: rgba(255,255,255,0.92);
-  margin-bottom: 120px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.94);
+  margin-bottom: 140px;
 }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:12px; border-radius:10px; margin:8px 0; max-width:75%; margin-left:auto; }}
-.chat-bubble-ai {{ background:#d9f0ff; color:#000; padding:12px; border-radius:10px; margin:8px 0; max-width:75%; }}
+.chat-bubble-user {{ background:#0078D7; color:white; padding:12px; border-radius:10px; margin:8px 0; max-width:78%; margin-left:auto; }}
+.chat-bubble-ai {{ background:#d9f0ff; color:#000; padding:12px; border-radius:10px; margin:8px 0; max-width:78%; }}
 
-/* Collapsed suggestions expander handled by Streamlit (no extra CSS needed),
-   but style the visible suggestions box for uniformity */
-.suggestions-inline {{ background: rgba(255,255,255,0.95); padding:8px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.06); }}
-.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:18px; cursor:pointer; margin:4px; display:inline-block; }}
-.suggestion-pill:hover {{ background:#f2f6ff; }}
+/* Suggestions area (collapsed by Streamlit expander, but style inner area) */
+.suggestions-inline {{ background: rgba(255,255,255,0.96); padding:10px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.06); }}
+.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; cursor:pointer; margin:6px; display:inline-block; }}
+.suggestion-pill:hover {{ background:#eef6ff; }}
 
-/* fixed input area */
-.input-area {{ position: fixed; left:24px; right:24px; bottom:18px; z-index:9999; display:flex; gap:10px; align-items:flex-end; }}
-.input-area textarea {{ width:100%; min-height:72px; max-height:200px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
-.input-area button {{ height:44px; padding:0 16px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; }}
+/* Input area fixed at bottom */
+.input-area {{
+  position: fixed;
+  left:24px;
+  right:24px;
+  bottom:18px;
+  z-index:9999;
+  display:flex;
+  gap:8px;
+  align-items:flex-end;
+}}
+.input-area textarea {{
+  width:100%;
+  min-height:72px;
+  max-height:200px;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  resize:vertical;
+}}
+.send-button {{
+  height:44px;
+  padding:0 14px;
+  border-radius:8px;
+  border:none;
+  background:#FF6F00;
+  color:white;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:600;
+}}
+
+/* Inline citation styling */
+.citation-box {{
+  background:#fbfbff;
+  border-left:4px solid #0078D7;
+  padding:8px;
+  margin-top:8px;
+  border-radius:6px;
+  font-size:13px;
+  white-space:pre-wrap;
+}}
 
 /* disclaimer */
 .fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
@@ -145,46 +195,71 @@ brand_data = {
 specialties = ["GP", "Pulmonologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------------------- Helper functions ----------------------------
-def load_local_references_and_files(folder_path):
-    text_all = ""
-    files_list = []
-    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
-        return "", []
-    files = [f for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".txt"))]
-    for f in files:
-        files_list.append(f)
-        fp = os.path.join(folder_path, f)
-        try:
-            if f.lower().endswith(".pdf"):
-                reader = PdfReader(fp)
-                for p in reader.pages:
-                    text_all += p.extract_text() or ""
-            else:
-                with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-                    text_all += fh.read()
-        except Exception as e:
-            text_all += f"\n[Error reading {f}: {e}]"
-    return text_all, files_list
+# ---------------------------- Helper functions for local docs & TF-IDF ----------------------------
+def read_file_text(path):
+    try:
+        if path.lower().endswith(".pdf"):
+            reader = PdfReader(path)
+            text = "".join([p.extract_text() or "" for p in reader.pages])
+        else:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                text = fh.read()
+        return text
+    except Exception as e:
+        return f"[Error reading {os.path.basename(path)}: {e}]"
 
-def load_external_references(url_list):
-    all_text = ""
-    for url in url_list:
-        try:
-            r = requests.get(url, timeout=6)
-            if r.status_code == 200:
-                all_text += r.text + "\n"
-        except:
-            pass
-    return all_text
+def build_corpus_for_paths(folder_paths, chunk_size_sentences=3):
+    """
+    Reads all txt/pdf files from folder_paths (list) and returns:
+      - chunks: list of text chunks (strings)
+      - metadatas: list of dicts {filename, start_sentence_index}
+    """
+    chunks = []
+    metadatas = []
+    for folder in folder_paths:
+        if not folder or not os.path.exists(folder):
+            continue
+        files = [f for f in os.listdir(folder) if f.lower().endswith((".pdf", ".txt"))]
+        for fname in files:
+            p = os.path.join(folder, fname)
+            text = read_file_text(p)
+            # split into sentences (simple)
+            sents = re.split(r'(?<=[\.\?\!])\s+', text)
+            # create sliding windows of chunk_size_sentences
+            for i in range(0, max(1, len(sents)), chunk_size_sentences):
+                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
+                if chunk:
+                    chunks.append(chunk)
+                    metadatas.append({"filename": fname, "folder": folder, "start": i})
+    return chunks, metadatas
 
-# ElevenLabs presence
-try:
-    import elevenlabs
-    ELEVENLABS_AVAILABLE = True
-except ModuleNotFoundError:
-    ELEVENLABS_AVAILABLE = False
+def find_top_n_snippets(query, chunks, metadatas, top_n=3):
+    if not chunks:
+        return []
+    try:
+        vectorizer = TfidfVectorizer(stop_words="english").fit(chunks + [query])
+        chunk_vecs = vectorizer.transform(chunks)
+        q_vec = vectorizer.transform([query])
+        # compute cosine similarities
+        sims = linear_kernel(q_vec, chunk_vecs).flatten()
+        top_idxs = sims.argsort()[::-1][:top_n]
+        results = []
+        for idx in top_idxs:
+            if sims[idx] <= 0:
+                continue
+            results.append({"score": float(sims[idx]), "text": chunks[idx], "meta": metadatas[idx]})
+        return results
+    except Exception:
+        # fallback simple substring matching
+        out = []
+        q = query.lower()
+        for i, c in enumerate(chunks):
+            if q in c.lower():
+                out.append({"score": 1.0, "text": c, "meta": metadatas[i]})
+                if len(out) >= top_n: break
+        return out
 
+# ---------------------------- Audio generation helper ----------------------------
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
 if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
@@ -211,50 +286,75 @@ def generate_audio(text):
         st.warning(f"Audio generation failed: {e}")
         return ""
 
-# ---------------------------- Sidebar ----------------------------
+# ---------------------------- Sidebar: filters, clear chat, language ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
-    # widget keys should not conflict with manual session_state assignment
-    sel_brand_key = st.selectbox("Brand", sorted(list(brand_data.keys())), index=list(sorted(brand_data.keys())).index(st.session_state.get("selected_brand","trelegy")))
+    sel_brand_key = st.selectbox("Brand", sorted(list(brand_data.keys())),
+                                index=list(sorted(brand_data.keys())).index(st.session_state.get("selected_brand","trelegy")))
     st.session_state.selected_brand = sel_brand_key
     sel_brand = brand_data[sel_brand_key]
-    segment = st.selectbox("Segment", sel_brand["segments"], key="segment")
-    persona = st.selectbox("HCP Persona", sel_brand["personas"], key="persona")
-    barrier = st.multiselect("Doctor Barrier", sel_brand["barriers"], key="barrier")
-    specialty = st.selectbox("Specialty", specialties, key="specialty")
-    objective = st.selectbox("Objective", objectives, key="objective")
-    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="response_tone")
-    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="response_length")
-    # language radio: capture into a variable (don't set st.session_state['language'] directly)
-    selected_language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="widget_language")
-    # persist only as variable if needed; do not assign to same key that widget used.
-    # Move clear chat into sidebar
-    if st.button("🗑️ Clear Chat", key="clear_chat"):
+    segment = st.selectbox("Segment", sel_brand["segments"], key="sidebar_segment")
+    persona = st.selectbox("HCP Persona", sel_brand["personas"], key="sidebar_persona")
+    barrier = st.multiselect("Doctor Barrier", sel_brand["barriers"], key="sidebar_barrier")
+    specialty = st.selectbox("Specialty", specialties, key="sidebar_specialty")
+    objective = st.selectbox("Objective", objectives, key="sidebar_objective")
+    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="sidebar_tone")
+    response_length = st.selectbox("Response Length", ["Short", "Medium", "Long"], key="sidebar_length")
+    # language widget - store value to a variable (do not set same key in session_state)
+    selected_language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="sidebar_language")
+    if st.button("🗑️ Clear Chat", key="sidebar_clear"):
         st.session_state.chat_history = []
-
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
-
 with st.sidebar.expander("📄 Export Options", expanded=False):
     export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
 
-# ---------------------------- Header ----------------------------
+# ---------------------------- Title / header box ----------------------------
 st.markdown(f"""
-<div class="header">
+<div class="title-box">
   <img src="{GSK_LOGO_RAW}" class="left-logo">
   <h1>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h1>
   <img src="{AI_LOGO_RAW}" class="right-logo">
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------- Load local refs & sales module text & file list ----------
-local_refs_text, local_ref_files = load_local_references_and_files(brand_data[st.session_state.selected_brand]["references_path"])
-sales_text, sales_files = load_local_references_and_files(brand_data[st.session_state.selected_brand]["sales_path"])
-external_text = load_external_references([u for u in external_urls if u.strip()]) if 'external_urls' in locals() else ""
+# ---------------------------- Load local files (refs + sales) and build TF-IDF corpus ----------
+refs_folder = brand_data[st.session_state.selected_brand]["references_path"]
+sales_folder = brand_data[st.session_state.selected_brand]["sales_path"]
 
-# ---------------------------- PDF upload & summary -------------
+local_refs_text, local_ref_files = "", []
+sales_text, sales_files = "", []
+if os.path.exists(refs_folder):
+    local_refs_text, local_ref_files = "", []
+    # load combined text and list of files
+    for f in os.listdir(refs_folder):
+        if f.lower().endswith((".pdf", ".txt")):
+            local_ref_files.append(f)
+            try:
+                local_refs_text += read_file_text(os.path.join(refs_folder, f)) + "\n"
+            except:
+                pass
+
+if os.path.exists(sales_folder):
+    sales_text, sales_files = "", []
+    for f in os.listdir(sales_folder):
+        if f.lower().endswith((".pdf", ".txt")):
+            sales_files.append(f)
+            try:
+                sales_text += read_file_text(os.path.join(sales_folder, f)) + "\n"
+            except:
+                pass
+
+# Build corpus chunks once per run (cheap)
+corpus_folders = []
+if refs_folder: corpus_folders.append(refs_folder)
+if sales_folder: corpus_folders.append(sales_folder)
+chunks, chunk_meta = build_corpus_for_paths(corpus_folders, chunk_size_sentences=3)
+
+# ---------------------------- PDF Upload area ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"], horizontal=True, key="pdf_size_widget")
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"],
+                                                horizontal=True, key="pdf_size_widget")
     if uploaded_pdf:
         try:
             reader = PdfReader(uploaded_pdf)
@@ -262,6 +362,7 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
             st.session_state.uploaded_pdf_text = full_text
             st.success(f"Loaded {len(full_text)} characters from uploaded PDF.")
             bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
+            # try to use model for summarization if present
             if client:
                 try:
                     summ_prompt = f"Summarize into {bullets_count} bullet points:\n{full_text[:12000]}"
@@ -277,15 +378,22 @@ with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
         except Exception as e:
             st.error(f"Error reading uploaded PDF: {e}")
     if st.session_state.pdf_summary:
-        st.markdown(f"<div style='background:#E6F0FF;padding:10px;border-radius:8px;white-space:pre-line'>{escape(st.session_state.pdf_summary)}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background:#E6F0FF;padding:12px;border-radius:8px;white-space:pre-line'>{escape(st.session_state.pdf_summary)}</div>", unsafe_allow_html=True)
 
-# ---------------------------- Chat container (history) ----------------------------
+# ---------------------------- Chat history display ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for msg in st.session_state.chat_history:
     if msg.get("role") == "user":
         st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
+        # render inline citations if present
+        if msg.get("citations"):
+            # citations is a list of dicts {text, meta}
+            for c in msg["citations"]:
+                fname = c["meta"]["filename"]
+                blob_url = f"{REPO_BLOB_BASE}/references/{st.session_state.selected_brand}/{fname}" if fname in local_ref_files else f"{REPO_BLOB_BASE}/SalesModule/{st.session_state.selected_brand}/{fname}"
+                st.markdown(f'<div class="citation-box"><b>Excerpt from {escape(fname)}:</b><br>{escape(c["text"][:800])}...<br><a href="{blob_url}" target="_blank">View full file</a></div>', unsafe_allow_html=True)
         if msg.get("audio"):
             try:
                 st.audio(base64.b64decode(msg["audio"]), format="audio/mp3")
@@ -293,7 +401,7 @@ for msg in st.session_state.chat_history:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Copilot suggestions (collapsed expander above chat input) ------------
+# ---------------------------- Copilot suggestions (collapsed expander above input) ------------
 def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, specialty, objective):
     s = []
     s.append(f"Generate call flow for {persona} focused on {objective}.")
@@ -307,30 +415,29 @@ def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, speci
     return s
 
 with st.expander("Copilot Suggestions (click to autofill)", expanded=False):
-    suggestions = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
+    suggs = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
     st.markdown('<div class="suggestions-inline">', unsafe_allow_html=True)
-    cols = st.columns([1]*3)
-    # render pills as streamlit buttons grouped
-    for i, s in enumerate(suggestions):
-        # Use button; clicking sets session_state.main_input safely and reruns
-        if cols[i % 3].button(s, key=f"sugg_{i}"):
+    # render as 3 columns for better visual layout
+    cols = st.columns([1,1,1])
+    for i, s in enumerate(suggs):
+        col = cols[i % 3]
+        if col.button(s, key=f"sugg_{i}"):
             st.session_state.main_input = s
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Chat input form (editable) ----------------------------
+# ---------------------------- Chat input (fixed bottom) with Send icon/button ----------------------------
 with st.form(key="chat_form", clear_on_submit=False):
-    # Use st.session_state['main_input'] as the controlled default
-    text_val = st.text_area("Message (editable)", value=st.session_state.get("main_input",""), key="chat_input_area", height=120)
-    submit = st.form_submit_button("Send")
-    if submit:
-        user_text = text_val.strip()
+    # Controlled text area: populate from session_state.main_input
+    message = st.text_area("Message (editable)", value=st.session_state.get("main_input",""), key="chat_input_area", height=110)
+    send = st.form_submit_button("Send")
+    if send:
+        user_text = message.strip()
         if user_text:
-            # append user
+            # append user message
             st.session_state.chat_history.append({"role":"user","content":user_text})
-            # clear main_input (safe - not a widget key)
+            # clear main input value safely
             st.session_state.main_input = ""
-
-            # Build combined context text
+            # Build combined context
             combined_context = "\n".join([
                 local_refs_text or "",
                 sales_text or "",
@@ -338,26 +445,28 @@ with st.form(key="chat_form", clear_on_submit=False):
                 st.session_state.uploaded_pdf_text or ""
             ])[:15000]
 
-            # Call flow per brand
+            # call_flow depending on brand
             call_flow_prompt = ""
             if st.session_state.selected_brand.lower() == "jemperli":
-                call_flow_prompt = "\n".join([f"{k}: {v}" for k, v in jemperli_CALL_FLOW.items()])
+                call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in jemperli_CALL_FLOW.items()])
             elif st.session_state.selected_brand.lower() == "shingrix":
-                call_flow_prompt = "\n".join([f"{k}: {v}" for k, v in shingrix_CALL_FLOW.items()])
+                call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in shingrix_CALL_FLOW.items()])
             elif st.session_state.selected_brand.lower() == "trelegy":
-                call_flow_prompt = "\n".join([f"{k}: {v}" for k, v in trelegy_CALL_FLOW.items()])
+                call_flow_prompt = "\n".join([f"{k}: {v}" for k,v in trelegy_CALL_FLOW.items()])
 
-            system_prompt = "You are a pharmaceutical AI assistant. Use references, sales modules and uploaded PDFs to tailor responses."
+            # model prompt
+            system_prompt = "You are a pharmaceutical AI assistant. Tailor responses using references, sales modules, uploaded PDFs, and follow brand call flow."
             final_prompt = f"{user_text}\n\nBrand: {st.session_state.selected_brand}\nPersona: {persona}\nSegment: {segment}\nSpecialty: {specialty}\nObjective: {objective}\nBarriers: {', '.join(barrier) if barrier else 'None'}\n\n{call_flow_prompt}\n\nContext (truncated):\n{combined_context[:5000]}"
 
-            # generate AI response (safe)
+            # call model if available
+            assistant_text = ""
             if client:
                 try:
                     resp = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role":"system","content":system_prompt},
                                   {"role":"user","content":final_prompt}],
-                        temperature=0.6
+                        temperature=0.62
                     )
                     assistant_text = resp.choices[0].message.content
                 except Exception as e:
@@ -365,21 +474,27 @@ with st.form(key="chat_form", clear_on_submit=False):
             else:
                 assistant_text = f"(Fallback) Based on local refs: {user_text}"
 
-            # Build sources footer with links to top 3 files
-            def make_links(files_list, repo_subpath):
+            # Inline citation: run TF-IDF search of chunks built earlier using user_text
+            top_snips = find_top_n_snippets(user_text, chunks, chunk_meta, top_n=3)
+            # prepare citations simplified for storing in chat history
+            citations_for_history = top_snips if top_snips else []
+
+            # create sources footer linking to top files
+            def make_links_list(files_list, repo_subpath):
                 out = []
                 for fname in files_list[:3]:
                     blob = f"{REPO_BLOB_BASE}/{repo_subpath}/{fname}"
                     out.append(f"- [{fname}]({blob})")
                 return "\n".join(out) if out else ""
 
-            refs_links = make_links(local_ref_files, f"references/{st.session_state.selected_brand}")
-            sales_links = make_links(sales_files, f"SalesModule/{st.session_state.selected_brand}")
+            refs_links_txt = make_links_list(local_ref_files, f"references/{st.session_state.selected_brand}")
+            sales_links_txt = make_links_list(sales_files, f"SalesModule/{st.session_state.selected_brand}")
             sources_footer = "\n\n**Sources:**\n"
-            if refs_links:
-                sources_footer += f"\n**References:**\n{refs_links}"
-            if sales_links:
-                sources_footer += f"\n\n**Sales Modules:**\n{sales_links}"
+            if refs_links_txt:
+                sources_footer += f"\n**References:**\n{refs_links_txt}"
+            if sales_links_txt:
+                sources_footer += f"\n\n**Sales Modules:**\n{sales_links_txt}"
+
             assistant_with_sources = assistant_text + sources_footer
 
             # generate audio (best-effort)
@@ -389,7 +504,12 @@ with st.form(key="chat_form", clear_on_submit=False):
             except:
                 audio_b64 = ""
 
-            st.session_state.chat_history.append({"role":"assistant","content":assistant_with_sources,"audio":audio_b64})
+            st.session_state.chat_history.append({
+                "role":"assistant",
+                "content": assistant_with_sources,
+                "audio": audio_b64,
+                "citations": citations_for_history
+            })
 
 # ---------------------------- Export / Download Chat ----------
 if st.session_state.chat_history:
@@ -433,4 +553,4 @@ trelegy_CALL_FLOW = {
 }
 
 # ---------------------------- Disclaimer ----------------------------
-st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool provides informational guidance only. Verify all medical content with approved references before use.</div>', unsafe_allow_html=True)
+st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool is for informational purposes only. Verify all medical content with approved references before use.</div>', unsafe_allow_html=True)
