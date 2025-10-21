@@ -18,3 +18,4 @@ Pillow
 requests
 groq
 elevenlabs
+scikit-learn>=1.4.0
