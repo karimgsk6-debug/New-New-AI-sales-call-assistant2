@@ -401,7 +401,7 @@ for msg in st.session_state.chat_history:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Copilot suggestions (collapsed expander above input) ------------
+# ---------------------------- Prompt suggestions (collapsed expander above input) ------------
 def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, specialty, objective):
     s = []
     s.append(f"Generate call flow for {persona} focused on {objective}.")
