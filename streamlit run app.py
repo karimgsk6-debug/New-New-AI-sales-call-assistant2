@@ -287,7 +287,8 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.temperature = st.slider("Temperature (creativity)", 0.0, 1.0, value=float(st.session_state.temperature), step=0.05, key="temp_slider")
 
     # search mode selector
-    st.session_state.search_mode = st.selectbox("Search mode", ["deep","shallow"], index=0 if st.session_state.search_mode=="deep" else 1, key="search_mode")
+    search_mode = st.selectbox("Search mode", ["deep", "shallow"], index=0 if st.session_state.get("search_mode", "deep")=="deep" else 1, key="search_mode")
+st.session_state.search_mode = search_mode
 
     st.session_state.language = st.radio("Language", ["English","Arabic"], horizontal=True, key="lang_radio")
     if st.button("🗑️ Clear Chat", key="clear_chat"):
