@@ -1,4 +1,4 @@
-# app.py - Final merged app with inline citation snippets (TF-IDF), Copilot suggestions,
+# app.py - Final merged app with inline citation snippets (TF-IDF), Prompt suggestions,
 # background + header logos, multi-brand support, PDF upload, TTS, exports, and improved UI.
 
 import streamlit as st
@@ -414,7 +414,7 @@ def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, speci
     s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty}.")
     return s
 
-with st.expander("Copilot Suggestions (click to autofill)", expanded=False):
+with st.expander("Prompt Suggestions (click to autofill)", expanded=False):
     suggs = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
     st.markdown('<div class="suggestions-inline">', unsafe_allow_html=True)
     # render as 3 columns for better visual layout
