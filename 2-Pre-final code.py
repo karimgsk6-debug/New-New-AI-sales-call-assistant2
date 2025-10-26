@@ -1,4 +1,4 @@
-# app.py - Final merged app with inline citation snippets (TF-IDF), Copilot suggestions,
+# app.py - Final merged app with inline citation snippets (TF-IDF), Prompt suggestions,
 # background + header logos, multi-brand support, PDF upload, TTS, exports, and improved UI.
 
 import streamlit as st
@@ -156,7 +156,7 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ---------------------------- GROQ client init (safe) ----------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 client = None
 if GROQ_API_KEY:
     try:
@@ -401,7 +401,7 @@ for msg in st.session_state.chat_history:
                 pass
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------- Copilot suggestions (collapsed expander above input) ------------
+# ---------------------------- Prompt suggestions (collapsed expander above input) ------------
 def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, specialty, objective):
     s = []
     s.append(f"Generate call flow for {persona} focused on {objective}.")
@@ -414,7 +414,7 @@ def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, speci
     s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty}.")
     return s
 
-with st.expander("Copilot Suggestions (click to autofill)", expanded=False):
+with st.expander("Prompt Suggestions (click to autofill)", expanded=False):
     suggs = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
     st.markdown('<div class="suggestions-inline">', unsafe_allow_html=True)
     # render as 3 columns for better visual layout
