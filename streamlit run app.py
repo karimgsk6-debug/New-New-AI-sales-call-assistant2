@@ -1,7 +1,8 @@
-# app.py - Full AI Sales Call Assistant with interactive feedback
+# app.py - AI Sales Call Assistant (Full merged version with GROQ API, feedback, PDF, refs, sales modules)
+
 import streamlit as st
 from PIL import Image
-import os, re, tempfile, base64
+import re, os, tempfile, base64
 from io import BytesIO
 from datetime import datetime
 from groq import Groq
@@ -11,135 +12,46 @@ from gtts import gTTS
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
+# Optional DOCX export
 try:
     from docx import Document
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
 
+# ElevenLabs fallback
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
 except:
     ELEVENLABS_AVAILABLE = False
 
-# ---------------- Page Config ----------------
+# ---------------------------- Page config ----------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
-# ---------------- Assets ----------------
+# ---------------------------- Session defaults ----------------------------
+for key, default in {
+    "chat_history": [], "uploaded_pdf_text": "", "pdf_summary": "",
+    "voice_pref": "Old Male", "pdf_summary_size": "Normal",
+    "main_input": "", "selected_brand": "trelegy",
+    "followup_active": False, "followup_prompt": "", "temperature": 0.62,
+    "search_mode": "deep"
+}.items():
+    st.session_state.setdefault(key, default)
+
+# ---------------------------- Repo info ----------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 
+# ---------------------------- Assets ----------------------------
 BACKGROUND_URL = REPO_RAW_BASE + "/.devcontainer/background1.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
-# ---------------- Session Defaults ----------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "uploaded_pdf_text" not in st.session_state:
-    st.session_state.uploaded_pdf_text = ""
-if "pdf_summary" not in st.session_state:
-    st.session_state.pdf_summary = ""
-if "voice_pref" not in st.session_state:
-    st.session_state.voice_pref = "Old Male"
-if "pdf_summary_size" not in st.session_state:
-    st.session_state.pdf_summary_size = "Normal"
-if "main_input" not in st.session_state:
-    st.session_state.main_input = ""
-if "selected_brand" not in st.session_state:
-    st.session_state.selected_brand = "trelegy"
-if "temp_value" not in st.session_state:
-    st.session_state.temp_value = 0.6
-if "search_mode" not in st.session_state:
-    st.session_state.search_mode = "deep"
-
-# ---------------- CSS ----------------
-CSS = f"""
-<style>
-.stApp {{
-  background-image: url('{BACKGROUND_URL}');
-  background-size: cover;
-  background-attachment: fixed;
-  background-position: center;
-}}
-.title-box {{
-  background: rgba(255,255,255,0.92);
-  padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 14px;
-  position: relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}}
-.title-box img.left-logo {{ position:absolute; left:16px; width:130px; height:auto; }}
-.title-box img.right-logo {{ position:absolute; right:16px; width:130px; height:auto; }}
-.title-box h1 {{ margin:0; font-size:22px; }}
-.chat-container {{
-  max-height: 56vh;
-  overflow-y:auto;
-  padding: 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.94);
-  margin-bottom: 140px;
-}}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:12px; border-radius:10px; margin:8px 0; max-width:78%; margin-left:auto; }}
-.chat-bubble-ai {{ background:#d9f0ff; color:#000; padding:12px; border-radius:10px; margin:8px 0; max-width:78%; }}
-.suggestions-inline {{ background: rgba(255,255,255,0.96); padding:10px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.06); }}
-.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; cursor:pointer; margin:6px; display:inline-block; }}
-.suggestion-pill:hover {{ background:#eef6ff; }}
-.input-area {{
-  position: fixed;
-  left:24px;
-  right:24px;
-  bottom:18px;
-  z-index:9999;
-  display:flex;
-  gap:8px;
-  align-items:flex-end;
-}}
-.input-area textarea {{
-  width:100%;
-  min-height:72px;
-  max-height:200px;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid #ccc;
-  resize:vertical;
-}}
-.send-button {{
-  height:44px;
-  padding:0 14px;
-  border-radius:8px;
-  border:none;
-  background:#FF6F00;
-  color:white;
-  cursor:pointer;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-weight:600;
-}}
-.citation-box {{
-  background:#fbfbff;
-  border-left:4px solid #0078D7;
-  padding:8px;
-  margin-top:8px;
-  border-radius:6px;
-  font-size:13px;
-  white-space:pre-wrap;
-}}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
-.feedback-buttons button {{ margin-right: 6px; }}
-</style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
-
-# ---------------- GROQ API ----------------
+# ---------------------------- GROQ client ----------------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "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")
 client = None
 if GROQ_API_KEY:
@@ -148,7 +60,7 @@ if GROQ_API_KEY:
     except:
         client = None
 
-# ---------------- Brands ----------------
+# ---------------------------- Brands ----------------------------
 brand_data = {
     "trelegy": {
         "display": "Trelegy",
@@ -178,24 +90,22 @@ brand_data = {
 specialties = ["GP", "Pulmonologist", "Internal medicine", "Oncologist"]
 objectives = ["Awareness", "Adoption", "Retention"]
 
-# ---------------- Helper Functions ----------------
+# ---------------------------- Helper functions ----------------------------
 def read_file_text(path):
     try:
         if path.lower().endswith(".pdf"):
             reader = PdfReader(path)
-            text = "".join([p.extract_text() or "" for p in reader.pages])
+            return "".join([p.extract_text() or "" for p in reader.pages])
         else:
-            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                text = fh.read()
-        return text
-    except:
-        return ""
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
+    except Exception as e:
+        return f"[Error reading {os.path.basename(path)}: {e}]"
 
 def build_corpus_for_paths(folder_paths, chunk_size_sentences=3):
     chunks, metadatas = [], []
     for folder in folder_paths:
-        if not folder or not os.path.exists(folder):
-            continue
+        if not folder or not os.path.exists(folder): continue
         files = [f for f in os.listdir(folder) if f.lower().endswith((".pdf", ".txt"))]
         for fname in files:
             p = os.path.join(folder, fname)
@@ -222,55 +132,59 @@ def find_top_n_snippets(query, chunks, metadatas, top_n=3):
             results.append({"score": float(sims[idx]), "text": chunks[idx], "meta": metadatas[idx]})
         return results
     except:
-        out=[]
-        q=query.lower()
-        for i,c in enumerate(chunks):
+        out = []
+        q = query.lower()
+        for i, c in enumerate(chunks):
             if q in c.lower():
-                out.append({"score":1.0,"text":c,"meta":metadatas[i]})
-                if len(out)>=top_n: break
+                out.append({"score": 1.0, "text": c, "meta": metadatas[i]})
+                if len(out) >= top_n: break
         return out
+
+# ---------------------------- Audio ----------------------------
+ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = st.secrets.get("ELEVENLABS_VOICE_ID", "")
+if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY:
+    elevenlabs.api_key = ELEVENLABS_API_KEY
 
 def generate_audio(text):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     try:
         tts_text = re.sub(r'[,*]{1,}', '', text)
-        if ELEVENLABS_AVAILABLE:
+        if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID:
             audio_stream = elevenlabs.generate(text=tts_text, voice=ELEVENLABS_VOICE_ID, stream=True)
-            with open(tmp.name,"wb") as f:
+            with open(tmp.name, "wb") as f:
                 for ch in audio_stream: f.write(ch)
         else:
             tts = gTTS(text=tts_text, lang="en", slow=False)
             tts.save(tmp.name)
-        with open(tmp.name,"rb") as fh:
+        with open(tmp.name, "rb") as fh:
             return base64.b64encode(fh.read()).decode()
-    except:
-        return ""
+    except: return ""
 
-# ---------------- Sidebar ----------------
+# ---------------------------- Sidebar ----------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     sel_brand_key = st.selectbox("Brand", sorted(list(brand_data.keys())),
-                                index=list(sorted(brand_data.keys())).index(st.session_state.selected_brand))
+                                 index=list(sorted(brand_data.keys())).index(st.session_state.get("selected_brand","trelegy")))
     st.session_state.selected_brand = sel_brand_key
     sel_brand = brand_data[sel_brand_key]
-    segment = st.selectbox("Segment", sel_brand["segments"])
-    persona = st.selectbox("HCP Persona", sel_brand["personas"])
-    barrier = st.multiselect("Doctor Barrier", sel_brand["barriers"])
-    specialty = st.selectbox("Specialty", specialties)
-    objective = st.selectbox("Objective", objectives)
-    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-    st.session_state.temp_value = st.slider("AI Temperature", 0.1, 1.0, st.session_state.temp_value, 0.05)
-    st.session_state.search_mode = st.selectbox("Search Mode", ["deep", "shallow"], index=0 if st.session_state.search_mode=="deep" else 1)
-    selected_language = st.radio("Language", ["English","Arabic"], horizontal=True)
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
+    segment = st.selectbox("Segment", sel_brand["segments"], key="sidebar_segment")
+    persona = st.selectbox("HCP Persona", sel_brand["personas"], key="sidebar_persona")
+    barrier = st.multiselect("Doctor Barrier", sel_brand["barriers"], key="sidebar_barrier")
+    specialty = st.selectbox("Specialty", specialties, key="sidebar_specialty")
+    objective = st.selectbox("Objective", objectives, key="sidebar_objective")
+    response_tone = st.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"], key="sidebar_tone")
+    st.session_state.temperature = st.slider("Temperature", 0.1, 1.0, st.session_state.temperature, 0.05)
+    st.session_state.search_mode = st.selectbox("Search Mode", ["deep","shallow"], index=0 if st.session_state.search_mode=="deep" else 1)
+    selected_language = st.radio("Language", ["English", "Arabic"], horizontal=True, key="sidebar_language")
+    if st.button("🗑️ Clear Chat", key="sidebar_clear"): st.session_state.chat_history = []
 
 with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 
 with st.sidebar.expander("📄 Export Options", expanded=False):
-    export_format = st.radio("Export Format", ["TXT", "DOCX"], horizontal=True)
+    export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
 
-# ---------------- Title ----------------
+# ---------------------------- Title ----------------------------
 st.markdown(f"""
 <div class="title-box">
   <img src="{GSK_LOGO_RAW}" class="left-logo">
@@ -279,53 +193,61 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Load references ----------------
+# ---------------------------- Load local files ----------------------------
 refs_folder = sel_brand["references_path"]
 sales_folder = sel_brand["sales_path"]
-
 local_refs_text, local_ref_files = "", []
 sales_text, sales_files = "", []
 
-if os.path.exists(refs_folder):
-    for f in os.listdir(refs_folder):
-        if f.lower().endswith((".pdf", ".txt")):
-            local_ref_files.append(f)
-            local_refs_text += read_file_text(os.path.join(refs_folder,f)) + "\n"
+for folder, txt_var, files_var in [(refs_folder, local_refs_text, local_ref_files),
+                                  (sales_folder, sales_text, sales_files)]:
+    if os.path.exists(folder):
+        for f in os.listdir(folder):
+            if f.lower().endswith((".pdf", ".txt")):
+                files_var.append(f)
+                try:
+                    txt_var += read_file_text(os.path.join(folder, f)) + "\n"
+                except: pass
 
-if os.path.exists(sales_folder):
-    for f in os.listdir(sales_folder):
-        if f.lower().endswith((".pdf", ".txt")):
-            sales_files.append(f)
-            sales_text += read_file_text(os.path.join(sales_folder,f)) + "\n"
+# Build TF-IDF chunks
+corpus_folders = [f for f in [refs_folder, sales_folder] if f]
+chunks, chunk_meta = build_corpus_for_paths(corpus_folders, chunk_size_sentences=3)
 
-corpus_folders=[]
-if refs_folder: corpus_folders.append(refs_folder)
-if sales_folder: corpus_folders.append(sales_folder)
-chunks, chunk_meta = build_corpus_for_paths(corpus_folders)
-
-# ---------------- PDF Upload ----------------
+# ---------------------------- PDF Upload ----------------------------
 with st.expander("📄 Upload Custom PDF for AI Context", expanded=False):
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
-    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted","Normal","Detailed"], horizontal=True)
+    st.session_state.pdf_summary_size = st.radio("PDF Summary Size", ["Consisted", "Normal", "Detailed"],
+                                                horizontal=True, key="pdf_size_widget")
     if uploaded_pdf:
-        reader = PdfReader(uploaded_pdf)
-        full_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = full_text
-        st.success(f"Loaded {len(full_text)} characters from uploaded PDF.")
-        bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
-        # basic summarization
-        sts = re.findall(r'([A-Z][^.]{20,200})', full_text)
-        st.session_state.pdf_summary = "\n".join(sts[:bullets_count])
+        try:
+            reader = PdfReader(uploaded_pdf)
+            full_text = "".join([p.extract_text() or "" for p in reader.pages])
+            st.session_state.uploaded_pdf_text = full_text
+            st.success(f"Loaded {len(full_text)} characters from uploaded PDF.")
+            bullets_count = {"Consisted":5,"Normal":10,"Detailed":20}.get(st.session_state.pdf_summary_size,10)
+            if client:
+                try:
+                    summ_prompt = f"Summarize into {bullets_count} bullet points:\n{full_text[:12000]}"
+                    summ = client.chat.completions.create(model="llama-3.3-70b-versatile",
+                                                         messages=[{"role":"user","content":summ_prompt}], temperature=0.4)
+                    st.session_state.pdf_summary = summ.choices[0].message.content
+                except:
+                    sts = re.findall(r'([A-Z][^.]{20,200})', full_text)
+                    st.session_state.pdf_summary = "\n".join(sts[:bullets_count])
+            else:
+                sts = re.findall(r'([A-Z][^.]{20,200})', full_text)
+                st.session_state.pdf_summary = "\n".join(sts[:bullets_count])
+        except Exception as e: st.error(f"Error reading uploaded PDF: {e}")
     if st.session_state.pdf_summary:
         st.markdown(f"<div style='background:#E6F0FF;padding:12px;border-radius:8px;white-space:pre-line'>{escape(st.session_state.pdf_summary)}</div>", unsafe_allow_html=True)
 
-# ---------------- Chat container ----------------
+# ---------------------------- Chat Display ----------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for idx,msg in enumerate(st.session_state.chat_history):
-    if msg["role"]=="user":
-        st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(msg["content"])}</div>', unsafe_allow_html=True)
+for i, msg in enumerate(st.session_state.chat_history):
+    if msg.get("role") == "user":
+        st.markdown(f'<div class="chat-bubble-user">🧑 You: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(msg["content"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">🤖 AI: {escape(msg.get("content",""))}</div>', unsafe_allow_html=True)
         if msg.get("citations"):
             for c in msg["citations"]:
                 fname = c["meta"]["filename"]
@@ -334,58 +256,99 @@ for idx,msg in enumerate(st.session_state.chat_history):
         if msg.get("audio"):
             try: st.audio(base64.b64decode(msg["audio"]), format="audio/mp3")
             except: pass
-        # ---------------- Feedback ----------------
-        fb_cols = st.columns(4)
-        fb_labels = ["👍 Like","👎 Dislike","😐 Neutral","ℹ️ Need more"]
-        for i,lbl in enumerate(fb_labels):
-            if fb_cols[i].button(lbl, key=f"fb_{idx}_{i}"):
-                st.session_state.main_input = lbl
-                # TODO: handle dislike / need more logic interactive followup here
+        # ---------------------------- Satisfaction ----------------------------
+        col1, col2, col3, col4 = st.columns(4)
+        if col1.button("👍", key=f"like_{i}"): st.success("Thanks for your feedback!")
+        if col2.button("👎", key=f"dislike_{i}"):
+            st.session_state.followup_active = True
+            st.session_state.followup_prompt = "What exactly is missing or needs improvement?"
+        if col3.button("😐", key=f"neutral_{i}"): st.info("Thanks for your feedback!")
+        if col4.button("❗ Need more", key=f"needmore_{i}"):
+            st.session_state.followup_active = True
+            st.session_state.followup_prompt = "Which part should I focus on to improve the response?"
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Suggestion pills ----------------
-def build_suggestions(brand_key, persona, barrier_list, segment, specialty, objective):
-    s=[]
+# ---------------------------- Prompt Suggestions ----------------------------
+def build_suggestions_for_brand(brand_key, persona, barrier_list, segment, specialty, objective):
+    s = []
     s.append(f"Generate call flow for {persona} focused on {objective}.")
-    if barrier_list: s.append(f"Handle objection: {', '.join(barrier_list[:2])} for {persona}.")
-    else: s.append(f"Identify common objections for {persona}.")
+    if barrier_list:
+        s.append(f"Handle objection: {', '.join(barrier_list[:2])} for {persona}.")
+    else:
+        s.append(f"Identify common objections for {persona}.")
     s.append(f"Summarize HCP persona insights for {persona}.")
     s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment}.")
-    s.append(f"Draft short adoption message for {brand_data[brand_key]['display']} to a {specialty}.")
+    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty}.")
     return s
 
 with st.expander("Prompt Suggestions (click to autofill)", expanded=False):
-    suggs = build_suggestions(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
-    st.markdown('<div class="suggestions-inline">', unsafe_allow_html=True)
+    suggs = build_suggestions_for_brand(st.session_state.selected_brand, persona, barrier, segment, specialty, objective)
     cols = st.columns([1,1,1])
-    for i,s in enumerate(suggs):
-        col=cols[i%3]
-        if col.button(s, key=f"sugg_{i}"):
-            st.session_state.main_input = s
-    st.markdown('</div>', unsafe_allow_html=True)
+    for i, s in enumerate(suggs):
+        col = cols[i % 3]
+        if col.button(s, key=f"sugg_{i}"): st.session_state.main_input = s
 
-# ---------------- Input Area ----------------
-with st.container():
-    st.markdown('<div class="input-area">', unsafe_allow_html=True)
-    st.text_area("Enter your message here...", key="main_input", value=st.session_state.main_input, placeholder="Type or click a suggestion...")
-    send_clicked = st.button("Send", key="send_main", help="Send to AI")
-    st.markdown('</div>', unsafe_allow_html=True)
+# ---------------------------- Chat Input Form ----------------------------
+with st.form(key="chat_form", clear_on_submit=False):
+    temp_input = st.text_area("Type your message here", value=st.session_state.main_input, key="chat_input_area", height=110)
+    send = st.form_submit_button("Send")
+    if send:
+        user_text = temp_input.strip()
+        if user_text:
+            # If follow-up active, prepend prompt
+            if st.session_state.followup_active:
+                user_text = f"{st.session_state.followup_prompt}\nUser answer: {user_text}"
+                st.session_state.followup_active = False
+                st.session_state.followup_prompt = ""
+            st.session_state.chat_history.append({"role":"user","content":user_text})
+            # Generate AI response
+            resp_content, citations, audio_b64 = "", [], ""
+            prompt_parts = [user_text]
+            if st.session_state.uploaded_pdf_text:
+                prompt_parts.append(st.session_state.uploaded_pdf_text[:8000])
+            if chunks:
+                if st.session_state.search_mode=="deep":
+                    top_snippets = find_top_n_snippets(user_text, chunks, chunk_meta, top_n=3)
+                    citations = top_snippets
+                    for t in top_snippets: prompt_parts.append(t["text"])
+                else:
+                    top_snippets = find_top_n_snippets(user_text, chunks, chunk_meta, top_n=1)
+                    citations = top_snippets
+                    for t in top_snippets: prompt_parts.append(t["text"])
+            full_prompt = "\n".join(prompt_parts)
+            if client:
+                try:
+                    ai_resp = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role":"user","content":full_prompt}],
+                        temperature=st.session_state.temperature
+                    )
+                    resp_content = ai_resp.choices[0].message.content
+                except:
+                    resp_content = "AI service unavailable. Please try later."
+            else:
+                resp_content = "AI client not configured."
+            audio_b64 = generate_audio(resp_content)
+            st.session_state.chat_history.append({"role":"ai","content":resp_content,"citations":citations,"audio":audio_b64})
+            st.session_state["main_input"] = ""  # safe clear
 
-# ---------------- AI Response (mock) ----------------
-if send_clicked and st.session_state.main_input.strip():
-    prompt_text = st.session_state.main_input
-    # ---------------- Prepare citations ----------------
-    top_refs = find_top_n_snippets(prompt_text, chunks, chunk_meta, top_n=3 if st.session_state.search_mode=="deep" else 1)
-    citations = top_refs
-    # ---------------- Generate AI response (mock placeholder) ----------------
-    ai_response = f"AI response for: {prompt_text[:200]}"
-    st.session_state.chat_history.append({
-        "role":"ai",
-        "content":ai_response,
-        "citations":citations,
-        "audio":generate_audio(ai_response)
-    })
-    st.session_state.main_input = ""  # clear input
+# ---------------------------- Disclaimer ----------------------------
+st.markdown("""
+<div style="background:#f5f5f5;padding:10px;border-radius:8px;color:#555;font-size:13px;margin-top:15px">
+⚠️ Disclaimer: This AI-generated content is for informational purposes only. Verify all references and medical content before use.
+</div>
+""", unsafe_allow_html=True)
 
-# ---------------- Footer / Disclaimer ----------------
-st.markdown('<div class="fixed-disclaimer">⚠️ Disclaimer: This tool is for educational and sales support purposes only. Not for medical prescription or patient advice.</div>', unsafe_allow_html=True)
+# ---------------------------- Custom CSS ----------------------------
+st.markdown("""
+<style>
+body {background-image: url('""" + BACKGROUND_URL + """'); background-size: cover;}
+.chat-container {margin-top: 10px;}
+.chat-bubble-user {background:#DCF8C6;padding:10px;border-radius:10px;margin:5px; text-align:right;}
+.chat-bubble-ai {background:#F1F0F0;padding:10px;border-radius:10px;margin:5px; text-align:left;}
+.citation-box {background:#FFF8DC;padding:8px;margin:5px;border-left:3px solid #FFA500;}
+.left-logo {height:60px; float:left;}
+.right-logo {height:60px; float:right;}
+.title-box {display:flex; align-items:center; justify-content:center; margin-bottom:20px;}
+</style>
+""", unsafe_allow_html=True)
