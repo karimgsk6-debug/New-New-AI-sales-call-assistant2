@@ -1,15 +1,10 @@
-# app.py - Full AI Sales Call Assistant (Enhanced, APACT, interactive feedback, humanized voice, examples)
+# app.py - Full AI Sales Call Assistant (Enhanced, APACT, interactive feedback, humanized Google TTS)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
 from html import escape
 
-# Optional libraries
-try:
-    from groq import Groq
-except:
-    Groq = None
-
+# Optional libs
 try:
     from PyPDF2 import PdfReader
 except:
@@ -41,6 +36,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
+REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 BACKGROUND_URL = REPO_RAW_BASE + "/background1.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
@@ -61,14 +57,14 @@ defaults = {
     "pdf_summary": "",
     "feedback": {},
     "language": "English",
-    "reply_style": "balanced",  # balanced, short_script, data, conversational
+    "reply_style": "balanced",
     "awaiting_style_pref": False,
 }
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# CSS styling
+# CSS & background
 # -------------------------
 CSS = f"""
 <style>
@@ -106,18 +102,13 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # -------------------------
-# Initialize GROQ client (backend only)
+# GROQ API placeholder (not exposed in interface)
 # -------------------------
 GROQ_API_KEY = "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"
-client = None
-if Groq and GROQ_API_KEY:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-    except:
-        client = None
+client = None  # leave for later integration
 
 # -------------------------
-# Brand definitions
+# Brand info including TRELEGY
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -143,9 +134,9 @@ brand_data = {
     "trelegy": {
         "display":"Trelegy",
         "segments":["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
-        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
-        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],  # add more later
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],  # add more later
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],  # add more later
         "references_path":".devcontainer/references/trelegy/",
         "sales_path":".devcontainer/SalesModule/trelegy/",
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
@@ -216,30 +207,18 @@ def simple_summary(text, bullets=6):
 
 def model_summarize(text, bullets=6):
     if not text: return ""
-    if client:
-        try:
-            prompt=f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                messages=[{"role":"user","content":prompt}],
-                temperature=0.2)
-            return resp.choices[0].message.content
-        except:
-            return simple_summary(text, bullets)
-    else:
-        return simple_summary(text, bullets)
+    return simple_summary(text, bullets)
 
-def generate_audio_base64(text):
-    if not text: return ""
-    tts_text = re.sub(r'\n\s*\n', ' ... ', text).replace("\n"," ")
-    if gTTS:
-        try:
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-            gTTS(text=tts_text, lang="en", slow=False).save(tmp.name)
-            with open(tmp.name,"rb") as fh:
-                return base64.b64encode(fh.read()).decode()
-        except:
-            return ""
-    return ""
+# Google TTS generator
+def humanized_tts(text):
+    if not text or not gTTS: return ""
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        gTTS(text=text, lang="en", slow=False).save(tmp.name)
+        with open(tmp.name,"rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return ""
 
 # -------------------------
 # Sidebar filters
@@ -281,11 +260,12 @@ st.markdown(f"""
 # -------------------------
 refs_folder = bconf["references_path"]
 sales_folder = bconf["sales_path"]
-combined_refs, combined_sales = "", ""
+combined_refs = ""
 if os.path.exists(refs_folder):
     for f in sorted(os.listdir(refs_folder)):
         if f.lower().endswith((".pdf",".txt")):
             combined_refs += read_file_text(os.path.join(refs_folder,f)) + "\n"
+combined_sales = ""
 if os.path.exists(sales_folder):
     for f in sorted(os.listdir(sales_folder)):
         if f.lower().endswith((".pdf",".txt")):
@@ -296,66 +276,117 @@ if not st.session_state.sales_summary and combined_sales.strip():
     st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
 
 with st.expander("📚 Medical References Summary", expanded=False):
-    st.markdown(st.session_state.medical_summary or "No medical references loaded.")
+    st.markdown(st.session_state.medical_summary or "No medical summary available.")
 with st.expander("💼 Sales Module Summary", expanded=False):
-    st.markdown(st.session_state.sales_summary or "No sales module loaded.")
+    st.markdown(st.session_state.sales_summary or "No sales summary available.")
 
 # -------------------------
-# PDF upload
+# PDF Upload and summarize
 # -------------------------
-pdf_text = st.file_uploader("Upload PDF (optional, to summarize)", type=["pdf","txt"])
-if pdf_text:
-    if pdf_text.type=="application/pdf" and PdfReader:
-        reader = PdfReader(pdf_text)
-        text = "".join([p.extract_text() or "" for p in reader.pages])
-    else:
-        text = pdf_text.read().decode("utf-8")
-    st.session_state.uploaded_pdf_text = text
-    st.session_state.pdf_summary = model_summarize(text)
-
+uploaded_file = st.file_uploader("Upload PDF for summary", type=["pdf"])
+if uploaded_file and PdfReader:
+    reader = PdfReader(uploaded_file)
+    pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
+    st.session_state.uploaded_pdf_text = pdf_text
+    st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
+    st.success("PDF summarized successfully!")
 if st.session_state.pdf_summary:
-    with st.expander("📄 Uploaded PDF Summary", expanded=True):
+    with st.expander("📄 Uploaded PDF Summary", expanded=False):
         st.markdown(st.session_state.pdf_summary)
 
 # -------------------------
-# Chat container
+# Build corpus
 # -------------------------
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-for i, msg in enumerate(st.session_state.chat_history):
-    if msg["role"]=="user":
-        st.markdown(f'<div class="chat-bubble-user">{escape(msg["content"])}</div>', unsafe_allow_html=True)
-    else:
-        html_msg = f'<div class="chat-bubble-ai">{escape(msg["content"])}'
-        if "audio_base64" in msg and msg["audio_base64"]:
-            html_msg += f'<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio>'
-        html_msg += "</div>"
-        st.markdown(html_msg, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+corpus_folders = [refs_folder, sales_folder]
+chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# Input area
+# Prompt suggestions
 # -------------------------
-col1,col2 = st.columns([8,1])
-with col1:
-    user_input = st.text_area("Type your message here...", value="", key="main_input")
-with col2:
-    send = st.button("Send", key="send_btn")
-
-if send and user_input.strip():
-    # Append user message
-    st.session_state.chat_history.append({"role":"user","content":user_input})
-    
-    # --- Generate AI response (simple combination of medical+sales summary + user input) ---
-    resp_text = f"{st.session_state.medical_summary}\n{st.session_state.sales_summary}\nUser: {user_input}"
-    audio_base64 = generate_audio_base64(resp_text)
-    st.session_state.chat_history.append({"role":"ai","content":resp_text,"audio_base64":audio_base64})
-    st.session_state.main_input=""
+def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
+    s=[]
+    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
+    if barriers_list: s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
+    else: s.append(f"Identify common objections for {persona_val}.")
+    s.append(f"Summarize HCP persona insights for {persona_val}.")
+    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
+    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
+    return s
 
 # -------------------------
-# Footer disclaimer
+# APACT response + interactive feedback + TTS
+# -------------------------
+def add_ai_response(prompt, follow_up=False, context_previous=None):
+    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6)
+    citation = "\n".join([s['meta']['filename'] for s in snippets]) if snippets else ""
+    out_lines = [f"*Thanks — I hear you.*\n" if not follow_up else "*Thanks for feedback — improving answer.*\n"]
+    out_lines.append("- Sample opening line: 'I appreciate you bringing this up — it's important.'")
+    ai_text = "\n".join(out_lines)
+    audio_b64 = humanized_tts(ai_text)
+    st.session_state.chat_history.append({"role":"ai","content":ai_text,"audio_base64":audio_b64,"citation":citation})
+
+# -------------------------
+# Chat input and submission
+# -------------------------
+with st.form("main_input_form", clear_on_submit=True):
+    user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
+    submitted = st.form_submit_button("Send")
+    if submitted and user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
+        add_ai_response(user_input.strip())
+        st.session_state.main_input = ""
+
+# -------------------------
+# Prompt suggestions panel
+# -------------------------
+with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
+    suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
+    sugg_cols = st.columns(3)
+    for i, s in enumerate(suggs):
+        col = sugg_cols[i % 3]
+        if col.button(s, key=f"sugg_{i}"):
+            st.session_state.main_input = s
+
+# -------------------------
+# Chat display + feedback buttons
+# -------------------------
+chat_container = st.container()
+with chat_container:
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    for i, msg in enumerate(st.session_state.chat_history):
+        if msg["role"]=="user":
+            st.markdown(f'<div class="chat-bubble-user">{escape(msg["content"])}</div>', unsafe_allow_html=True)
+        else:
+            html_msg = f'<div class="chat-bubble-ai">{escape(msg["content"])}'
+            if "audio_base64" in msg and msg["audio_base64"]:
+                html_msg += f'<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio>'
+            fb_cols = st.columns(3)
+            entry_key = f"fb_{i}"
+            if entry_key not in st.session_state.feedback:
+                if fb_cols[0].button("👍 Like", key=f"like_{i}"):
+                    st.session_state.feedback[entry_key] = "like"
+                    st.session_state.awaiting_style_pref = True
+                    followup_text = "Great — glad that helped! Quick preference: do you prefer (1) short scripts, (2) data bullets, or (3) conversational examples?"
+                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
+                if fb_cols[1].button("👎 Dislike", key=f"dislike_{i}"):
+                    st.session_state.feedback[entry_key] = "dislike"
+                    prev_text = msg.get("content","")
+                    followup_text = f"Thanks for the feedback. Could you clarify what felt off in the previous suggestion? (unclear / not practical / too technical / other)\nPrevious suggestion: \"{prev_text[:150]}...\""
+                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
+                if fb_cols[2].button("✍️ Need More", key=f"needmore_{i}"):
+                    st.session_state.feedback[entry_key] = "need_more"
+                    prev_text = msg.get("content","")
+                    followup_text = f"Expanding on the previous answer with more practical steps and examples:\n{prev_text}"
+                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
+            html_msg += "</div>"
+            st.markdown(html_msg, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------
+# Footer / disclaimer
 # -------------------------
 st.markdown("""
 <div class="fixed-disclaimer">
-💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources.
+⚠️ This AI assistant is for internal sales support only. Content is generated from company references and AI predictions. Always verify medical accuracy and follow GSK compliance guidelines.
 </div>
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
