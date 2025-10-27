@@ -1,10 +1,15 @@
-# app.py - Full AI Sales Call Assistant (Enhanced, APACT, interactive feedback, humanized Google TTS)
+# app.py - Full AI Sales Call Assistant (TRELEGY + GROQ + Voice + Feedback + Fixed Prompt Suggestions)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
 from html import escape
 
 # Optional libs
+try:
+    from groq import Groq
+except:
+    Groq = None
+
 try:
     from PyPDF2 import PdfReader
 except:
@@ -36,7 +41,6 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
-REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 BACKGROUND_URL = REPO_RAW_BASE + "/background1.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
@@ -86,7 +90,7 @@ CSS = f"""
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
+.chat-container {{ max-height:60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
 .chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
@@ -102,13 +106,18 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # -------------------------
-# GROQ API placeholder (not exposed in interface)
+# Initialize GROQ client (backend only)
 # -------------------------
 GROQ_API_KEY = "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"
-client = None  # leave for later integration
+client = None
+if Groq and GROQ_API_KEY and GROQ_API_KEY != "add_GROQ_API_here":
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except:
+        client = None
 
 # -------------------------
-# Brand info including TRELEGY
+# Brand info
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -134,9 +143,9 @@ brand_data = {
     "trelegy": {
         "display":"Trelegy",
         "segments":["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],  # add more later
-        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],  # add more later
-        "specialties":["GP","Pulmonologist","Respiratory Specialist"],  # add more later
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
         "references_path":".devcontainer/references/trelegy/",
         "sales_path":".devcontainer/SalesModule/trelegy/",
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
@@ -207,16 +216,28 @@ def simple_summary(text, bullets=6):
 
 def model_summarize(text, bullets=6):
     if not text: return ""
-    return simple_summary(text, bullets)
+    if client:
+        try:
+            prompt=f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
+            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
+                messages=[{"role":"user","content":prompt}],
+                temperature=0.2)
+            return resp.choices[0].message.content
+        except:
+            return simple_summary(text, bullets)
+    else:
+        return simple_summary(text, bullets)
 
-# Google TTS generator
-def humanized_tts(text):
-    if not text or not gTTS: return ""
+# Google TTS voice generator
+def generate_audio_base64(text):
+    if not text: return ""
     try:
+        tts_text = re.sub(r'\n\s*\n', ' ... ', text)
+        tts_text = tts_text.replace("\n", " ")
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        gTTS(text=text, lang="en", slow=False).save(tmp.name)
-        with open(tmp.name,"rb") as f:
-            return base64.b64encode(f.read()).decode()
+        gTTS(text=tts_text, lang="en", slow=False).save(tmp.name)
+        with open(tmp.name,"rb") as fh:
+            return base64.b64encode(fh.read()).decode()
     except:
         return ""
 
@@ -314,79 +335,103 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # -------------------------
-# APACT response + interactive feedback + TTS
+# APACT + interactive feedback
 # -------------------------
+def build_clean_citation(snippets):
+    noisy_pattern = "impact full kit 2023"
+    parts = []
+    for s in snippets:
+        fname = s['meta'].get('filename','').lower()
+        if noisy_pattern in fname: continue
+        parts.append(f"{fname} ({s['score']:.2f})")
+    parts = list(dict.fromkeys(parts))
+    return "\n".join(parts)
+
 def add_ai_response(prompt, follow_up=False, context_previous=None):
     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6)
-    citation = "\n".join([s['meta']['filename'] for s in snippets]) if snippets else ""
-    out_lines = [f"*Thanks — I hear you.*\n" if not follow_up else "*Thanks for feedback — improving answer.*\n"]
-    out_lines.append("- Sample opening line: 'I appreciate you bringing this up — it's important.'")
-    ai_text = "\n".join(out_lines)
-    audio_b64 = humanized_tts(ai_text)
-    st.session_state.chat_history.append({"role":"ai","content":ai_text,"audio_base64":audio_b64,"citation":citation})
+    citation = build_clean_citation(snippets)
+    out_lines = []
+    opener = "Thanks — I hear you. Let's tackle this together." if not follow_up else "Thanks for the feedback — I want to make this more useful."
+    out_lines.append(f"*{opener}*\n")
+    out_lines.append("**Opening lines you can use:**")
+    out_lines.append("- 'I appreciate you bringing this up — it's an important point that often affects patient decisions.'")
+    out_lines.append("- 'That's a fair question. Let me walk you through what we've seen in practice.'\n")
+    
+    if not follow_up:
+        out_lines.append("**🟢 Acknowledge**")
+        out_lines.append("I understand the concern you've raised and why it matters for patient care and clinic workflow. Example: 'I know time is tight — here's a 60-second way to explain benefit.'\n")
+        out_lines.append("**🔵 Probe — sample questions**")
+        out_lines.append("- Open: 'Can you tell me more about which patients you're most worried about?'")
+        out_lines.append("- Closed: 'Is your main worry safety, efficacy, or reimbursement?'")
+        out_lines.append("**🟣 Actions — practical steps**")
+        reply_style = st.session_state.get('reply_style','balanced')
+        for step in bconf.get("call_flow", []):
+            relevant = [(s["score"], s["text"]) for s in snippets if step.lower() in s["text"].lower()]
+            relevant.sort(key=lambda x:x[0], reverse=True)
+            sample_text = relevant[0][1] if relevant else f"{step} guidance not found in corpus."
+            out_lines.append(f"- **{step}**: {sample_text[:200]}{'...' if len(sample_text)>200 else ''}")
+        if citation: out_lines.append(f"\n**References:**\n{citation}")
+    
+    text_response = "\n".join(out_lines)
+    st.session_state.chat_history.append({"role":"ai","content":text_response})
+    audio_b64 = generate_audio_base64(text_response)
+    return text_response, audio_b64
 
 # -------------------------
-# Chat input and submission
+# Chat container
 # -------------------------
-with st.form("main_input_form", clear_on_submit=True):
-    user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
-    submitted = st.form_submit_button("Send")
-    if submitted and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        add_ai_response(user_input.strip())
-        st.session_state.main_input = ""
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+for msg in st.session_state.chat_history:
+    cls = "chat-bubble-user" if msg["role"]=="user" else "chat-bubble-ai"
+    st.markdown(f'<div class="{cls}">{escape(msg["content"]).replace("\\n","<br>")}</div>', unsafe_allow_html=True)
+    if msg.get("audio_b64"):
+        st.markdown(f"""
+        <audio controls>
+            <source src="data:audio/mp3;base64,{msg['audio_b64']}" type="audio/mp3">
+        </audio>
+        """, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Prompt suggestions panel
+# Suggestions below chat container
 # -------------------------
-with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
-    suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
-    sugg_cols = st.columns(3)
-    for i, s in enumerate(suggs):
-        col = sugg_cols[i % 3]
-        if col.button(s, key=f"sugg_{i}"):
-            st.session_state.main_input = s
+suggests = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
+st.markdown('<div class="input-area">', unsafe_allow_html=True)
+cols = st.columns([6,1,1])
+with cols[0]:
+    user_input = st.text_area("Type your message...", key="main_input", height=72)
+with cols[1]:
+    if st.button("Send"):
+        if user_input.strip():
+            st.session_state.chat_history.append({"role":"user","content":user_input})
+            resp_text, resp_audio = add_ai_response(user_input)
+            st.session_state.chat_history[-1]["audio_b64"] = None
+            user_input=""
+with cols[2]:
+    if st.button("Clear"):
+        st.session_state.main_input=""
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Suggestions as pills
+pill_html = "".join([f'<span class="suggestion-pill" onclick="document.getElementById(\'main_input\').value=\'{escape(s)}\'">{s}</span>' for s in suggests])
+st.markdown(f'<div style="margin-bottom:12px;">{pill_html}</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Chat display + feedback buttons
+# Feedback
 # -------------------------
-chat_container = st.container()
-with chat_container:
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    for i, msg in enumerate(st.session_state.chat_history):
-        if msg["role"]=="user":
-            st.markdown(f'<div class="chat-bubble-user">{escape(msg["content"])}</div>', unsafe_allow_html=True)
-        else:
-            html_msg = f'<div class="chat-bubble-ai">{escape(msg["content"])}'
-            if "audio_base64" in msg and msg["audio_base64"]:
-                html_msg += f'<br><audio controls src="data:audio/mp3;base64,{msg["audio_base64"]}"></audio>'
-            fb_cols = st.columns(3)
-            entry_key = f"fb_{i}"
-            if entry_key not in st.session_state.feedback:
-                if fb_cols[0].button("👍 Like", key=f"like_{i}"):
-                    st.session_state.feedback[entry_key] = "like"
-                    st.session_state.awaiting_style_pref = True
-                    followup_text = "Great — glad that helped! Quick preference: do you prefer (1) short scripts, (2) data bullets, or (3) conversational examples?"
-                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
-                if fb_cols[1].button("👎 Dislike", key=f"dislike_{i}"):
-                    st.session_state.feedback[entry_key] = "dislike"
-                    prev_text = msg.get("content","")
-                    followup_text = f"Thanks for the feedback. Could you clarify what felt off in the previous suggestion? (unclear / not practical / too technical / other)\nPrevious suggestion: \"{prev_text[:150]}...\""
-                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
-                if fb_cols[2].button("✍️ Need More", key=f"needmore_{i}"):
-                    st.session_state.feedback[entry_key] = "need_more"
-                    prev_text = msg.get("content","")
-                    followup_text = f"Expanding on the previous answer with more practical steps and examples:\n{prev_text}"
-                    st.session_state.chat_history.append({"role":"ai","content":followup_text,"audio_base64":humanized_tts(followup_text)})
-            html_msg += "</div>"
-            st.markdown(html_msg, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+def feedback_callback(feedback_type):
+    last = st.session_state.chat_history[-1] if st.session_state.chat_history else None
+    if last: st.session_state.feedback[last["content"]] = feedback_type
+    st.experimental_rerun()
+
+st.markdown('<div class="feedback-buttons">', unsafe_allow_html=True)
+cols = st.columns(3)
+with cols[0]: st.button("👍 Like", on_click=feedback_callback, args=("like",))
+with cols[1]: st.button("👎 Dislike", on_click=feedback_callback, args=("dislike",))
+with cols[2]: st.button("ℹ️ Need More", on_click=feedback_callback, args=("need_more",))
+st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Footer / disclaimer
+# Footer disclaimer
 # -------------------------
-st.markdown("""
-<div class="fixed-disclaimer">
-⚠️ This AI assistant is for internal sales support only. Content is generated from company references and AI predictions. Always verify medical accuracy and follow GSK compliance guidelines.
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="fixed-disclaimer">AI-generated content. Verify before sharing. Powered by ChatGPT + GROQ (backend only).</div>', unsafe_allow_html=True)
