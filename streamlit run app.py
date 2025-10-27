@@ -1,30 +1,15 @@
-# app.py - Full AI Sales Call Assistant with TRELEGY, feedback, voice, prompts
+# app.py - Full AI Sales Call Assistant with TRELEGY, voice, feedback, prompt suggestions
+
 import streamlit as st
 import os, re, tempfile, base64, io
 from html import escape
-from datetime import datetime
-
-# Optional libraries
-try:
-    from PyPDF2 import PdfReader
-except:
-    PdfReader = None
-
-try:
-    from gtts import gTTS
-except:
-    gTTS = None
+from PyPDF2 import PdfReader
+from gtts import gTTS
 
 # -------------------------
 # Page config
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
-
-# -------------------------
-# Backend API placeholder
-# -------------------------
-GROQ_API_KEY = "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"  # placeholder
-client = None  # integrate GROQ client here later
 
 # -------------------------
 # Session defaults
@@ -48,7 +33,35 @@ for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# Brand Data
+# CSS & background
+# -------------------------
+CSS = """
+<style>
+.title-box { background: rgba(255,255,255,0.95); padding: 12px; border-radius: 10px; margin-bottom: 12px; display:flex; align-items:center; justify-content:center; position:relative;}
+.title-box img.left-logo { position:absolute; left:12px; height:64px; }
+.title-box img.right-logo { position:absolute; right:12px; height:64px; }
+.chat-container { max-height:60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }
+.chat-bubble-user { background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }
+.chat-bubble-ai { background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }
+.suggestion-pill { background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }
+.suggestion-pill:hover { background:#f0f8ff; }
+.citation-box { background:#fbfbff; border-left:4px solid #0078D7; padding:8px; margin-top:8px; border-radius:6px; font-size:13px; white-space:pre-wrap; }
+.input-area { position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; display:flex; gap:8px; align-items:flex-end; }
+.input-area textarea { width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }
+.send-button { height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }
+.feedback-buttons button { margin-right:6px; }
+.fixed-disclaimer { position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+# -------------------------
+# Space for GROQ API key
+# -------------------------
+GROQ_API_KEY = "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"
+
+# -------------------------
+# Brand info
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -87,9 +100,8 @@ brand_data = {
 # Helper functions
 # -------------------------
 def read_file_text(path):
-    if not os.path.exists(path): return ""
     try:
-        if path.lower().endswith(".pdf") and PdfReader:
+        if path.lower().endswith(".pdf"):
             reader = PdfReader(path)
             return "".join([p.extract_text() or "" for p in reader.pages])
         else:
@@ -97,6 +109,23 @@ def read_file_text(path):
                 return fh.read()
     except:
         return ""
+
+def build_corpus_for_folders(folders, chunk_size_sentences=3):
+    chunks, metas = [], []
+    for folder in folders:
+        if not folder or not os.path.exists(folder): continue
+        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf",".txt"))]
+        for fname in files:
+            p = os.path.join(folder,fname)
+            text = read_file_text(p)
+            if not text: continue
+            sents = re.split(r'(?<=[\.!\?])\s+',text)
+            for i in range(0,max(1,len(sents)),chunk_size_sentences):
+                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
+                if chunk:
+                    chunks.append(chunk)
+                    metas.append({"filename":fname,"folder":folder,"start":i})
+    return chunks, metas
 
 def simple_summary(text, bullets=6):
     if not text: return ""
@@ -106,30 +135,16 @@ def simple_summary(text, bullets=6):
 
 def generate_audio_base64(text):
     if not text: return ""
-    tts_text = text.replace("\n", " ... ")
     try:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        gTTS(text=tts_text, lang="en", slow=False).save(tmp.name)
+        gTTS(text=text, lang="en", slow=False).save(tmp.name)
         with open(tmp.name,"rb") as fh:
             return base64.b64encode(fh.read()).decode()
-    except Exception:
+    except Exception as e:
         return ""
 
-def add_ai_response(prompt, follow_up=False, context_previous=None):
-    # simplified enriched response respecting brand sales flow
-    brand_key = st.session_state.selected_brand
-    bconf = brand_data[brand_key]
-    out_lines = [f"*Response for {bconf['display']} ({brand_key.upper()})*"]
-    out_lines.append(f"Prompt: {prompt}")
-    out_lines.append("\n**Sales Call Flow Guidance:**")
-    for step in bconf.get("call_flow", []):
-        out_lines.append(f"- {step}: Example phrasing based on uploaded sales module and references.")
-    ai_text = "\n".join(out_lines)
-    audio_b64 = generate_audio_base64(ai_text)
-    st.session_state.chat_history.append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-
 # -------------------------
-# Sidebar
+# Sidebar filters
 # -------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand_options = list(brand_data.keys())
@@ -147,85 +162,114 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     if st.button("🗑️ Clear Chat"): st.session_state.chat_history=[]
 
 # -------------------------
-# Title
+# Title Box
 # -------------------------
 st.markdown(f"""
-<div style="background:#fff;padding:12px;border-radius:10px;margin-bottom:12px;text-align:center;">
+<div class="title-box">
 <h2>💡 AI Sales Call Assistant — {brand_data[sel_brand]['display']}</h2>
 </div>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Prompt suggestions (collapsible, above input)
+# Load references and sales summaries
 # -------------------------
-def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
+refs_folder = bconf["references_path"]
+sales_folder = bconf["sales_path"]
+combined_refs = ""
+if os.path.exists(refs_folder):
+    for f in sorted(os.listdir(refs_folder)):
+        if f.lower().endswith((".pdf",".txt")):
+            combined_refs += read_file_text(os.path.join(refs_folder,f)) + "\n"
+combined_sales = ""
+if os.path.exists(sales_folder):
+    for f in sorted(os.listdir(sales_folder)):
+        if f.lower().endswith((".pdf",".txt")):
+            combined_sales += read_file_text(os.path.join(sales_folder,f)) + "\n"
+if not st.session_state.medical_summary and combined_refs.strip():
+    st.session_state.medical_summary = simple_summary(combined_refs, bullets=6)
+if not st.session_state.sales_summary and combined_sales.strip():
+    st.session_state.sales_summary = simple_summary(combined_sales, bullets=6)
+
+# -------------------------
+# Build corpus
+# -------------------------
+corpus_folders = [refs_folder, sales_folder]
+chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
+
+# -------------------------
+# AI response + feedback + voice
+# -------------------------
+def add_ai_response(prompt, follow_up=False, context_previous=None):
+    # simple snippet selection from corpus
+    snippets = [c["text"] for c in chunk_meta] if chunk_meta else []
+    ai_text = f"Simulated AI response for: {prompt}\n\n" + "\n".join(snippets[:5])
+    audio_b64 = generate_audio_base64(ai_text)
+    entry = {"role":"assistant","text":ai_text,"audio_b64":audio_b64}
+    st.session_state.chat_history.append(entry)
+
+# -------------------------
+# Prompt suggestions
+# -------------------------
+def make_suggestions(brand_key):
+    b = brand_data[brand_key]
     s=[]
-    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
-    if barriers_list: s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
-    else: s.append(f"Identify common objections for {persona_val}.")
-    s.append(f"Summarize HCP persona insights for {persona_val}.")
-    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
-    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
+    for persona in b["personas"]:
+        s.append(f"Generate call flow for {persona} in {brand_key}.")
+        s.append(f"Handle barrier for {persona}.")
+        s.append(f"Summarize key talking points for {persona}.")
     return s
 
 # -------------------------
-# Chat rendering + feedback
+# Chat render
 # -------------------------
 def render_chat():
-    chat_box_height = 350
-    st.markdown(f'<div style="max-height:{chat_box_height}px; overflow-y:auto;">', unsafe_allow_html=True)
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for idx, entry in enumerate(st.session_state.chat_history):
-        if entry["role"]=="user":
-            st.markdown(f'<div style="background:#0078D7;color:white;padding:8px;margin:4px;border-radius:8px;">{escape(entry["text"])}</div>',unsafe_allow_html=True)
+        role = entry.get("role","assistant")
+        text = entry.get("text","")
+        audio_b64 = entry.get("audio_b64",None)
+        if role=="user":
+            st.markdown(f'<div class="chat-bubble-user">{escape(text)}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div style="background:#eef9ff;color:#000;padding:8px;margin:4px;border-radius:8px;">{escape(entry["text"]).replace("\\n","<br>")}</div>',unsafe_allow_html=True)
-            if entry.get("audio_b64"):
-                st.audio(io.BytesIO(base64.b64decode(entry["audio_b64"])), format="audio/mp3")
-            col1, col2, col3 = st.columns(3)
+            st.markdown(f'<div class="chat-bubble-ai">{escape(text).replace("\\n","<br>")}</div>', unsafe_allow_html=True)
+            if audio_b64:
+                st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
+            col1,col2,col3=st.columns(3)
             with col1:
-                if st.button("👍 Like", key=f"like_{idx}"):
-                    st.session_state.feedback[idx] = "like"
+                if st.button("👍 Like", key=f"like_{idx}"): st.session_state.feedback[idx]="like"
             with col2:
-                if st.button("👎 Dislike", key=f"dislike_{idx}"):
-                    st.session_state.feedback[idx] = "dislike"
+                if st.button("👎 Dislike", key=f"dislike_{idx}"): st.session_state.feedback[idx]="dislike"
             with col3:
-                if st.button("ℹ️ Need More", key=f"needmore_{idx}"):
-                    st.session_state.feedback[idx] = "need_more"
-                    add_ai_response(entry["text"])
-                    st.experimental_rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+                if st.button("ℹ️ Need More", key=f"needmore_{idx}"): 
+                    st.session_state.feedback[idx]="need_more"
+                    add_ai_response(text)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Bottom-fixed input + prompt suggestions
+# Chat input and prompt suggestions at bottom
 # -------------------------
-def chat_input_area():
-    with st.container():
-        with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=True):
-            suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
-            sugg_cols = st.columns(3)
-            for i,s in enumerate(suggs):
-                col = sugg_cols[i%3]
-                if col.button(s, key=f"sugg_{i}"):
-                    st.session_state.main_input = s
-
-        user_input = st.text_area("Ask something:", st.session_state.main_input, height=80)
-        if st.button("Send"):
-            if user_input.strip():
-                st.session_state.chat_history.append({"role":"user","text":user_input.strip()})
-                add_ai_response(user_input.strip())
-                st.session_state.main_input = ""
+st.markdown('<div style="position:fixed; bottom:0; left:0; right:0; background:white; padding:8px; z-index:999;">', unsafe_allow_html=True)
+with st.form("input_form", clear_on_submit=True):
+    # prompt suggestions
+    with st.expander("💡 Prompt Suggestions", expanded=True):
+        suggs = make_suggestions(sel_brand)
+        for s in suggs:
+            if st.button(s, key=f"sugg_{s}"):
+                st.session_state.main_input = s
+    user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
+    submitted = st.form_submit_button("Send")
+    if submitted and user_input.strip():
+        st.session_state.chat_history.append({"role":"user","text":user_input.strip()})
+        add_ai_response(user_input.strip())
+        st.session_state.main_input=""
+st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Main layout
+# Render chat
 # -------------------------
 render_chat()
-chat_input_area()
 
 # -------------------------
 # Footer
 # -------------------------
-st.markdown("""
-<div style="position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997;">
-💡 This tool is for internal sales support only. Verify medical info from official sources.
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="fixed-disclaimer">💬 AI Sales Call Assistant — Confidential | Powered by GSK Modules</div>', unsafe_allow_html=True)
