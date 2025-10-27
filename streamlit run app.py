@@ -1,12 +1,10 @@
-# app.py - Full AI Sales Call Assistant (Ready to Run)
+# app.py - Full AI Sales Call Assistant (Enhanced)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
 from html import escape
 
-# -------------------------
-# Optional libs (best-effort)
-# -------------------------
+# Optional libs
 try:
     from groq import Groq
 except:
@@ -355,33 +353,54 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # -------------------------
+# AI Response with APACT + humanized + interactive feedback
+# -------------------------
+def add_ai_response(prompt, follow_up=False):
+    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
+    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
+
+    response_lines = []
+
+    if not follow_up:
+        # --- APACT ---
+        response_lines.append(f"**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
+        response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
+        response_lines.append("**Actions:** Based on your input, here are recommended steps:")
+        for step in bconf["call_flow"]:
+            step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+            if step_snippets:
+                response_lines.append(f"**{step}:**")
+                for sn in step_snippets:
+                    response_lines.append(f"- {sn}")
+            else:
+                response_lines.append(f"**{step}:** - Refer to the sales module and uploaded references for guidance.")
+        response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
+        response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
+        response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+    else:
+        # Follow-up for feedback
+        response_lines.append("I noticed you disliked the previous answer. Could you help me understand better?")
+        response_lines.append("- What specific part was unclear or insufficient?")
+        response_lines.append("- Are you looking for more examples, data, or step-by-step guidance?")
+        response_lines.append("- Any particular objection you want me to focus on next?")
+
+    ai_text = "\n".join(response_lines)
+    st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
+
+# -------------------------
 # Chat container and input
 # -------------------------
 chat_container = st.container()
 
-def add_ai_response(prompt):
-    snippets = local_search_snippets(prompt,chunks,chunk_meta,top_n=3)
-    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
-    # Build sales call per brand call flow
-    steps_text = ""
-    for step in bconf["call_flow"]:
-        steps_text += f"**{step}**\n"
-        # Find related snippet from sales module
-        step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
-        if step_snippets:
-            for sn in step_snippets: steps_text += f"- {sn}\n"
-    # Append AI enhanced summary
-    ai_text = f"{steps_text}\n[AI Generated Insight]: Consider tailoring messages based on persona, barriers, and uploaded references."
-    st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
-
-# Chat input with prompt suggestions merged
-with st.form("main_input_form", clear_on_submit=True):
-    st.markdown("### Prompt Suggestions")
+with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
     suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
     sugg_cols = st.columns(3)
-    for i,s in enumerate(suggs):
-        col = sugg_cols[i%3]
-        if col.form_submit_button(s, key=f"sugg_{i}"): st.session_state.main_input = s
+    for i, s in enumerate(suggs):
+        col = sugg_cols[i % 3]
+        if col.button(s, key=f"sugg_{i}"):
+            st.session_state.main_input = s
+
+with st.form("main_input_form", clear_on_submit=True):
     user_input = st.text_area("Ask something:", st.session_state.main_input, height=72)
     submitted = st.form_submit_button("Send")
     if submitted and user_input.strip():
@@ -390,7 +409,7 @@ with st.form("main_input_form", clear_on_submit=True):
         st.session_state.main_input = ""
 
 # -------------------------
-# Display chat with audio and feedback
+# Display chat with audio and interactive feedback
 # -------------------------
 with chat_container:
     for idx,entry in enumerate(st.session_state.chat_history):
@@ -410,10 +429,10 @@ with chat_container:
                 if fb_cols[0].button("👍 Like", key=f"like_{idx}"): st.session_state.feedback[entry["content"]]="like"
                 if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"): 
                     st.session_state.feedback[entry["content"]]="dislike"
-                    add_ai_response("The user disliked the previous answer, generate clarification questions.")
+                    add_ai_response("Follow-up based on user dislike", follow_up=True)
                 if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"): 
                     st.session_state.feedback[entry["content"]]="need_more"
-                    add_ai_response("The user requested more information; expand the previous answer.")
+                    add_ai_response("The user requested more information; expand the previous answer.", follow_up=True)
 
 # -------------------------
 # Footer disclaimer
