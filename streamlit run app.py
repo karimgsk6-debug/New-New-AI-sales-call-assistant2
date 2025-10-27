@@ -1,4 +1,4 @@
-# app.py - Full AI Sales Call Assistant (Enhanced, APACT, interactive feedback, humanized voice)
+# app.py - Full AI Sales Call Assistant (Enhanced, APACT, interactive feedback, humanized voice, examples)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
@@ -74,6 +74,9 @@ defaults = {
     "pdf_summary": "",
     "feedback": {},
     "language": "English",
+    # user preference stored for the session
+    "reply_style": "balanced",  # options: balanced, short_script, data, conversational
+    "awaiting_style_pref": False,
 }
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
@@ -178,6 +181,7 @@ def read_file_text(path):
     except:
         return ""
 
+
 def build_corpus_for_folders(folders, chunk_size_sentences=3):
     chunks, metas = [], []
     for folder in folders:
@@ -187,13 +191,14 @@ def build_corpus_for_folders(folders, chunk_size_sentences=3):
             p = os.path.join(folder,fname)
             text = read_file_text(p)
             if not text: continue
-            sents = re.split(r'(?<=[\.\?\!])\s+',text)
+            sents = re.split(r'(?<=[\.!\?])\s+',text)
             for i in range(0,max(1,len(sents)),chunk_size_sentences):
                 chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
                 if chunk:
                     chunks.append(chunk)
                     metas.append({"filename":fname,"folder":folder,"start":i})
     return chunks, metas
+
 
 def local_search_snippets(query,chunks,metas,top_n=5):
     if not chunks: return []
@@ -219,11 +224,13 @@ def local_search_snippets(query,chunks,metas,top_n=5):
             if len(out)>=top_n: break
     return out
 
+
 def simple_summary(text, bullets=6):
     if not text: return ""
-    sents = re.split(r'(?<=[\.\?\!])\s+',text)
+    sents = re.split(r'(?<=[\.!\?])\s+',text)
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- "+s for s in selected])
+
 
 def model_summarize(text, bullets=6):
     if not text: return ""
@@ -244,15 +251,12 @@ def generate_audio_base64(text):
     if not text:
         return ""
     # Preprocess text to add spoken pauses - insert short ellipses line breaks between sections
-    # Keep it simple: replace double newlines with " ... " cues for TTS
     tts_text = re.sub(r'\n\s*\n', ' ... ', text)
     tts_text = tts_text.replace("\n", " ")
     # Prefer ElevenLabs if available (best quality), otherwise gTTS fallback
     if ELEVENLABS_AVAILABLE:
         try:
-            # Note: user must set ELEVENLABS_API_KEY in secrets for higher quality voice
             elevenlabs.api_key = st.secrets.get("ELEVENLABS_API_KEY", None) or os.environ.get("ELEVENLABS_API_KEY")
-            # Use a neutral expressive voice; actual voice name may vary by account
             audio_iter = elevenlabs.generate(text=tts_text, voice="alloy", model="eleven_multilingual_v1", stream=True)
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
             with open(tmp.name, "wb") as f:
@@ -392,25 +396,34 @@ def add_ai_response(prompt, follow_up=False, context_previous=None):
     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6)
     citation = build_clean_citation(snippets)
 
-    # Build a clean, organized APACT response
+    # Build a clean, organized APACT response with examples and multiple probes
     out_lines = []
-    # A humanized opener
+    # Humanized opener variations
     opener = "Thanks — I hear you. Let's tackle this together." if not follow_up else "Thanks for the feedback — I want to make this more useful."
     out_lines.append(f"*{opener}*\n")
+
+    # Expanded opening examples
+    out_lines.append("**Opening lines you can use:**")
+    out_lines.append("- 'I appreciate you bringing this up — it's an important point that often affects patient decisions.'")
+    out_lines.append("- 'That's a fair question. Let me walk you through what we've seen in practice.'")
+    out_lines.append("")
 
     if not follow_up:
         # Acknowledge
         out_lines.append("**🟢 Acknowledge**")
-        out_lines.append("I understand the concern you've raised and why it matters for patient care and clinic workflow.\n")
+        out_lines.append("I understand the concern you've raised and why it matters for patient care and clinic workflow. Example: 'I know time is tight — here's a 60-second way to explain benefit.'\n")
 
-        # Probe (offer both open and closed questions)
-        out_lines.append("**🔵 Probe**")
-        out_lines.append("- Quick check: Are you more concerned about **efficacy**, **safety**, **eligibility**, or **access/reimbursement**?")
-        out_lines.append("- (If you prefer, reply with one word: 'efficacy', 'safety', 'eligibility', or 'access')\n")
+        # Probe (offer both open and closed questions with examples)
+        out_lines.append("**🔵 Probe — sample questions (use as-is or adapt)**")
+        out_lines.append("- Open: 'Can you tell me more about which patients you're most worried about?' — (Example: 'Patients over 80 or immunocompromised?')")
+        out_lines.append("- Closed: 'Is your main worry safety, efficacy, or reimbursement? (Reply with safety/efficacy/reimbursement)'")
+        out_lines.append("- Diagnostic: 'How often do you see eligible patients per week?' — (Helps prioritize the call strategy)")
+        out_lines.append("")
 
-        # Actions - merge best snippets per call flow with concise humanized bullets
-        out_lines.append("**🟣 Actions — practical steps to use in the next HCP call**")
-        # pick top snippet for each call_flow step and create short bullets
+        # Actions - merge best snippets per call flow with concise humanized bullets and short examples
+        out_lines.append("**🟣 Actions — practical steps to use in the next HCP call (with example phrasing)**")
+        reply_style = st.session_state.get('reply_style','balanced')
+
         for step in bconf.get("call_flow", []):
             # find snippets that mention the step or are relevant
             relevant = []
@@ -418,16 +431,21 @@ def add_ai_response(prompt, follow_up=False, context_previous=None):
                 text = s.get("text","")
                 if step.lower() in text.lower() or any(word.lower() in text.lower() for word in [persona.lower(), specialty.lower(), objective.lower()]):
                     relevant.append((s["score"], text))
-            # sort by score desc
             relevant.sort(key=lambda x: x[0], reverse=True)
+
             if relevant:
-                # take up to 2 concise bullets
-                bullets = [r[1] for r in relevant[:2]]
                 out_lines.append(f"**{step}:**")
-                for b in bullets:
-                    # shorten long text to a sentence or two
-                    sent = re.split(r'(?<=[\.\?\!])\s+', b.strip())[0]
-                    out_lines.append(f"- {sent.strip()}")
+                for rscore, rtext in relevant[:2]:
+                    # create short bullet + example phrasing depending on reply_style
+                    short = re.split(r'(?<=[\.!\?])\s+', rtext.strip())[0][:220]
+                    if reply_style == 'short_script':
+                        out_lines.append(f"- Quick line: '{short}.' (Use within 15s)")
+                    elif reply_style == 'data':
+                        out_lines.append(f"- Data point: {short} — follow with 'In X study, Y% saw...' (add local stat if available)")
+                    elif reply_style == 'conversational':
+                        out_lines.append(f"- Example dialogue: 'I: "{short}." HCP: "[response]" — then add patient story or anecdote.")
+                    else:  # balanced
+                        out_lines.append(f"- {short} — Example: 'In practice, you can say: "{short}..."'")
             else:
                 out_lines.append(f"**{step}:** - Refer to the sales module for step-specific lines and examples.")
         out_lines.append("")
@@ -440,18 +458,17 @@ def add_ai_response(prompt, follow_up=False, context_previous=None):
         out_lines.append("**🟡 Transition**")
         out_lines.append("- If yes, I can prepare a short script and patient profiling checklist for that next step. If no, tell me which part to deepen.\n")
 
-        out_lines.append("*Reference note: suggestions were generated from internal sales kits and uploaded documents (auto-summarized).*")
+        out_lines.append("*Reference note: suggestions were generated from internal sales kits and uploaded documents (auto-summarized).*)")
     else:
-        # follow_up True: generate clarifying open and closed questions tailored to previous assistant output
-        out_lines.append("**Follow-up — Tell me more so I can improve the answer**")
+        # follow_up True: richer clarifying open and closed questions + examples
+        out_lines.append("**Follow-up — tell me more so I can improve the answer**")
         if context_previous:
-            # try to reference the previous content succinctly (first 2 lines)
-            prev_short = re.split(r'(?<=[\.\?\!])\s+', context_previous.strip())
+            prev_short = re.split(r'(?<=[\.!\?])\s+', context_previous.strip())
             prev_snippet = prev_short[0] if prev_short else context_previous.strip()
-            out_lines.append(f"- About the previous suggestion: \"{prev_snippet[:140]}...\" — what part felt off?")
-        out_lines.append("- Was it: (A) unclear, (B) not enough practical steps, (C) too technical, (D) other?")
-        out_lines.append("- Would you prefer: (1) a short script, (2) data-backed bullets, or (3) quick talking points?")
-        out_lines.append("- If you can, share one detail you'd like added (e.g., local reimbursement detail, patient age group, or a quote line for HCP).")
+            out_lines.append(f"- About the previous suggestion: \"{prev_snippet[:140]}...\" — which part felt off? (unclear / not practical / too technical / other)")
+        out_lines.append("- Quick choices: (A) unclear, (B) not enough practical steps, (C) too technical, (D) other")
+        out_lines.append("- Preferred output: (1) Short script, (2) Data-backed bullets, (3) Conversational examples")
+        out_lines.append("- Example: Reply '2' if you want me to add study numbers, '3' for role-play examples.")
 
     ai_text = "\n".join(out_lines)
 
@@ -474,12 +491,49 @@ with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
             st.session_state.main_input = s
 
 with st.form("main_input_form", clear_on_submit=True):
-    user_input = st.text_area("Ask something:", st.session_state.main_input, height=72)
+    user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
     submitted = st.form_submit_button("Send")
     if submitted and user_input.strip():
         st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        add_ai_response(user_input.strip(), follow_up=False)
+        # if the user replies with a preference code while awaiting preference, capture it
+        if st.session_state.get('awaiting_style_pref'):
+            # map common replies
+            pref = user_input.strip().lower()
+            if '1' in pref or 'script' in pref or 'short' in pref:
+                st.session_state.reply_style = 'short_script'
+                st.session_state.awaiting_style_pref = False
+                st.session_state.chat_history.append({"role":"assistant","content":"Got it — I'll favor short scripts going forward.", "citation":"", "audio_b64": generate_audio_base64("Got it — I'll favor short scripts going forward.")})
+            elif '2' in pref or 'data' in pref:
+                st.session_state.reply_style = 'data'
+                st.session_state.awaiting_style_pref = False
+                st.session_state.chat_history.append({"role":"assistant","content":"Got it — I'll prioritize data-backed bullets going forward.", "citation":"", "audio_b64": generate_audio_base64("Got it — I'll prioritize data-backed bullets going forward.")})
+            elif '3' in pref or 'convers' in pref:
+                st.session_state.reply_style = 'conversational'
+                st.session_state.awaiting_style_pref = False
+                st.session_state.chat_history.append({"role":"assistant","content":"Great — I'll include more conversational examples and role-plays.", "citation":"", "audio_b64": generate_audio_base64("Great — I'll include more conversational examples and role-plays.")})
+            else:
+                # treat as normal query
+                add_ai_response(user_input.strip(), follow_up=False)
+        else:
+            add_ai_response(user_input.strip(), follow_up=False)
         st.session_state.main_input = ""
+
+# render preference buttons if awaiting
+if st.session_state.get('awaiting_style_pref'):
+    st.markdown("**Quick preference — choose a reply style that I should favor going forward:**")
+    p1, p2, p3 = st.columns(3)
+    if p1.button("Short scripts (1)"):
+        st.session_state.reply_style = 'short_script'
+        st.session_state.awaiting_style_pref = False
+        st.session_state.chat_history.append({"role":"assistant","content":"Got it — I'll favor short scripts going forward.", "citation":"", "audio_b64": generate_audio_base64("Got it — I'll favor short scripts going forward.")})
+    if p2.button("Data bullets (2)"):
+        st.session_state.reply_style = 'data'
+        st.session_state.awaiting_style_pref = False
+        st.session_state.chat_history.append({"role":"assistant","content":"Got it — I'll prioritize data-backed bullets going forward.", "citation":"", "audio_b64": generate_audio_base64("Got it — I'll prioritize data-backed bullets going forward.")})
+    if p3.button("Conversational (3)"):
+        st.session_state.reply_style = 'conversational'
+        st.session_state.awaiting_style_pref = False
+        st.session_state.chat_history.append({"role":"assistant","content":"Great — I'll include more conversational examples and role-plays.", "citation":"", "audio_b64": generate_audio_base64("Great — I'll include more conversational examples and role-plays.")})
 
 # -------------------------
 # Display chat with audio and interactive feedback
@@ -492,7 +546,7 @@ with chat_container:
             # show assistant text (render markdown-like content safely)
             st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"]).replace("\\n","<br>")}</div>',unsafe_allow_html=True)
             if entry.get("citation"):
-                # show a short, humanized reference note (not raw filenames)
+                # short, humanized reference note (not raw filenames)
                 ref_note = "References checked from internal sales kit and uploaded documents."
                 st.markdown(f'<div class="citation-box">{escape(ref_note)}</div>',unsafe_allow_html=True)
             # Play audio if available
@@ -505,21 +559,19 @@ with chat_container:
 
             # Interactive feedback buttons
             fb_cols = st.columns(3)
-            # Only show feedback if not provided yet for this entry
             entry_key = f"fb_{idx}"
             if entry_key not in st.session_state.feedback:
                 if fb_cols[0].button("👍 Like", key=f"like_{idx}"):
                     st.session_state.feedback[entry_key] = "like"
-                    # polite acknowledgement stored, optionally small thank-you message
-                    st.session_state.chat_history.append({"role":"assistant","content":"Great — glad that helped! I'll keep this preference in mind.", "citation":"", "audio_b64": generate_audio_base64("Great — glad that helped! I'll keep this preference in mind.")})
+                    # ask quick preference for future replies
+                    st.session_state.awaiting_style_pref = True
+                    st.session_state.chat_history.append({"role":"assistant","content":"Great — glad that helped! Quick preference: do you prefer (1) short scripts, (2) data bullets, or (3) conversational examples? Reply with 1/2/3 or click the button below.", "citation":"", "audio_b64": generate_audio_base64("Great — glad that helped! Quick preference: do you prefer short scripts, data bullets, or conversational examples? Reply with 1, 2, or 3.")})
                 if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"):
                     st.session_state.feedback[entry_key] = "dislike"
-                    # create an immediate clarifying follow-up using previous assistant content as context
                     prev_assistant_text = entry.get("content","")
                     add_ai_response("User indicated dislike — follow up", follow_up=True, context_previous=prev_assistant_text)
                 if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
                     st.session_state.feedback[entry_key] = "need_more"
-                    # expand: ask whether to add examples, data, or step-by-step script
                     prev_assistant_text = entry.get("content","")
                     add_ai_response("User requested more detail — expand previous answer", follow_up=True, context_previous=prev_assistant_text)
 
