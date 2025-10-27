@@ -444,12 +444,11 @@ def add_ai_response(prompt, follow_up=False, context_previous=None):
                         out_lines.append(f"- Data point: {short} — follow with 'In X study, Y% saw...' (add local stat if available)")
                     elif reply_style == 'conversational':
                         out_lines.append(f"- Example dialogue: I: \"{short}.\" HCP: \"[response]\" — then add patient story or anecdote.")
-            else:  # balanced
+                        else:  # balanced
                         out_lines.append(f"- {short} — Example: In practice, you can say: \"{short}...\"")
-
-            else:
-                out_lines.append(f"**{step}:** - Refer to the sales module for step-specific lines and examples.")
-        out_lines.append("")
+                        else:
+                        out_lines.append(f"**{step}:** - Refer to the sales module for step-specific lines and examples.")
+                        out_lines.append("")
 
         # Confirm
         out_lines.append("**🟠 Confirm**")
