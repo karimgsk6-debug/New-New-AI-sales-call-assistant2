@@ -6,6 +6,11 @@ from html import escape
 
 # Optional libraries
 try:
+    from groq import Groq
+except:
+    Groq = None
+
+try:
     from PyPDF2 import PdfReader
 except:
     PdfReader = None
@@ -33,6 +38,9 @@ except:
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
+# -------------------------
+# Repository & Background
+# -------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
@@ -59,8 +67,8 @@ defaults = {
     "reply_style": "balanced",
     "awaiting_style_pref": False,
 }
-for k,v in defaults.items():
-    st.session_state.setdefault(k,v)
+for k, v in defaults.items():
+    st.session_state.setdefault(k, v)
 
 # -------------------------
 # CSS & background
@@ -85,7 +93,7 @@ CSS = f"""
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
+.chat-container {{ max-height: 55vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; }}
 .chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
@@ -101,20 +109,15 @@ CSS = f"""
 st.markdown(CSS, unsafe_allow_html=True)
 
 # -------------------------
-# Title Section
-# -------------------------
-st.markdown(f"""
-<div class="title-box">
-<img src="{GSK_LOGO_RAW}" class="left-logo">
-<h2>💡 AI Sales Call Assistant</h2>
-<img src="{AI_LOGO_RAW}" class="right-logo">
-</div>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# Placeholder for GROQ API (not in interface)
+# GROQ API backend placeholder
 # -------------------------
 GROQ_API_KEY = "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"
+client = None
+if Groq and GROQ_API_KEY:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except:
+        client = None
 
 # -------------------------
 # Brand info including TRELEGY
@@ -214,25 +217,35 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- "+s for s in selected])
 
-# -------------------------
-# Safe Google TTS audio generator
-# -------------------------
+def model_summarize(text, bullets=6):
+    if not text: return ""
+    if client:
+        try:
+            prompt=f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
+            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
+                messages=[{"role":"user","content":prompt}],
+                temperature=0.2)
+            return resp.choices[0].message.content
+        except:
+            return simple_summary(text, bullets)
+    else:
+        return simple_summary(text, bullets)
+
+# TTS generator (Google)
 def generate_audio_base64(text):
-    if not text or not gTTS:
-        return ""
+    if not text or not gTTS: return ""
+    tts_text = re.sub(r'\n\s*\n', ' ... ', text)
+    tts_text = tts_text.replace("\n"," ")
     try:
-        MAX_CHARS = 3000
-        tts_text = text[:MAX_CHARS].replace("\n"," ")
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         gTTS(text=tts_text, lang="en", slow=False).save(tmp.name)
         with open(tmp.name,"rb") as fh:
             return base64.b64encode(fh.read()).decode()
-    except Exception as e:
-        st.warning(f"⚠️ TTS generation failed: {str(e)}")
+    except:
         return ""
 
 # -------------------------
-# Sidebar filters
+# Sidebar
 # -------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand_options = list(brand_data.keys())
@@ -256,6 +269,17 @@ with st.sidebar.expander("📄 Export Options", expanded=False):
     export_format = st.radio("Choose Export Format", ["TXT","DOCX"], horizontal=True)
 
 # -------------------------
+# Title box
+# -------------------------
+st.markdown(f"""
+<div class="title-box">
+<img src="{GSK_LOGO_RAW}" class="left-logo">
+<h2>💡 AI Sales Call Assistant — {brand_data[sel_brand]['display']}</h2>
+<img src="{AI_LOGO_RAW}" class="right-logo">
+</div>
+""", unsafe_allow_html=True)
+
+# -------------------------
 # Load references and sales summaries
 # -------------------------
 refs_folder = bconf["references_path"]
@@ -271,9 +295,9 @@ if os.path.exists(sales_folder):
         if f.lower().endswith((".pdf",".txt")):
             combined_sales += read_file_text(os.path.join(sales_folder,f)) + "\n"
 if not st.session_state.medical_summary and combined_refs.strip():
-    st.session_state.medical_summary = simple_summary(combined_refs, bullets=6)
+    st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
 if not st.session_state.sales_summary and combined_sales.strip():
-    st.session_state.sales_summary = simple_summary(combined_sales, bullets=6)
+    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
 
 with st.expander("📚 Medical References Summary", expanded=False):
     st.markdown(st.session_state.medical_summary or "No medical summary available.")
@@ -288,7 +312,7 @@ if uploaded_file and PdfReader:
     reader = PdfReader(uploaded_file)
     pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
     st.session_state.uploaded_pdf_text = pdf_text
-    st.session_state.pdf_summary = simple_summary(pdf_text, bullets=6)
+    st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
     st.success("PDF summarized successfully!")
 if st.session_state.pdf_summary:
     with st.expander("📄 Uploaded PDF Summary", expanded=False):
@@ -299,120 +323,96 @@ if st.session_state.pdf_summary:
 # -------------------------
 corpus_folders = [refs_folder, sales_folder]
 chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
-
 # -------------------------
-# Helper: prompt suggestions
+# Prompt suggestions bubble
 # -------------------------
-def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
-    s=[]
-    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
-    if barriers_list: s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
-    else: s.append(f"Identify common objections for {persona_val}.")
-    s.append(f"Summarize HCP persona insights for {persona_val}.")
-    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
-    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
-    return s
-
-# -------------------------
-# Collapsible prompt suggestions bubble (frozen above input)
-# -------------------------
-suggestions = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
-
-st.markdown("""
-<div style="position:fixed; bottom:120px; left:20px; right:20px; z-index:9998; background:rgba(255,255,255,0.95); padding:12px; border-radius:10px; box-shadow:0px 4px 8px rgba(0,0,0,0.15);">
-<details open>
-<summary style="font-weight:600; cursor:pointer;">💡 Prompt Suggestions (click to collapse)</summary>
-<div style="margin-top:6px;">
-""" + "".join([f'<span class="suggestion-pill" onclick="document.getElementById(\'user_input\').value=\'{escape(s)}\'">{escape(s)}</span>' for s in suggestions]) + """
-</div>
-</details>
-</div>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# Chat container
-# -------------------------
-chat_placeholder = st.empty()
-
-def render_chat():
-    html_chat = '<div class="chat-container">'
-    for i,entry in enumerate(st.session_state.chat_history):
-        text = entry["text"]
-        speaker = entry["sender"]
-        if speaker=="user":
-            html_chat += f'<div class="chat-bubble-user">{escape(text)}</div>'
-        else:
-            html_chat += f'<div class="chat-bubble-ai">{escape(text)}'
-            # Voice player
-            if "audio" in entry and entry["audio"]:
-                html_chat += f'<br><audio controls src="data:audio/mp3;base64,{entry["audio"]}"></audio>'
-            html_chat += '</div>'
-    html_chat += '</div>'
-    chat_placeholder.markdown(html_chat, unsafe_allow_html=True)
-
-render_chat()
+def render_prompt_suggestions():
+    suggestions = [
+        "Generate call flow for this HCP",
+        "Provide rebuttals for barriers",
+        "Summarize key medical points",
+        "Create persuasive messages for adoption",
+        "Highlight cost/coverage solutions",
+        "Prepare objection handling"
+    ]
+    html_suggestions = "<div style='display:flex; flex-wrap:wrap;'>"
+    for s in suggestions:
+        html_suggestions += f"<div class='suggestion-pill' onclick='navigator.clipboard.writeText(\"{escape(s)}\")'>{escape(s)}</div>"
+    html_suggestions += "</div>"
+    st.markdown(html_suggestions, unsafe_allow_html=True)
 
 # -------------------------
 # Add AI response
 # -------------------------
 def add_ai_response(user_text, follow_up=False):
     if not user_text.strip(): return
-    # Store user
-    st.session_state.chat_history.append({"sender":"user","text":user_text})
-    render_chat()
-    
-    # Build enriched AI response
-    # Combine references + sales module snippets
-    ref_snippets = local_search_snippets(user_text,chunks,chunk_meta,top_n=5)
-    ref_texts = "\n".join([r["text"] for r in ref_snippets])
-    ai_text = f"💬 **Sales Call Response**\n\n{user_text}\n\nRelevant References & Sales Flow:\n{ref_texts}\n\n📌 Follow the call flow: {', '.join(brand_data[sel_brand]['call_flow'])}"
-    
-    # Generate audio
+    # Placeholder for AI response generation
+    ai_text = f"**AI Response ({brand_data[sel_brand]['display']}):**\n\n" \
+              f"Persona: {persona}\nSegment: {segment}\nBarriers: {', '.join(barrier)}\n\n" \
+              f"Medical Summary:\n{st.session_state.medical_summary}\n\n" \
+              f"Sales Call Flow:\n{st.session_state.sales_summary}\n\n" \
+              f"Prompt: {user_text.strip()}"
     audio_b64 = generate_audio_base64(ai_text)
-    
-    # Store AI response
-    st.session_state.chat_history.append({"sender":"ai","text":ai_text,"audio":audio_b64})
-    render_chat()
+    st.session_state.chat_history.append({"sender":"AI","text":ai_text,"audio":audio_b64})
 
 # -------------------------
-# Feedback buttons
+# Render chat
 # -------------------------
-def feedback_callback(action):
-    last_idx = len(st.session_state.chat_history)-1
-    if last_idx>=0 and st.session_state.chat_history[last_idx]["sender"]=="ai":
-        st.session_state.feedback[last_idx]=action
-        st.success(f"Feedback recorded: {action}")
+def render_chat():
+    with st.container():
+        for entry in st.session_state.chat_history:
+            sender = entry.get("sender","AI")
+            text = entry.get("text","")
+            audio_b64 = entry.get("audio","")
+            if sender=="User":
+                st.markdown(f"<div class='chat-bubble-user'>{text}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='chat-bubble-ai'>{text}</div>", unsafe_allow_html=True)
+                if audio_b64:
+                    audio_html = f"""
+                    <audio controls>
+                        <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+                    </audio>
+                    """
+                    st.markdown(audio_html, unsafe_allow_html=True)
+                # Feedback buttons
+                fb_html = """
+                <div class='feedback-buttons'>
+                    <button onclick='alert("You liked this response!")'>👍 Like</button>
+                    <button onclick='alert("You disliked this response!")'>👎 Dislike</button>
+                    <button onclick='alert("Need more details!")'>💬 Need More</button>
+                </div>
+                """
+                st.markdown(fb_html, unsafe_allow_html=True)
 
 # -------------------------
-# Chat input area (fixed bottom)
+# Bottom-fixed input
 # -------------------------
-st.markdown("""
-<div class="input-area">
-<textarea id="user_input" placeholder="Type your message here..."></textarea>
-<button class="send-button" onclick="document.getElementById('send_input').click()">Send</button>
-</div>
-""", unsafe_allow_html=True)
-
-user_input = st.text_area(" ", key="main_input", placeholder="Type your message here...", height=70)
-send_clicked = st.button("Send", key="send_input")
-
-if send_clicked and user_input.strip():
-    add_ai_response(user_input.strip())
-
-# -------------------------
-# Feedback buttons under chat
-# -------------------------
-if st.session_state.chat_history:
-    st.markdown("<div class='feedback-buttons'>", unsafe_allow_html=True)
-    if st.button("👍 Like"):
-        feedback_callback("like")
-    if st.button("👎 Dislike"):
-        feedback_callback("dislike")
-    if st.button("📝 Need More"):
-        feedback_callback("need_more")
+def chat_input_area():
+    st.markdown("<div class='input-area'>", unsafe_allow_html=True)
+    user_input = st.text_area("Type your message here...", key="main_input", placeholder="Ask your AI assistant...", height=80)
+    if st.button("Send", key="send_button"):
+        if user_input.strip():
+            st.session_state.chat_history.append({"sender":"User","text":user_input.strip()})
+            add_ai_response(user_input)
+            st.session_state.main_input = ""
+            st.experimental_rerun()
+    render_prompt_suggestions()
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Fixed bottom disclaimer
+# Run chat interface
 # -------------------------
-st.markdown('<div class="fixed-disclaimer">Powered by AI Sales Assistant. TRELEGY, Shingrix, and Jemperli support integrated. ⚡</div>', unsafe_allow_html=True)
+render_chat()
+chat_input_area()
+
+# -------------------------
+# Footer / disclaimer
+# -------------------------
+st.markdown("""
+<div class='fixed-disclaimer'>
+💡 AI Sales Call Assistant — For educational and internal use only. All medical references are summarized from uploaded documents.
+</div>
+""", unsafe_allow_html=True)
+
+
