@@ -1,46 +1,40 @@
-# app.py - Full AI Sales Call Assistant (Updated)
+# app.py - Full AI Sales Call Assistant (Complete Integrated Version)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
 from html import escape
 
 # -------------------------
-# Optional libs (best-effort)
+# Optional libs
 # -------------------------
 try:
     from groq import Groq
 except:
     Groq = None
-
 try:
     from PyPDF2 import PdfReader
 except:
     PdfReader = None
-
 try:
     from gtts import gTTS
 except:
     gTTS = None
-
 try:
     from docx import Document
     DOCX_AVAILABLE = True
 except:
     DOCX_AVAILABLE = False
-
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
 except:
     SKLEARN_AVAILABLE = False
-
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
 except:
     ELEVENLABS_AVAILABLE = False
-
 try:
     import pyttsx3
     PYTTSX3_AVAILABLE = True
@@ -51,32 +45,24 @@ except:
 # Page config & background
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
-
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
-REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 BACKGROUND_URL = REPO_RAW_BASE + "/background1.png"
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+GSK_LOGO_RAW = REPO_RAW_BASE + "/GSK1-logo.png"
+AI_LOGO_RAW = REPO_RAW_BASE + "/AURA1.png"
 
 # -------------------------
 # Session defaults
 # -------------------------
 defaults = {
-    "chat_history": [],
-    "main_input": "",
-    "selected_brand": "shingrix",
-    "temperature": 0.62,
-    "search_mode": "deep",
-    "medical_summary": "",
-    "sales_summary": "",
-    "uploaded_pdf_text": "",
-    "pdf_summary": "",
-    "followup_state": None,
-    "language": "English",
-    "feedback": {}
+    "chat_history": [], "main_input": "", "selected_brand": "shingrix",
+    "temperature": 0.62, "search_mode": "deep",
+    "medical_summary": "", "sales_summary": "",
+    "uploaded_pdf_text": "", "pdf_summary": "",
+    "followup_state": None, "language": "English",
+    "feedback": {}, "trigger_rerun": False
 }
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
@@ -93,14 +79,9 @@ CSS = f"""
   background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.95);
-  padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 12px;
-  position: relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  background: rgba(255,255,255,0.95); padding: 12px;
+  border-radius: 10px; margin-bottom: 12px;
+  display:flex; align-items:center; justify-content:center;
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
@@ -110,11 +91,11 @@ CSS = f"""
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
 .suggestion-pill:hover {{ background:#f0f8ff; }}
 .citation-box {{ background:#fbfbff; border-left:4px solid #0078D7; padding:8px; margin-top:8px; border-radius:6px; font-size:13px; white-space:pre-wrap; }}
-.input-area {{ position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; display:flex; gap:8px; align-items:flex-end; }}
+.input-area {{ display:flex; gap:8px; align-items:flex-end; }}
 .input-area textarea {{ width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
 .send-button {{ height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }}
+.feedback-btn {{ margin-right:6px; }}
 .fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
-.feedback-button {{ margin-right:6px; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -125,13 +106,11 @@ st.markdown(CSS, unsafe_allow_html=True)
 GROQ_API_KEY = "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"
 client = None
 if Groq and GROQ_API_KEY:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-    except:
-        client = None
+    try: client = Groq(api_key=GROQ_API_KEY)
+    except: client=None
 
 # -------------------------
-# Brand info
+# Brand info & call flow steps
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -142,7 +121,7 @@ brand_data = {
         "specialties":["GP","Dermatologist","Geriatrician"],
         "references_path":".devcontainer/references/shingrix/",
         "sales_path":".devcontainer/SalesModule/shingrix/",
-        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
+        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call analysis"]
     },
     "jemperli": {
         "display":"Jemperli",
@@ -153,21 +132,11 @@ brand_data = {
         "references_path":".devcontainer/references/jemperli/",
         "sales_path":".devcontainer/SalesModule/jemperli/",
         "call_flow":["COCO","Anchor","Engage","Close"]
-    },
-    "trelegy": {
-        "display":"Trelegy",
-        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
-        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
-        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
-        "references_path":".devcontainer/references/trelegy/",
-        "sales_path":".devcontainer/SalesModule/trelegy/",
-        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
     }
 }
 
 # -------------------------
-# Helpers
+# Helpers: read files, summarize, search
 # -------------------------
 def read_file_text(path):
     if not os.path.exists(path): return ""
@@ -243,28 +212,28 @@ def model_summarize(text, bullets=6):
     else:
         return simple_summary(text, bullets)
 
-# -------------------------
-# TTS helper
-# -------------------------
 def generate_audio(text):
-    if not text: return None
-    try:
-        if ELEVENLABS_AVAILABLE:
+    if not text: return ""
+    if ELEVENLABS_AVAILABLE:
+        try:
             elevenlabs.api_key = st.secrets.get("ELEVENLABS_API_KEY","ELEVENLABS_API_KEY_HERE")
             audio_stream = elevenlabs.generate(text=text, voice="alloy", model="eleven_multilingual_v1", stream=True)
             tmp = tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
             with open(tmp.name,"wb") as f:
-                for chunk in audio_stream: f.write(chunk)
-            return tmp.name
-        elif gTTS:
+                for chunk in audio_stream:
+                    f.write(chunk)
+            with open(tmp.name,"rb") as fh: return base64.b64encode(fh.read()).decode()
+        except: pass
+    if gTTS:
+        try:
             tmp = tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
             gTTS(text=text, lang="en", slow=False).save(tmp.name)
-            return tmp.name
-    except:
-        return None
+            with open(tmp.name,"rb") as fh: return base64.b64encode(fh.read()).decode()
+        except: pass
+    return ""
 
 # -------------------------
-# Sidebar filters
+# Sidebar: Filters, Uploads, Export
 # -------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand_options = list(brand_data.keys())
@@ -279,9 +248,17 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.temperature = st.slider("Temperature",0.0,1.0,st.session_state.temperature,0.05)
     st.session_state.search_mode = st.selectbox("Search mode", ["deep","shallow"])
     st.session_state.language = st.radio("Language", ["English","Arabic"])
+    uploaded_pdf = st.file_uploader("📄 Upload PDF for summary", type=["pdf"], key="pdf_upload")
+    if uploaded_pdf:
+        try:
+            reader = PdfReader(uploaded_pdf)
+            pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
+            st.session_state.uploaded_pdf_text = pdf_text
+            st.session_state.pdf_summary = model_summarize(pdf_text)
+        except: pass
     if st.button("🗑️ Clear Chat"): st.session_state.chat_history=[]
 
-with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
+with st.sidebar.expander("🌐 Add External Reference URLs", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 
 with st.sidebar.expander("📄 Export Options", expanded=False):
@@ -299,38 +276,20 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Upload PDF and summarize
-# -------------------------
-uploaded_files = st.file_uploader("Upload PDFs for summary", type="pdf", accept_multiple_files=True)
-uploaded_text = ""
-for file in uploaded_files:
-    if PdfReader:
-        reader = PdfReader(file)
-        for p in reader.pages:
-            uploaded_text += p.extract_text() + "\n"
-st.session_state.uploaded_pdf_text = uploaded_text
-if uploaded_text:
-    st.session_state.pdf_summary = model_summarize(uploaded_text, bullets=6)
-    st.info("PDF summarized successfully!")
-
-# -------------------------
 # Load references and sales summaries
 # -------------------------
 refs_folder = bconf["references_path"]
 sales_folder = bconf["sales_path"]
-
 combined_refs = ""
 if os.path.exists(refs_folder):
     for f in sorted(os.listdir(refs_folder)):
         if f.lower().endswith((".pdf",".txt")):
             combined_refs += read_file_text(os.path.join(refs_folder,f)) + "\n"
-
 combined_sales = ""
 if os.path.exists(sales_folder):
     for f in sorted(os.listdir(sales_folder)):
         if f.lower().endswith((".pdf",".txt")):
             combined_sales += read_file_text(os.path.join(sales_folder,f)) + "\n"
-
 if not st.session_state.medical_summary and combined_refs.strip():
     st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
 if not st.session_state.sales_summary and combined_sales.strip():
@@ -348,8 +307,10 @@ corpus_folders = [refs_folder, sales_folder]
 chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# Prompt suggestions + chat input
+# Unified chat + prompt suggestions
 # -------------------------
+chat_container = st.container()
+
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
     s=[]
     s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
@@ -360,73 +321,65 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
     return s
 
-# -------------------------
-# Chat container
-# -------------------------
-chat_container = st.container()
-
-def build_sales_call_from_module(sales_folder, call_flow):
-    out = ""
-    for step in call_flow:
-        out += f"**{step}**\n"
-        step_file_txt = os.path.join(sales_folder, f"{step}.txt")
-        if os.path.exists(step_file_txt):
-            out += read_file_text(step_file_txt) + "\n\n"
-    return out
-
-def add_ai_response(prompt):
-    snippets = local_search_snippets(prompt,chunks,chunk_meta,top_n=3)
-    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
-    # Build sales call structured
-    sales_call_text = build_sales_call_from_module(sales_folder, bconf['call_flow'])
-    text = f"**AI Response to: {prompt}**\n\n{sales_call_text}\n"
-    if snippets:
-        text += "\n**Reference Snippets:**\n"
-        for sn in snippets:
-            text += f"- {sn['text']}\n"
-    st.session_state.chat_history.append({"role":"assistant","content":text,"citation":citation})
-
-# -------------------------
-# Display chat with prompt suggestions & feedback
-# -------------------------
-suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
-st.markdown("<b>💬 Prompt Suggestions:</b>", unsafe_allow_html=True)
-cols = st.columns([1,1,1])
-for i,s in enumerate(suggs):
-    col = cols[i%3]
-    if col.button(s, key=f"sugg_{i}"):
-        st.session_state.main_input = s
-        st.experimental_rerun()  # instant autofill
-
-# Chat input
-st.text_area("Ask something:", key="main_input", height=72)
-if st.button("Send"):
-    user_input = st.session_state.main_input
-    if user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        add_ai_response(user_input.strip())
-        st.session_state.main_input = ""
-        st.experimental_rerun()
-
-# Display chat
 with chat_container:
-    for entry in st.session_state.chat_history:
-        if entry["role"]=="user":
-            st.markdown(f'<div class="chat-bubble-user">{escape(entry["content"])}</div>',unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
-            if "citation" in entry and entry["citation"]:
-                st.markdown(f'<div class="citation-box">{escape(entry["citation"])}</div>',unsafe_allow_html=True)
-            # Audio playback
-            audio_file = generate_audio(entry["content"])
-            if audio_file:
-                st.audio(audio_file, format="audio/mp3")
+    st.markdown("### 💬 Ask & Generate Sales Call")
+    suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
+    sugg_cols = st.columns([1,1,1])
+    for i,s in enumerate(suggs):
+        col = sugg_cols[i%3]
+        if col.button(s, key=f"sugg_{i}_chat"):
+            st.session_state.main_input = s
+    user_input = st.text_area("Ask something:", st.session_state.main_input, height=72, key="main_chat_input")
+    if st.button("Send", key="send_main"):
+        if user_input.strip():
+            st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
+            # Build sales call structured by steps
+            sales_steps = bconf.get("call_flow",[])
+            step_texts = []
+            for step in sales_steps:
+                step_file = os.path.join(sales_folder,f"{step}.txt")
+                step_content = read_file_text(step_file) or f"{step} content not found."
+                step_texts.append(f"**{step}**\n{step_content}")
+            ai_resp = "\n\n".join(step_texts)
+            # Include PDF summary if uploaded
+            if st.session_state.pdf_summary:
+                ai_resp = f"**Uploaded PDF Summary:**\n{st.session_state.pdf_summary}\n\n" + ai_resp
+            st.session_state.chat_history.append({"role":"assistant","content":ai_resp})
+            st.session_state.main_input = ""
+            st.session_state.trigger_rerun = True
 
 # -------------------------
-# Footer disclaimer
+# Display chat + audio + feedback
 # -------------------------
-st.markdown("""
-<div class="fixed-disclaimer">
-💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
-</div>
-""",unsafe_allow_html=True)
+for entry in st.session_state.chat_history:
+    if entry["role"]=="user":
+        st.markdown(f'<div class="chat-bubble-user">{escape(entry["content"])}</div>',unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
+        # Audio playback
+        audio_b64 = generate_audio(entry["content"])
+        if audio_b64:
+            st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
+        # Feedback buttons
+        fb_cols = st.columns([0.2,0.2,0.2])
+        if entry["content"] not in st.session_state.feedback:
+            if fb_cols[0].button("👍 Like", key=f"fb_like_{hash(entry['content'])}"):
+                st.session_state.feedback[entry["content"]] = "like"
+            if fb_cols[1].button("👎 Dislike", key=f"fb_dislike_{hash(entry['content'])}"):
+                st.session_state.feedback[entry["content"]] = "dislike"
+                st.session_state.chat_history.append({"role":"assistant","content":"Could you clarify what part you want improved or explained?"})
+            if fb_cols[2].button("⚡ Need more", key=f"fb_more_{hash(entry['content'])}"):
+                st.session_state.feedback[entry["content"]] = "more"
+                st.session_state.chat_history.append({"role":"assistant","content":"Noted! Let's expand on this section in more detail."})
+
+# -------------------------
+# Rerun to reflect autofill
+# -------------------------
+if st.session_state.trigger_rerun:
+    st.session_state.trigger_rerun = False
+    st.experimental_rerun()
+
+# -------------------------
+# Fixed bottom disclaimer
+# -------------------------
+st.markdown('<div class="fixed-disclaimer">🚀 AI Sales Call Assistant • All content for internal training purposes.</div>', unsafe_allow_html=True)
