@@ -1,8 +1,9 @@
-# app.py - AI Sales Call Assistant (Updated + Visual Enhancements)
+# app.py - AI Sales Call Assistant (Full Merged with GROQ API & Enhancements)
 import streamlit as st
 import os, re, io, tempfile, base64
 from datetime import datetime
 from html import escape
+import requests
 
 # Optional libraries
 try:
@@ -31,15 +32,13 @@ except:
 # -------------------------
 # Page config
 # -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
-# Repo assets
-REPO_USER = "karimgsk6-debug"
-REPO_NAME = "New-New-AI-sales-call-assistant2"
-COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
-REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+# -------------------------
+# GROQ API Config
+# -------------------------
+GROQ_API_KEY = "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"
+GROQ_API_URL = "https://api.groq.ai/v1/llm"
 
 # -------------------------
 # Session defaults
@@ -48,258 +47,254 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.7,
+    "temperature": 0.62,
     "search_mode": "deep",
     "language": "English",
     "reply_style": "balanced",
     "awaiting_style_pref": False,
-    "call_count": 0,
-    "export_count": 0,
+    "pdf_docs": {},
+    "pdf_summaries": {},
     "feedback_stats": {"like": 0, "dislike": 0, "need_more": 0},
+    "module_filters": [],
 }
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
-for name in ("medical_summary", "sales_summary", "pdf_summary"):
-    if name not in st.session_state or not isinstance(st.session_state[name], dict):
-        st.session_state[name] = {}
+
+# Nested dicts
+for nk in ("medical_summary", "sales_summary", "pdf_summary", "feedback"):
+    if nk not in st.session_state or not isinstance(st.session_state[nk], dict):
+        st.session_state[nk] = {}
 
 # -------------------------
-# Brand config
+# Brand & Repo config
 # -------------------------
+REPO_USER = "karimgsk6-debug"
+REPO_NAME = "New-New-AI-sales-call-assistant2"
+COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
+REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
+BACKGROUND_URL = REPO_RAW_BASE + "/background1.png"
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+
 brand_data = {
     "shingrix": {
-        "display": "Shingrix",
-        "segments": ["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
-        "personas": ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
-        "barriers": ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
-        "specialties": ["GP","Dermatologist","Geriatrician"],
-        "references_path": ".devcontainer/references/shingrix/",
-        "sales_path": ".devcontainer/SalesModule/shingrix/",
-        "call_flow": ["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
+        "display":"Shingrix",
+        "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
+        "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
+        "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
+        "specialties":["GP","Dermatologist","Geriatrician"],
+        "references_path":".devcontainer/references/shingrix/",
+        "sales_path":".devcontainer/SalesModule/shingrix/",
+        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
     },
     "jemperli": {
-        "display": "Jemperli",
-        "segments": ["Target Identification","Trial Adoption","Routine Use","Advocacy"],
-        "personas": ["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
-        "barriers": ["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
-        "specialties": ["Oncologist","Medical Oncologist"],
-        "references_path": ".devcontainer/references/jemperli/",
-        "sales_path": ".devcontainer/SalesModule/jemperli/",
-        "call_flow": ["COCO","Anchor","Engage","Close"]
+        "display":"Jemperli",
+        "segments":["Target Identification","Trial Adoption","Routine Use","Advocacy"],
+        "personas":["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
+        "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
+        "specialties":["Oncologist","Medical Oncologist"],
+        "references_path":".devcontainer/references/jemperli/",
+        "sales_path":".devcontainer/SalesModule/jemperli/",
+        "call_flow":["COCO","Anchor","Engage","Close"]
     },
     "trelegy": {
-        "display": "Trelegy",
-        "segments": ["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas": ["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
-        "barriers": ["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
-        "specialties": ["GP","Pulmonologist","Respiratory Specialist"],
-        "references_path": ".devcontainer/references/trelegy/",
-        "sales_path": ".devcontainer/SalesModule/trelegy/",
-        "call_flow": ["Prepare","Engage","Demonstrate","Address Access","Close"]
+        "display":"Trelegy",
+        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
+        "references_path":".devcontainer/references/trelegy/",
+        "sales_path":".devcontainer/SalesModule/trelegy/",
+        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
     }
 }
 
 # -------------------------
-# CSS (pure orange gradient + dark footer)
+# CSS styling
 # -------------------------
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-  background: linear-gradient(135deg, rgba(255,165,0,0.15), rgba(255,140,0,0.1));
-  background-size: cover; background-position: center; backdrop-filter: blur(6px);
+  background-image: url('{BACKGROUND_URL}');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
 }}
-.header {{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:10px 16px; border-radius:10px; background: rgba(0,0,0,0.45); color:#fff; margin-bottom:12px;
-}}
-.header .title {{ text-align:center; flex:1; margin:0 8px; }}
-.header img.left-logo, .header img.right-logo {{ height:56px; }}
-.section-bubble {{ background: rgba(255,255,255,0.05); border-radius:10px; padding:12px; margin-bottom:10px; color:#fff; }}
-.chat-container {{ max-height:56vh; overflow-y:auto; padding:12px; background: rgba(0,0,0,0.4); border-radius:8px; margin-bottom:180px; color:#fff; }}
-.chat-bubble-user {{ background: linear-gradient(90deg,#0078D7,#0066C8); color:white; padding:12px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
-.chat-bubble-ai {{ background: linear-gradient(90deg,#fff5eb,#fff1e6); color:#1b1b1b; padding:12px; border-radius:12px; margin:8px 0; max-width:78%; }}
-.feedback-row {{ display:flex; gap:8px; margin-top:8px; align-items:center; }}
-.feedback-btn {{ background: rgba(255,255,255,0.08); color: #fff; padding:6px 10px; border-radius:8px; border: none; cursor: pointer; }}
-.fixed-disclaimer {{ position: fixed; left:0; right:0; bottom:0; background: rgba(0,0,0,0.7); padding:10px; color:#fff; text-align:center; z-index:9997; }}
+.chat-bubble-user{{background: linear-gradient(90deg,#0078D7,#0066C8); color:white; padding:12px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto;}}
+.chat-bubble-ai{{background: linear-gradient(90deg,#eef9ff,#e6f4ff); color:#000; padding:12px; border-radius:12px; margin:8px 0; max-width:78%;}}
+.feedback-row{{display:flex; gap:8px; margin-top:8px; align-items:center;}}
+.feedback-btn{{background:#fff; border:1px solid #e6e9ee; padding:6px 10px; border-radius:8px; cursor:pointer;}}
+.combined-fixed{{position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; background: rgba(255,255,255,0.98); padding:12px; border-radius:10px;}}
+.resizable-combined{{resize: vertical; overflow: auto; border:1px solid #ddd; padding:10px; border-radius:8px; background:#fff; min-height:110px; max-height:400px;}}
+.suggestion-pill{{display:inline-block; padding:6px 12px; border-radius:20px; background:#f6f8fa; margin:4px; border:1px solid #e6e9ee; font-size:14px;}}
+.fixed-disclaimer{{position: fixed; left:0; right:0; bottom:0; background: rgba(255,255,255,0.7); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:13px; z-index:9997;}}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Helper functions (read files, summarize, search, audio)
+# Helper functions
 # -------------------------
-def read_file_text(path):
-    if not os.path.exists(path): return ""
+def read_file_text(path_or_file):
     try:
-        if path.lower().endswith(".pdf") and PdfReader:
-            reader = PdfReader(path)
-            return "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            return open(path, "r", encoding="utf-8", errors="ignore").read()
-    except: return ""
+        if hasattr(path_or_file, "read"):
+            if "pdf" in getattr(path_or_file, "type","") and PdfReader:
+                reader = PdfReader(path_or_file)
+                return "".join([p.extract_text() or "" for p in reader.pages])
+            elif path_or_file.type == "text/plain":
+                return path_or_file.read().decode("utf-8", errors="ignore")
+        elif os.path.exists(path_or_file):
+            if path_or_file.lower().endswith(".pdf") and PdfReader:
+                reader = PdfReader(path_or_file)
+                return "".join([p.extract_text() or "" for p in reader.pages])
+            else:
+                with open(path_or_file,"r",encoding="utf-8", errors="ignore") as fh:
+                    return fh.read()
+    except Exception:
+        return ""
 
 def simple_summary(text, bullets=6):
-    sents = re.split(r'(?<=[\.!\?])\s+', text)
+    sents = re.split(r'(?<=[.!?])\s+', text)
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join([f"- {s}" for s in selected])
 
-def model_summarize(text, bullets=6):
-    bullets_text = simple_summary(text, bullets)
-    if not bullets_text: return ""
-    return "\n\n".join([
-        "**Key Findings**", bullets_text,
-        "**Clinical Insights**", "- Review the most clinically relevant points above.",
-        "**Action Points**", "- Use above lines as short scripts or data bullets in the call."
-    ])
-
-def build_corpus_for_folders(folders, chunk_size_sentences=3):
-    chunks, metas = [], []
-    for folder in folders:
-        if not folder or not os.path.exists(folder): continue
-        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf", ".txt"))]
-        for fname in files:
-            p = os.path.join(folder, fname)
-            text = read_file_text(p)
-            if not text: continue
-            sents = re.split(r'(?<=[\.!\?])\s+', text)
-            for i in range(0, max(1,len(sents)), chunk_size_sentences):
-                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
-                if chunk:
-                    chunks.append(chunk)
-                    metas.append({"filename": fname, "folder": folder, "start": i})
-    return chunks, metas
-
-def local_search_snippets(query, chunks, metas, top_n=5):
-    if not chunks or not query: return []
-    q = query.lower().strip()
-    if SKLEARN_AVAILABLE:
-        try:
-            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks+[query])
-            sims = linear_kernel(vectorizer.transform([query]), vectorizer.transform(chunks)).flatten()
-            top_idxs = sims.argsort()[::-1][:top_n]
-            return [{"score": float(sims[idx]), "text": chunks[idx], "meta": metas[idx]} for idx in top_idxs if sims[idx]>0]
-        except: pass
-    # fallback substring search
-    out=[]
-    for i,c in enumerate(chunks):
-        if q in c.lower():
-            out.append({"score":1.0,"text":c,"meta":metas[i]})
-            if len(out)>=top_n: break
-    return out
-
 def generate_audio_base64(text):
-    if not text or not gTTS: return ""
-    tts_text = re.sub(r'\n\s*\n',' ... ', text).replace("\n"," ")
+    if not text or not gTTS:
+        return ""
+    tts_text = re.sub(r'\n\s*\n', ' ... ', text).replace("\n"," ")
     try:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         gTTS(text=tts_text, lang="en", slow=False).save(tmp.name)
-        with open(tmp.name,"rb") as fh:
+        with open(tmp.name, "rb") as fh:
             return base64.b64encode(fh.read()).decode("utf-8")
-    except: return ""
+    except Exception:
+        return ""
 
-def export_call_flow_bytes(text, fmt="docx"):
-    now = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    safe_brand = st.session_state.get("selected_brand","brand")
-    if fmt=="docx" and DOCX_AVAILABLE:
-        doc = Document()
-        doc.add_heading(f"{brand_data[safe_brand]['display']} — Generated Call Flow", level=2)
-        for line in text.splitlines(): doc.add_paragraph(line)
-        bio=io.BytesIO(); doc.save(bio); bio.seek(0)
-        return bio.read(), f"{safe_brand}_callflow_{now}.docx"
-    else:
-        return text.encode("utf-8"), f"{safe_brand}_callflow_{now}.txt"
+def query_groq(prompt, context_docs):
+    context_text = "\n\n".join(context_docs)
+    payload = {
+        "prompt": f"Use the following reference material to answer user query. Only show AI response, no references.\n\nReferences:\n{context_text}\n\nUser question: {prompt}",
+        "max_output_tokens": 600
+    }
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
+        r.raise_for_status()
+        return r.json().get("output_text","Sorry, could not generate response.")
+    except Exception as e:
+        return f"Error querying GROQ API: {e}"
+
 # -------------------------
-# Header + Logos
+# Sidebar: Brand selection, filters, PDF upload
+# -------------------------
+with st.sidebar:
+    st.image(GSK_LOGO_RAW, width=150)
+    st.subheader("Brand & Filters")
+    brand_options = list(brand_data.keys())
+    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state["selected_brand"]), format_func=lambda k: brand_data[k]["display"])
+    st.session_state["selected_brand"] = sel_brand
+    bconf = brand_data[sel_brand]
+
+    # Filters
+    persona = st.selectbox("HCP Persona", bconf.get("personas", []))
+    segment = st.selectbox("Segment", bconf.get("segments", []))
+    barrier = st.multiselect("Doctor Barrier", bconf.get("barriers", []))
+    specialty = st.selectbox("Specialty", bconf.get("specialties", []))
+    objective = st.selectbox("Objective", ["Awareness","Adoption","Retention"])
+    st.session_state["temperature"] = st.slider("Temperature", 0.0,1.0, st.session_state["temperature"],0.05)
+    st.session_state["search_mode"] = st.selectbox("Search mode", ["deep","shallow"])
+    st.session_state["language"] = st.radio("Language", ["English","Arabic"])
+
+    # Upload PDF/TXT
+    with st.expander("Upload PDF/TXT (brand-specific)"):
+        uploaded_file = st.file_uploader("Upload file", type=["pdf","txt"], key="sidebar_upload")
+        if uploaded_file:
+            text = read_file_text(uploaded_file)
+            st.session_state["pdf_docs"][sel_brand] = text
+            st.session_state["pdf_summaries"][sel_brand] = simple_summary(text)
+            st.success("File summarized for this brand.")
+
+    # Clear chat
+    st.markdown("---")
+    if st.button("🗑️ Clear Chat"):
+        st.session_state["chat_history"] = []
+        st.session_state["feedback"] = {}
+
+# -------------------------
+# Header
 # -------------------------
 st.markdown(f"""
-<div class="header">
-    <img class="left-logo" src="{GSK_LOGO_RAW}" alt="GSK Logo"/>
-    <div class="title"><h2>AI Sales Call Assistant</h2></div>
-    <img class="right-logo" src="{AI_LOGO_RAW}" alt="AI Logo"/>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+<img src="{GSK_LOGO_RAW}" style="height:56px;">
+<h1 style="margin:0">💡 AI Sales Call Assistant — {brand_data[sel_brand]['display']}</h1>
+<img src="{AI_LOGO_RAW}" style="height:56px;">
 </div>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# File Upload + Summary
+# Build reference corpus
 # -------------------------
-uploaded_file = st.file_uploader("Upload PDF / TXT for auto-summary", type=["pdf","txt"], key="upload")
-if uploaded_file:
-    file_bytes = uploaded_file.read()
-    tmp_path = os.path.join(tempfile.gettempdir(), uploaded_file.name)
-    with open(tmp_path, "wb") as f: f.write(file_bytes)
-    text_content = read_file_text(tmp_path)
-    summary_text = model_summarize(text_content)
-    st.session_state["pdf_summary"] = {"name": uploaded_file.name, "summary": summary_text}
-    st.markdown(f'<div class="section-bubble"><b>Summary for {uploaded_file.name}:</b><br>{summary_text}</div>', unsafe_allow_html=True)
+refs_folder = brand_data[sel_brand]["references_path"]
+sales_folder = brand_data[sel_brand]["sales_path"]
+corpus_docs = []
+
+for folder in [refs_folder, sales_folder]:
+    if os.path.exists(folder):
+        for f in sorted(os.listdir(folder)):
+            if f.lower().endswith((".pdf",".txt")):
+                corpus_docs.append(read_file_text(os.path.join(folder,f)))
+
+# Include uploaded PDFs
+if sel_brand in st.session_state["pdf_docs"]:
+    corpus_docs.append(st.session_state["pdf_docs"][sel_brand])
 
 # -------------------------
-# Prompt Suggestions
+# Chat input + AI response
 # -------------------------
-prompt_suggestions = [
-    "Generate call flow for this HCP",
-    "Summarize recent clinical studies",
-    "Highlight key objections",
-    "Provide patient case examples",
-]
-st.markdown('<div class="section-bubble"><b>Prompt suggestions:</b> ' + ", ".join(prompt_suggestions) + '</div>', unsafe_allow_html=True)
+def add_ai_response(user_prompt):
+    response_text = query_groq(user_prompt, corpus_docs)
+    audio_b64 = generate_audio_base64(response_text)
+    st.session_state["chat_history"].append({"role":"assistant","text":response_text,"audio_b64":audio_b64})
 
 # -------------------------
-# Chat display
+# Display chat
 # -------------------------
-st.markdown('<div class="chat-container" id="chat_container">', unsafe_allow_html=True)
-for msg in st.session_state.chat_history:
-    if msg["role"]=="user":
-        st.markdown(f'<div class="chat-bubble-user">{escape(msg["text"])}</div>', unsafe_allow_html=True)
+st.markdown('<div style="max-height:56vh; overflow-y:auto;">', unsafe_allow_html=True)
+for idx, entry in enumerate(st.session_state["chat_history"]):
+    role = entry.get("role")
+    text = entry.get("text","")
+    if role=="user":
+        st.markdown(f'<div class="chat-bubble-user">🧑‍💼 {escape(text)}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="chat-bubble-ai">{escape(msg["text"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bubble-ai">🤖 {escape(text).replace("\\n","<br>")}</div>', unsafe_allow_html=True)
+        if entry.get("audio_b64"):
+            try: st.audio(io.BytesIO(base64.b64decode(entry["audio_b64"])), format="audio/mp3")
+            except: pass
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# User input
+# Prompt input
 # -------------------------
-user_input = st.chat_input("Ask AI Sales Assistant...")
-if user_input:
-    st.session_state.chat_history.append({"role":"user","text":user_input})
-    # Simple mock AI response
-    ai_response = f"**AI Response:** Based on your input '{user_input}', consider following points:\n- Point 1\n- Point 2\n- Point 3"
-    st.session_state.chat_history.append({"role":"ai","text":ai_response})
-    st.experimental_rerun()
+user_input = st.text_area("Type your message", value=st.session_state.get("main_input",""), height=96)
+col_send, col_clear = st.columns([1,1])
+with col_send:
+    if st.button("Send"):
+        if user_input.strip():
+            st.session_state["chat_history"].append({"role":"user","text":user_input.strip()})
+            add_ai_response(user_input.strip())
+            st.session_state["main_input"]=""
+            try: st.rerun()
+            except: pass
+with col_clear:
+    if st.button("Clear Input"):
+        st.session_state["main_input"]=""
+        try: st.rerun()
+        except: pass
 
 # -------------------------
-# Feedback system
+# Bottom disclaimer
 # -------------------------
-st.markdown('<div class="feedback-row">', unsafe_allow_html=True)
-like = st.button("👍 Like")
-dislike = st.button("👎 Dislike")
-need_more = st.button("🔄 Regenerate")
-st.markdown('</div>', unsafe_allow_html=True)
-
-if like:
-    st.session_state.feedback_stats["like"] += 1
-if dislike:
-    st.session_state.feedback_stats["dislike"] += 1
-    # Interactive follow-up
-    reason = st.radio("Why did you dislike the response?", ["Too long","Not clear","Missing info","Other"])
-    if reason:
-        st.info(f"AI will regenerate taking into account: {reason}")
-        # Mock regeneration
-        regenerated = f"**Regenerated Response ({reason}):** Consider these updated points..."
-        st.session_state.chat_history.append({"role":"ai","text":regenerated})
-        st.experimental_rerun()
-if need_more:
-    st.session_state.feedback_stats["need_more"] += 1
-    regenerated = f"**Regenerated Response:** Here is a refreshed version based on your last input."
-    st.session_state.chat_history.append({"role":"ai","text":regenerated})
-    st.experimental_rerun()
-
-# -------------------------
-# Export Call Flow
-# -------------------------
-export_text = "\n".join([m["text"] for m in st.session_state.chat_history if m["role"]=="ai"])
-if export_text:
-    st.download_button("📄 Export Call Flow (DOCX)", data=export_call_flow_bytes(export_text, fmt="docx")[0], file_name=export_call_flow_bytes(export_text, fmt="docx")[1])
-    st.download_button("📄 Export Call Flow (TXT)", data=export_call_flow_bytes(export_text, fmt="txt")[0], file_name=export_call_flow_bytes(export_text, fmt="txt")[1])
-
-# -------------------------
-# Footer / Disclaimer
-# -------------------------
-st.markdown('<div class="fixed-disclaimer">⚠️ This AI tool is for internal sales training and assistance only. Not for clinical decisions.</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="fixed-disclaimer">
+⚠️ Internal tool — outputs grounded in GSK-approved references and sales modules. Verify before external use.
+</div>
+""", unsafe_allow_html=True)
