@@ -1,11 +1,10 @@
-# app.py - Final AI Sales Call Assistant (organized UI, APACT, grounded to brand docs,
-#             resizable prompt bubble, interactive feedback, gTTS voice, export to DOCX/TXT)
+# app.py - AI Sales Call Assistant (final merged)
 import streamlit as st
 import os, re, io, tempfile, base64
 from datetime import datetime
 from html import escape
 
-# Optional imports (best-effort)
+# Optional libs (best-effort)
 try:
     from PyPDF2 import PdfReader
 except:
@@ -35,22 +34,16 @@ except:
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # -------------------------
-# GROQ placeholder (backend)
+# GROQ Placeholder (backend variable)
 # -------------------------
 GROQ_API_KEY = "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"
-client = None
-# If/when you enable Groq, initialize client here.
-def query_groq_api(prompt: str) -> str:
-    if not GROQ_API_KEY or GROQ_API_KEY.startswith("add_GROQ"):
-        return "GROQ not configured."
-    # Implement GROQ call here when ready
-    return "GROQ placeholder response."
+# client = None  # reserved for GROQ initialization later
 
 # -------------------------
 # Defensive session_state initialization
 # -------------------------
 defaults = {
-    "chat_history": [],        # list of {"role":"user"/"assistant", "text":..., "audio_b64":...}
+    "chat_history": [],  # list of {"role":"user"/"assistant", "text":..., "audio_b64":...}
     "main_input": "",
     "selected_brand": "shingrix",
     "temperature": 0.62,
@@ -72,59 +65,66 @@ for nk in ("medical_summary", "sales_summary", "pdf_summary", "feedback"):
 # -------------------------
 brand_data = {
     "shingrix": {
-        "display":"Shingrix",
-        "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
-        "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
-        "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
-        "specialties":["GP","Dermatologist","Geriatrician"],
-        "references_path":".devcontainer/references/shingrix/",
-        "sales_path":".devcontainer/SalesModule/shingrix/",
-        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
+        "display": "Shingrix",
+        "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
+        "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
+        "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
+        "specialties": ["GP", "Dermatologist", "Geriatrician"],
+        "references_path": ".devcontainer/references/shingrix/",
+        "sales_path": ".devcontainer/SalesModule/shingrix/",
+        "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Post-call Analysis"]
     },
     "jemperli": {
-        "display":"Jemperli",
-        "segments":["Target Identification","Trial Adoption","Routine Use","Advocacy"],
-        "personas":["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
-        "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
-        "specialties":["Oncologist","Medical Oncologist"],
-        "references_path":".devcontainer/references/jemperli/",
-        "sales_path":".devcontainer/SalesModule/jemperli/",
-        "call_flow":["COCO","Anchor","Engage","Close"]
+        "display": "Jemperli",
+        "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
+        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
+        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited eligibility", "Access/reimbursement issues"],
+        "specialties": ["Oncologist", "Medical Oncologist"],
+        "references_path": ".devcontainer/references/jemperli/",
+        "sales_path": ".devcontainer/SalesModule/jemperli/",
+        "call_flow": ["COCO", "Anchor", "Engage", "Close"]
     },
     "trelegy": {
-        "display":"Trelegy",
-        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
-        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
-        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
-        "references_path":".devcontainer/references/trelegy/",
-        "sales_path":".devcontainer/SalesModule/trelegy/",
-        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
+        "display": "Trelegy",
+        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
+        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
+        "barriers": ["Formulary access", "Inhaler technique", "Side effect concerns", "Cost/coverage"],
+        "specialties": ["GP", "Pulmonologist", "Respiratory Specialist"],
+        "references_path": ".devcontainer/references/trelegy/",
+        "sales_path": ".devcontainer/SalesModule/trelegy/",
+        "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"]
     }
 }
 
 # -------------------------
-# CSS & UI styling (including resizable prompt box)
+# CSS (includes resizable combined field)
 # -------------------------
 st.markdown("""
 <style>
-/* layout */
-.title-box { background: rgba(255,255,255,0.96); padding:14px; border-radius:10px; margin-bottom:12px; text-align:center; }
+/* Title */
+.title-box { background: rgba(255,255,255,0.96); padding:14px; border-radius:10px; margin-bottom:12px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,0.05); }
+
+/* Sections */
 .section-bubble { background:#fbfcfe; border:1px solid #e8eef6; padding:12px; border-radius:10px; margin-bottom:10px; }
-.chat-container { max-height:56vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.96); border-radius:8px; margin-bottom:140px; }
+.chat-container { max-height:56vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.96); border-radius:8px; margin-bottom:160px; }
 .chat-bubble-user { background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }
 .chat-bubble-ai { background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }
-.resizable-suggestions { position: fixed; left: 20px; right: 20px; bottom: 120px; height: 160px; background: #fff; border:1px solid #ddd; padding:10px; border-radius:8px; resize: vertical; overflow: auto; z-index:9998; box-shadow:0 8px 30px rgba(0,0,0,0.06); }
-.suggestion-pill { display:inline-block; padding:6px 10px; border-radius:18px; background:#f6f8fa; margin:4px; border:1px solid #e6e9ee; cursor:pointer; }
-.input-area { position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; background: rgba(255,255,255,0.98); padding:10px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.06); display:flex; gap:8px; align-items:flex-end; }
+
+/* Bottom fixed combined box */
+.combined-fixed { position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; background: rgba(255,255,255,0.98); padding:12px; border-radius:10px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+.resizable-combined { resize: vertical; overflow: auto; border:1px solid #ddd; padding:10px; border-radius:8px; background:#fff; min-height:96px; max-height:360px; }
+.suggestion-pill { display:inline-block; padding:6px 10px; border-radius:18px; background:#f6f8fa; margin:4px; border:1px solid #e6e9ee; cursor:default; }
+.input-row { display:flex; gap:8px; margin-top:8px; align-items:flex-end; }
 .send-button { background:#FF6F00; color:white; padding:8px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; }
+
+/* Footer */
 .fixed-disclaimer { position: fixed; left:0; right:0; bottom:0; background: rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }
 .citation-note { font-size:13px; color:#333; background:#fbfbff; padding:8px; border-left:4px solid #0078D7; border-radius:6px; margin-top:8px; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Helper functions
+# Helper functions: file read, summary, search, tts, export
 # -------------------------
 def read_file_text(path: str) -> str:
     if not os.path.exists(path):
@@ -138,6 +138,20 @@ def read_file_text(path: str) -> str:
                 return fh.read()
     except Exception:
         return ""
+
+def simple_summary(text: str, bullets: int = 6) -> str:
+    if not text:
+        return ""
+    sents = re.split(r'(?<=[\.!\?])\s+', text)
+    selected = [s.strip() for s in sents if s.strip()][:bullets]
+    return "\n".join([f"- {s}" for s in selected])
+
+def model_summarize(text: str, bullets: int = 6) -> str:
+    # Placeholder: use GROQ if available; otherwise simple summary
+    if not text:
+        return ""
+    # If a client/GROQ were available, you'd call it here.
+    return simple_summary(text, bullets)
 
 def build_corpus_for_folders(folders, chunk_size_sentences=3):
     chunks, metas = [], []
@@ -157,28 +171,6 @@ def build_corpus_for_folders(folders, chunk_size_sentences=3):
                     chunks.append(chunk)
                     metas.append({"filename": fname, "folder": folder, "start": i})
     return chunks, metas
-
-def simple_summary(text: str, bullets: int = 6) -> str:
-    if not text:
-        return ""
-    sents = re.split(r'(?<=[\.!\?])\s+', text)
-    selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join([f"- {s}" for s in selected])
-
-def model_summarize(text: str, bullets: int = 6) -> str:
-    """Prefer GROQ if available; otherwise simple summary."""
-    if not text:
-        return ""
-    if client:
-        try:
-            prompt = f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                                                  messages=[{"role":"user","content":prompt}],
-                                                  temperature=0.2)
-            return resp.choices[0].message.content
-        except Exception:
-            return simple_summary(text, bullets)
-    return simple_summary(text, bullets)
 
 def local_search_snippets(query: str, chunks: list, metas: list, top_n: int = 5):
     if not chunks or not query:
@@ -208,9 +200,10 @@ def local_search_snippets(query: str, chunks: list, metas: list, top_n: int = 5)
     return out
 
 def generate_audio_base64(text: str) -> str:
-    """Use gTTS (Google) by default; return base64 mp3, else empty string."""
+    """Use gTTS by default; return base64 mp3 or empty string if failed."""
     if not text or not gTTS:
         return ""
+    # Add gentle spoken pauses for APACT sections
     tts_text = re.sub(r'\n\s*\n', ' ... ', text)
     tts_text = tts_text.replace("\n", " ")
     try:
@@ -240,41 +233,43 @@ def export_call_flow_bytes(text: str, fmt: str = "docx"):
         return b, filename
 
 # -------------------------
-# UI: Title box and Sidebar controls
+# Sidebar controls
 # -------------------------
-st.markdown(f'<div class="title-box"><h2>💡 AI Sales Call Assistant — {brand_data[st.session_state["selected_brand"]]["display"]}</h2><div style="color:#666;font-size:14px;">APACT-guided, grounded in GSK-approved docs</div></div>', unsafe_allow_html=True)
-
-with st.sidebar.expander("Filters & Options", expanded=True):
-    brand_options = list(brand_data.keys())
-    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state["selected_brand"]), format_func=lambda k: brand_data[k]["display"])
-    st.session_state["selected_brand"] = sel_brand
-    bconf = brand_data[sel_brand]
-    # persona/segment selectors for suggestions context
-    persona = st.selectbox("HCP Persona", bconf.get("personas", []))
-    segment = st.selectbox("Segment", bconf.get("segments", []))
-    barrier = st.multiselect("Doctor Barrier", bconf.get("barriers", []))
-    specialty = st.selectbox("Specialty", bconf.get("specialties", []))
-    objective = st.selectbox("Objective", ["Awareness","Adoption","Retention"])
-    st.session_state["temperature"] = st.slider("Temperature", 0.0, 1.0, st.session_state["temperature"], 0.05)
-    st.session_state["search_mode"] = st.selectbox("Search mode", ["deep","shallow"])
-    st.session_state["language"] = st.radio("Language", ["English","Arabic"])
-    if st.button("🗑️ Clear Chat"):
-        st.session_state["chat_history"] = []
-
+st.sidebar.title("Filters & Options")
+brand_options = list(brand_data.keys())
+sel_brand = st.sidebar.selectbox("Brand", brand_options, index=brand_options.index(st.session_state["selected_brand"]),
+                                format_func=lambda k: brand_data[k]["display"])
+st.session_state["selected_brand"] = sel_brand
+bconf = brand_data[sel_brand]
+persona = st.sidebar.selectbox("HCP Persona", bconf.get("personas", []))
+segment = st.sidebar.selectbox("Segment", bconf.get("segments", []))
+barrier = st.sidebar.multiselect("Doctor Barrier", bconf.get("barriers", []))
+specialty = st.sidebar.selectbox("Specialty", bconf.get("specialties", []))
+objective = st.sidebar.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
+st.session_state["temperature"] = st.sidebar.slider("Temperature", 0.0, 1.0, st.session_state["temperature"], 0.05)
+st.session_state["search_mode"] = st.sidebar.selectbox("Search mode", ["deep", "shallow"])
+st.session_state["language"] = st.sidebar.radio("Language", ["English", "Arabic"])
+if st.sidebar.button("🗑️ Clear Chat"):
+    st.session_state["chat_history"] = []
 with st.sidebar.expander("Add External Reference URLs (one per line)", expanded=False):
-    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
+    _ = st.text_area("Enter URLs (one per line)")
 
 with st.sidebar.expander("Export Options", expanded=False):
-    export_format = st.radio("Default export format", ["DOCX","TXT"], index=0 if DOCX_AVAILABLE else 1)
+    export_format = st.radio("Default export format", ["DOCX", "TXT"], index=0 if DOCX_AVAILABLE else 1)
 
 # -------------------------
-# Load Brand Summaries & Corpus (only when needed)
+# Title
+# -------------------------
+st.markdown(f'<div class="title-box"><h2>💡 AI Sales Call Assistant — {brand_data[sel_brand]["display"]}</h2><div style="color:#666;font-size:14px;">APACT-guided responses grounded in approved brand documents</div></div>', unsafe_allow_html=True)
+
+# -------------------------
+# Build per-brand summaries & corpus (only when needed)
 # -------------------------
 brand = st.session_state["selected_brand"]
 refs_folder = brand_data[brand]["references_path"]
 sales_folder = brand_data[brand]["sales_path"]
 
-# medical summary per brand
+# medical summary per brand (cached in session)
 if brand not in st.session_state["medical_summary"]:
     combined_refs = ""
     if os.path.exists(refs_folder):
@@ -292,15 +287,15 @@ if brand not in st.session_state["sales_summary"]:
                 combined_sales += read_file_text(os.path.join(sales_folder, f)) + "\n"
     st.session_state["sales_summary"][brand] = model_summarize(combined_sales, bullets=6) if combined_sales.strip() else ""
 
-# build corpus for grounding
+# build corpus
 corpus_folders = [p for p in (refs_folder, sales_folder) if os.path.exists(p)]
 chunks, metas = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# Prompt suggestion generator
+# Prompt suggestions helper
 # -------------------------
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
-    s=[]
+    s = []
     s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
     if barriers_list:
         s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
@@ -312,91 +307,96 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # -------------------------
-# APACT response builder (grounded)
+# APACT response builder + interactive feedback
 # -------------------------
-def add_ai_response(prompt: str, follow_up: bool=False, context_previous: str=None):
+def add_ai_response(prompt: str, follow_up: bool = False, context_previous: str = None):
     """
-    Create an APACT-structured response grounded in brand docs (chunks).
-    If follow_up=True produce clarifying Qs instead of full plan.
+    Create an APACT-structured response grounded in brand docs.
+    If follow_up=True produce clarifying questions.
     """
-    # retrieve snippets from corpus
     snippets = local_search_snippets(prompt, chunks, metas, top_n=6)
     out_lines = []
-    opener = "Thanks — I hear you. Let’s tackle this together." if not follow_up else "Thanks — I’ll refine this based on your feedback."
-    out_lines.append(opener)
+    opener = "Thanks — I hear you. Let’s tackle this together." if not follow_up else "Thanks — I want to refine this for you."
+    out_lines.append(f"*{opener}*")
     out_lines.append("")
 
-    # Acknowledge
-    out_lines.append("**🟢 Acknowledge**")
-    out_lines.append("- I understand why this matters for patient care and clinic workflow.")
+    # Opening lines
+    out_lines.append("**Opening lines you can use**")
+    out_lines.append("- 'I appreciate you bringing this up — it's an important point that often affects patient decisions.'")
+    out_lines.append("- 'That's a fair question. Let me walk you through what we've seen in practice.'")
     out_lines.append("")
 
-    # Probe
-    out_lines.append("**🔵 Probe — suggested questions**")
-    out_lines.append("- Open: 'Can you tell me which patients you're most worried about?'")
-    out_lines.append("- Closed: 'Is your main concern safety, efficacy, or access? (Reply: safety/efficacy/access)'")
-    out_lines.append("- Diagnostic: 'How many eligible patients do you see per week?'")
-    out_lines.append("")
-
-    # Actions: use brand call_flow
-    out_lines.append("**🟣 Actions — call flow steps with example phrasing**")
-    reply_style = st.session_state.get("reply_style","balanced")
-    for step in brand_data[brand]["call_flow"]:
-        out_lines.append(f"**{step}**")
-        # prefer snippets that mention the step, else any top snippets
-        relevant = []
-        for s in snippets:
-            text = s.get("text","")
-            if step.lower() in text.lower():
-                relevant.append((s["score"], text))
-        if not relevant:
-            relevant = [(s["score"], s["text"]) for s in snippets]
-        if relevant:
-            for score, text in sorted(relevant, key=lambda x: x[0], reverse=True)[:2]:
-                short = re.split(r'(?<=[\.!\?])\s+', text.strip())[0][:240]
-                if reply_style == "short_script":
-                    out_lines.append(f"- Quick line: \"{short}.\" (15s)")
-                elif reply_style == "data":
-                    out_lines.append(f"- Data-backed: {short} — follow with 'In internal materials we note...'")
-                elif reply_style == "conversational":
-                    out_lines.append(f"- Role-play: Rep: \"{short}.\" HCP: \"[response]\"")
-                else:
-                    out_lines.append(f"- {short} — Example phrasing: \"{short}...\"")
-        else:
-            out_lines.append("- Refer to the sales module for examples tailored to this step.")
+    if not follow_up:
+        # Acknowledge
+        out_lines.append("**🟢 Acknowledge**")
+        out_lines.append("- I understand the concern and why it matters for patient care and workflow.")
         out_lines.append("")
 
-    # Confirm & Transition
-    out_lines.append("**🟠 Confirm**")
-    out_lines.append("- Does this direction address the HCP's main barrier? (Yes / No)")
-    out_lines.append("")
-    out_lines.append("**🟡 Transition**")
-    out_lines.append("- If yes, I can prepare: (A) Short script, (B) Role-play examples, (C) One-page patient checklist. Reply with A/B/C.")
-    out_lines.append("")
-    out_lines.append("—")
-    out_lines.append("*All phrasing is grounded in GSK-approved internal references and sales modules uploaded for this brand.*")
+        # Probe
+        out_lines.append("**🔵 Probe — sample questions**")
+        out_lines.append("- Open: 'Can you tell me more about which patients you're most worried about?'")
+        out_lines.append("- Closed: 'Is your main worry safety, efficacy, or reimbursement? (Reply safety/efficacy/reimbursement)'")
+        out_lines.append("- Diagnostic: 'How many eligible patients do you see per week?'")
+        out_lines.append("")
+
+        # Actions
+        out_lines.append("**🟣 Actions — practical steps (APACT) based on sales module**")
+        reply_style = st.session_state.get("reply_style", "balanced")
+        for step in brand_data[brand]["call_flow"]:
+            out_lines.append(f"**{step}**")
+            # pick relevant snippets
+            relevant = []
+            for s in snippets:
+                t = s.get("text", "")
+                if step.lower() in t.lower() or any(word.lower() in t.lower() for word in [persona.lower(), specialty.lower(), objective.lower()]):
+                    relevant.append((s["score"], t))
+            relevant.sort(key=lambda x: x[0], reverse=True)
+            if relevant:
+                for rscore, rtext in relevant[:2]:
+                    short = re.split(r'(?<=[\.!\?])\s+', rtext.strip())[0][:220]
+                    if reply_style == "short_script":
+                        out_lines.append(f"- Quick line: \"{short}.\" (15s)")
+                    elif reply_style == "data":
+                        out_lines.append(f"- Data point: {short} — follow with 'In internal materials...'")
+                    elif reply_style == "conversational":
+                        out_lines.append(f"- Role-play: Rep: \"{short}.\" HCP: \"[response]\"")
+                    else:
+                        out_lines.append(f"- {short} — Example phrasing: \"{short}...\"")
+            else:
+                out_lines.append("- Refer to the sales module guidance for tailored phrasing.")
+            out_lines.append("")
+        # Confirm & Transition
+        out_lines.append("**🟠 Confirm**")
+        out_lines.append("- Does this direction address the HCP's main barrier in your next visit? (Yes / No)")
+        out_lines.append("")
+        out_lines.append("**🟡 Transition**")
+        out_lines.append("- If yes, I can prepare A) Short script, B) Role-play examples, or C) One-page checklist. Reply with A/B/C.")
+        out_lines.append("")
+        out_lines.append("*Grounded in internal GSK-approved medical references & sales modules.*")
+    else:
+        # follow-up clarifying questions
+        out_lines.append("**Follow-up — tell me more so I can improve**")
+        if context_previous:
+            prev_short = re.split(r'(?<=[\.!\?])\s+', context_previous.strip())
+            prev_snippet = prev_short[0] if prev_short else context_previous.strip()
+            out_lines.append(f"- About previous: \"{prev_snippet[:140]}...\" — which part felt off? (unclear / not practical / too technical / other)")
+        out_lines.append("- Quick choices: (A) unclear, (B) not enough practical steps, (C) too technical, (D) other")
+        out_lines.append("- Preferred output: (1) Short script, (2) Data-backed bullets, (3) Conversational examples")
+        out_lines.append("- Example: reply '2' to add study numbers, '3' for role-play examples.")
 
     ai_text = "\n".join(out_lines)
     audio_b64 = generate_audio_base64(ai_text)
-    assistant_entry = {"role":"assistant", "text": ai_text, "audio_b64": audio_b64}
+    assistant_entry = {"role": "assistant", "text": ai_text, "audio_b64": audio_b64}
     st.session_state["chat_history"].append(assistant_entry)
 
-    # if follow_up requested, add clarifying Qs as a separate assistant message
+    # If follow_up, add clarifying prompt message as separate assistant message for interactivity
     if follow_up:
-        follow = []
-        follow.append("Quick clarifying questions to help me improve:")
-        if context_previous:
-            prev_short = re.split(r'(?<=[\.!\?])\s+', context_previous.strip())
-            ctx = prev_short[0] if prev_short else context_previous.strip()
-            follow.append(f"- About the previous suggestion: \"{ctx[:140]}...\" — which part felt off? (unclear / not practical / too technical / other)")
-        follow.append("- Choose: (A) unclear, (B) not enough practical steps, (C) too technical, (D) other")
-        follow.append("- Preferred output: (1) Short script, (2) Data bullets, (3) Conversational examples")
-        follow_text = "\n".join(follow)
-        audio_b64_f = generate_audio_base64(follow_text)
-        st.session_state["chat_history"].append({"role":"assistant", "text": follow_text, "audio_b64": audio_b64_f})
+        follow_lines = ["Please choose one: (A) unclear, (B) not practical, (C) too technical, (D) other. Or reply with preferred output: 1/2/3."]
+        follow_text = "\n".join(follow_lines)
+        st.session_state["chat_history"].append({"role": "assistant", "text": follow_text, "audio_b64": generate_audio_base64(follow_text)})
 
 # -------------------------
-# UI: Medical & Sales bubbles (collapsible)
+# UI: Summaries (collapsible)
 # -------------------------
 with st.expander("📚 Medical References Summary (brand-specific)", expanded=True):
     md = st.session_state["medical_summary"].get(brand, "")
@@ -412,11 +412,9 @@ with st.expander("💼 Sales Module Summary (brand-specific)", expanded=True):
     else:
         st.markdown("<div class='section-bubble'>No sales module content found for this brand.</div>", unsafe_allow_html=True)
 
-# -------------------------
-# PDF Upload & Summary bubble
-# -------------------------
-with st.expander("📄 Upload PDF / TXT (brand-specific) & Summary", expanded=False):
-    uploaded_file = st.file_uploader("Upload PDF or TXT for quick summarization", type=["pdf","txt"])
+# PDF upload & summarise
+with st.expander("📄 Upload a PDF / TXT (brand-specific) and summarize", expanded=False):
+    uploaded_file = st.file_uploader("Upload PDF or TXT", type=["pdf", "txt"])
     if uploaded_file:
         try:
             if hasattr(uploaded_file, "type") and uploaded_file.type == "application/pdf" and PdfReader:
@@ -425,14 +423,14 @@ with st.expander("📄 Upload PDF / TXT (brand-specific) & Summary", expanded=Fa
             else:
                 pdf_text = uploaded_file.getvalue().decode("utf-8", errors="ignore")
             st.session_state["pdf_summary"][brand] = model_summarize(pdf_text, bullets=6)
-            st.success("Uploaded file summarized and saved for this brand.")
+            st.success("Uploaded file summarized and stored for this brand.")
         except Exception:
-            st.error("Failed to read uploaded file.")
+            st.error("Failed to read the uploaded file.")
     if st.session_state["pdf_summary"].get(brand):
         st.markdown(f"<div class='section-bubble'>{st.session_state['pdf_summary'][brand]}</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Chat container (display messages)
+# Chat history display
 # -------------------------
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for idx, entry in enumerate(st.session_state["chat_history"]):
@@ -448,95 +446,151 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 st.audio(io.BytesIO(base64.b64decode(entry["audio_b64"])), format="audio/mp3")
             except Exception:
                 pass
-        # export buttons (DOCX if available else TXT) and feedback buttons
-        col1, col2, col3, col4 = st.columns([1,1,1,4])
-        with col1:
-            bytes_data, fname = export_call_flow_bytes(text, fmt="docx" if DOCX_AVAILABLE and export_format=="DOCX" else "txt")
+        # export and feedback buttons
+        c1, c2, c3, c4 = st.columns([1,1,1,4])
+        with c1:
+            bytes_data, fname = export_call_flow_bytes(text, fmt="docx" if (DOCX_AVAILABLE and export_format == "DOCX") else "txt")
             mime = "application/octet-stream" if fname.endswith(".docx") else "text/plain"
             st.download_button("⬇ Export", data=bytes_data, file_name=fname, mime=mime, key=f"export_{idx}")
-        with col2:
-            # always provide TXT alternative
+        with c2:
             txt_bytes, txt_name = export_call_flow_bytes(text, fmt="txt")
             st.download_button("⬇ Export TXT", data=txt_bytes, file_name=txt_name, mime="text/plain", key=f"export_txt_{idx}")
-        with col3:
+        with c3:
             fb_key = f"fb_{idx}"
             if fb_key not in st.session_state["feedback"]:
                 if st.button("👍 Like", key=f"like_{idx}"):
                     st.session_state["feedback"][fb_key] = "like"
-                    # ask for style preference
-                    pref_text = "Great — preference? Reply with 1 for short scripts, 2 for data bullets, 3 for conversational examples."
-                    st.session_state["chat_history"].append({"role":"assistant","text":pref_text, "audio_b64": generate_audio_base64(pref_text)})
+                    pref = "Great — preference? Reply 1 for short scripts, 2 for data bullets, 3 for conversational examples."
+                    st.session_state["chat_history"].append({"role": "assistant", "text": pref, "audio_b64": generate_audio_base64(pref)})
                 if st.button("👎 Dislike", key=f"dislike_{idx}"):
                     st.session_state["feedback"][fb_key] = "dislike"
-                    # follow up clarifying questions
+                    # ask follow up
                     add_ai_response("User disliked previous response — follow up", follow_up=True, context_previous=text)
+                    # re-render
+                    st.experimental_rerun = getattr(st, "experimental_rerun", None)
+                    # call st.rerun once triggered by button; avoid unconditional call
+                    try:
+                        st.rerun()
+                    except Exception:
+                        pass
                 if st.button("ℹ️ Need More", key=f"needmore_{idx}"):
                     st.session_state["feedback"][fb_key] = "need_more"
-                    add_ai_response("User requested more details — follow up", follow_up=True, context_previous=text)
+                    add_ai_response("User requested more detail — follow up", follow_up=True, context_previous=text)
+                    try:
+                        st.rerun()
+                    except Exception:
+                        pass
             else:
                 st.markdown(f"Feedback: **{st.session_state['feedback'][fb_key]}**")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Resizable Prompt Suggestions bubble (visual) + actionable buttons underneath
+# Combined resizable bottom box (suggestions + input) - fixed
 # -------------------------
 suggestions = make_suggestions(brand, persona, barrier, segment, specialty, objective)
 
-# Visual resizable suggestions box (CSS controlled)
-st.markdown('<div class="resizable-suggestions">', unsafe_allow_html=True)
-st.markdown("<strong>Prompt Suggestions — drag to resize</strong><br><small>Click a suggestion button below to set input and run it.</small>", unsafe_allow_html=True)
-pills_html = " ".join([f'<span class="suggestion-pill">{escape(s)}</span>' for s in suggestions])
-st.markdown(pills_html, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="combined-fixed">', unsafe_allow_html=True)
+st.markdown('<div class="resizable-combined">', unsafe_allow_html=True)
 
-# Actionable suggestion buttons (Streamlit)
-btn_cols = st.columns(min(5, len(suggestions)))
-for i, s in enumerate(suggestions):
-    if btn_cols[i % len(btn_cols)].button(s, key=f"act_sugg_{i}"):
-        st.session_state["main_input"] = s
-        # immediately run the suggestion
-        st.session_state["chat_history"].append({"role":"user","text": s})
-        add_ai_response(s)
-        st.experimental_rerun()
+# Collapsible suggestions inside combined box
+with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
+    st.markdown("<div style='margin-bottom:8px;'>Click a suggestion to populate the input and run it.</div>", unsafe_allow_html=True)
+    # show pills visually
+    pills_html = " ".join([f'<span class="suggestion-pill">{escape(s)}</span>' for s in suggestions])
+    st.markdown(pills_html, unsafe_allow_html=True)
+    # actionable buttons
+    cols = st.columns(min(4, max(1, len(suggestions))))
+    for i, s in enumerate(suggestions):
+        if cols[i % len(cols)].button(s, key=f"sugg_btn_{i}"):
+            # set main_input and run
+            st.session_state["main_input"] = s
+            st.session_state["chat_history"].append({"role": "user", "text": s})
+            add_ai_response(s)
+            try:
+                st.rerun()
+            except Exception:
+                pass
 
-# -------------------------
-# Input area (fixed bottom)
-# -------------------------
-st.markdown('<div class="input-area">', unsafe_allow_html=True)
-col_text, col_send, col_pref = st.columns([8,1,1])
-with col_text:
-    # show the main input (populated by suggestion buttons)
-    main_text = st.text_area("", value=st.session_state.get("main_input",""), key="main_input_widget", height=84, placeholder="Type message here or click a prompt suggestion...")
-with col_send:
-    if st.button("Send", key="send_main"):
+st.markdown("<hr style='margin:10px 0'>", unsafe_allow_html=True)
+
+# Input area inside combined box
+main_text = st.text_area("Type your message here (or click a suggestion)", value=st.session_state.get("main_input", ""), key="main_input_widget", height=96)
+# action row
+a1, a2, a3 = st.columns([1,1,1])
+with a1:
+    if st.button("Send", key="combined_send"):
         if main_text and main_text.strip():
-            st.session_state["chat_history"].append({"role":"user", "text": main_text.strip()})
+            st.session_state["chat_history"].append({"role": "user", "text": main_text.strip()})
             add_ai_response(main_text.strip(), follow_up=False)
             st.session_state["main_input"] = ""
-            st.experimental_rerun()
-with col_pref:
-    if st.button("Clear", key="clear_main"):
+            try:
+                st.rerun()
+            except Exception:
+                pass
+with a2:
+    if st.button("Clear", key="combined_clear"):
         st.session_state["main_input"] = ""
-        st.experimental_rerun()
+        # clear input widget by rerunning
+        try:
+            st.rerun()
+        except Exception:
+            pass
+with a3:
+    if st.button("Set Reply Style (1-short,2-data,3-convers)", key="set_style"):
+        # ask user to reply 1/2/3 in the chat — set awaiting flag
+        st.session_state["awaiting_style_pref"] = True
+        prompt = "Which reply style do you prefer? Reply with 1 for short scripts, 2 for data bullets, 3 for conversational examples."
+        st.session_state["chat_history"].append({"role": "assistant", "text": prompt, "audio_b64": generate_audio_base64(prompt)})
+        try:
+            st.rerun()
+        except Exception:
+            pass
+
+st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------------
-# Bottom expanding accordions with Summaries for reference (collapsible)
-# -------------------------
-with st.expander("Show references used (medical summary)", expanded=False):
-    st.markdown(st.session_state["medical_summary"].get(brand, "No medical summary available."))
-
-with st.expander("Show sales module summary", expanded=False):
-    st.markdown(st.session_state["sales_summary"].get(brand, "No sales summary available."))
-
-with st.expander("Uploaded PDF summary (brand-specific)", expanded=False):
-    st.markdown(st.session_state["pdf_summary"].get(brand, ""))
+# If user replied while awaiting style preference, capture it
+if st.session_state.get("awaiting_style_pref"):
+    # look at last user message if exists
+    last_user = None
+    for e in reversed(st.session_state["chat_history"]):
+        if e.get("role") == "user":
+            last_user = e.get("text", "").lower()
+            break
+    if last_user:
+        if "1" in last_user or "short" in last_user:
+            st.session_state["reply_style"] = "short_script"
+            st.session_state["awaiting_style_pref"] = False
+            ack = "Got it — I'll favor short scripts going forward."
+            st.session_state["chat_history"].append({"role": "assistant", "text": ack, "audio_b64": generate_audio_base64(ack)})
+            try:
+                st.rerun()
+            except Exception:
+                pass
+        elif "2" in last_user or "data" in last_user:
+            st.session_state["reply_style"] = "data"
+            st.session_state["awaiting_style_pref"] = False
+            ack = "Got it — I'll prioritize data-backed bullets going forward."
+            st.session_state["chat_history"].append({"role": "assistant", "text": ack, "audio_b64": generate_audio_base64(ack)})
+            try:
+                st.rerun()
+            except Exception:
+                pass
+        elif "3" in last_user or "convers" in last_user:
+            st.session_state["reply_style"] = "conversational"
+            st.session_state["awaiting_style_pref"] = False
+            ack = "Great — I'll include more conversational examples and role-plays."
+            st.session_state["chat_history"].append({"role": "assistant", "text": ack, "audio_b64": generate_audio_base64(ack)})
+            try:
+                st.rerun()
+            except Exception:
+                pass
 
 # -------------------------
 # Footer disclaimer
 # -------------------------
 st.markdown("""
 <div class="fixed-disclaimer">
-⚠️ Internal tool — outputs are grounded in GSK-approved internal references and sales modules uploaded in the repo. Verify clinical information before external use.
+⚠️ Internal tool — outputs are grounded in GSK-approved internal references and sales modules stored in the repository. Verify clinical info before external use.
 </div>
 """, unsafe_allow_html=True)
