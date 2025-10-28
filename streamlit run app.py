@@ -699,7 +699,6 @@ if st.session_state.get("awaiting_style_pref"):
             except Exception:
                 pass
 
-# -------------------------
 # Footer disclaimer
 # -------------------------
 st.markdown(f"""
