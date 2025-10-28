@@ -614,7 +614,7 @@ st.markdown('<div class="combined-fixed">', unsafe_allow_html=True)
 st.markdown('<div class="resizable-combined">', unsafe_allow_html=True)
 
 with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
-    st.markdown("<div style='margin-bottom:8px;color:#fff;'>Click a suggestion to populate & send.</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom:8px;color:#ff;'>Click a suggestion to populate & send.</div>", unsafe_allow_html=True)
     # show pills
     pills_html = " ".join([f'<span class="suggestion-pill">{escape(s)}</span>' for s in suggestions])
     st.markdown(pills_html, unsafe_allow_html=True)
