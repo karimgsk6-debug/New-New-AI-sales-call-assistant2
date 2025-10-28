@@ -112,10 +112,10 @@ st.markdown(f"""
 <style>
 /* Blurred orange gradient background **/
 [data-testid="stAppViewContainer"] {{
-  background: linear-gradient(120deg, rgba(240,140,0,0.9), rgba(240,85,0,0.9)), url('{REPO_RAW_BASE}/background1.png');
+  background: linear-gradient(120deg, rgba(240,140,0,0.12), rgba(240,85,0,0.12)), url('{REPO_RAW_BASE}/background1.png');
   background-size: cover;
   background-position: center;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(8px);
 }}
 
 /* Header */
