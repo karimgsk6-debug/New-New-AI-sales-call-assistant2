@@ -683,7 +683,6 @@ if st.session_state.get("awaiting_style_pref"):
 # -------------------------
 # Bottom disclaimers (no white box above)
 # -------------------------
-st.markdown(f"""
 <div class="fixed-disclaimer">
 ⚠️ Internal tool — outputs are grounded in GSK-approved internal references and sales modules stored in the repository. Verify clinical info before external use.
 </div>
