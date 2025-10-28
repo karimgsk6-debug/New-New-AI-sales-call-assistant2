@@ -225,7 +225,7 @@ st.markdown(f"""
   left:0;
   right:0;
   bottom:0;
-  background: rgba(255,255,255,0.96);
+  background: rgba(255,255,255,0.7);
   padding:8px;
   border-top:2px solid #FF6F00;
   text-align:center;
@@ -345,7 +345,7 @@ def export_call_flow_bytes(text: str, fmt: str = "docx"):
 # Sidebar (filters + export + clear at bottom)
 # -------------------------
 with st.sidebar:
-    st.image(GSK_LOGO_RAW, width=140)
+    st.image(GSK_LOGO_RAW, width=150)
     st.markdown("---")
     st.subheader("Filters & Options")
     brand_options = list(brand_data.keys())
@@ -387,7 +387,6 @@ with st.sidebar:
     if st.button("🗑️ Clear Chat (all)"):
         st.session_state["chat_history"] = []
         st.session_state["feedback"] = {}
-    st.image(AI_LOGO_RAW, width=120)
 
 # -------------------------
 # Header with logos + title
