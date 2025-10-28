@@ -203,10 +203,10 @@ st.markdown(f"""
 
 /* mini-dashboard */
 .mini-dashboard {{
-  display:flex; gap:18px; justify-content:center; margin-bottom:10px; color: #fff;
+  display:flex; gap:18px; justify-content:center; margin-bottom:10px; color: #ff;
 }}
 .mini-dashboard div {{
-  background: rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.05);
   padding:10px 14px; border-radius:10px; text-align:center;
 }}
 
