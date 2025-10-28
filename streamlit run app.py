@@ -52,7 +52,7 @@ defaults = {
     "chat_history": [],  # list of dicts: {"role":"user"/"assistant", "text":..., "audio_b64":...}
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.62,
+    "temperature": 0.7,
     "search_mode": "deep",
     "language": "English",
     "reply_style": "balanced",  # balanced, short_script, data, conversational
@@ -110,12 +110,12 @@ brand_data = {
 # -------------------------
 st.markdown(f"""
 <style>
-/* Blurred orange gradient background */
+/* Blurred orange gradient background **/
 [data-testid="stAppViewContainer"] {{
-  background: linear-gradient(120deg, rgba(255,140,0,0.18), rgba(255,85,0,0.18)), url('{REPO_RAW_BASE}/background1.png');
+  background: linear-gradient(120deg, rgba(240,140,0,0.9), rgba(240,85,0,0.9)), url('{REPO_RAW_BASE}/background1.png');
   background-size: cover;
   background-position: center;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(5px);
 }}
 
 /* Header */
