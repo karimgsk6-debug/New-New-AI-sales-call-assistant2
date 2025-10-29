@@ -44,7 +44,7 @@ AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.
 # -------------------------
 # GROQ API (set your key)
 # -------------------------
-GROQ_API_KEY = "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"  # <-- replace with your GROQ API key
+GROQ_API_KEY = "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"  # <-- replace with your GROQ API key
 GROQ_API_URL = "https://api.groq.ai/v1/llm"
 
 # -------------------------
