@@ -145,6 +145,9 @@ def read_file_text_from_uploaded(uploaded_file):
             return "".join([p.extract_text() or "" for p in reader.pages])
         elif hasattr(uploaded_file, "type") and uploaded_file.type == "text/plain":
             return uploaded_file.getvalue().decode("utf-8", errors="ignore")
+        elif hasattr(uploaded_file, "type") and uploaded_file.type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] and DOCX_AVAILABLE:
+            doc = Document(uploaded_file)
+            return "\n".join([p.text for p in doc.paragraphs])
         else:
             return ""
     except Exception:
@@ -312,7 +315,7 @@ with st.sidebar:
         st.session_state["chat_history"] = []
         st.session_state["followup_options"] = {}
         st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
-        st.experimental_rerun()
+        st.rerun()
 
 # -------------------------
 # Header
@@ -334,24 +337,13 @@ st.markdown(f"""
 st.subheader("📄 Upload Reference Documents (PDF / TXT / DOCX)")
 uploaded_file_main = st.file_uploader("Upload a PDF / TXT / DOCX to use as reference (appears in context for answers)", type=["pdf","txt","docx"], key="main_upload")
 if uploaded_file_main:
-    # read content from uploaded
-    content = ""
-    try:
-        if hasattr(uploaded_file_main, "type") and "pdf" in uploaded_file_main.type and PdfReader:
-            reader = PdfReader(uploaded_file_main)
-            content = "".join([p.extract_text() or "" for p in reader.pages])
-        elif hasattr(uploaded_file_main, "type") and uploaded_file_main.type == "text/plain":
-            content = uploaded_file_main.getvalue().decode("utf-8", errors="ignore")
-        elif hasattr(uploaded_file_main, "type") and uploaded_file_main.type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] and DOCX_AVAILABLE:
-            doc = Document(uploaded_file_main)
-            content = "\n".join([p.text for p in doc.paragraphs])
-    except Exception:
-        content = ""
+    content = read_file_text_from_uploaded(uploaded_file_main)
     if content:
         st.session_state["pdf_docs"].setdefault(st.session_state["selected_brand"], "")
         st.session_state["pdf_docs"][st.session_state["selected_brand"]] += "\n\n" + content
         st.session_state["pdf_summaries"][st.session_state["selected_brand"]] = model_summarize(st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=6)
         st.success("Uploaded document added to context and summarized for brand.")
+        st.rerun()
 
 # -------------------------
 # Build local corpus from repo + uploaded docs
@@ -360,7 +352,6 @@ brand = st.session_state["selected_brand"]
 refs_folder = brand_data[brand]["references_path"]
 sales_folder = brand_data[brand]["sales_path"]
 
-# local repo docs
 local_docs = []
 if os.path.exists(refs_folder):
     for f in sorted(os.listdir(refs_folder)):
@@ -387,7 +378,6 @@ with col_med:
     st.markdown("**📚 Medical Summary**")
     med_text = st.session_state["medical_summary"].get(brand, "")
     if not med_text:
-        # try to build from local docs
         combined = "\n".join([d for d in local_docs])
         med_text = model_summarize(combined, bullets=6) if combined else ""
         st.session_state["medical_summary"][brand] = med_text
@@ -396,7 +386,6 @@ with col_sales:
     st.markdown("**💼 Sales Module Summary**")
     sales_text = st.session_state["sales_summary"].get(brand, "")
     if not sales_text:
-        # attempt to infer sales summary from local docs
         combined_sales = "\n".join([d for d in local_docs])
         sales_text = model_summarize(combined_sales, bullets=6) if combined_sales else ""
         st.session_state["sales_summary"][brand] = sales_text
@@ -422,21 +411,16 @@ with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
     st.markdown("<div style='margin-bottom:8px;color:#333;'>Click a suggestion to auto-send it.</div>", unsafe_allow_html=True)
     pills_html = " ".join([f'<span class="suggestion-pill">{escape(s)}</span>' for s in suggestions])
     st.markdown(pills_html, unsafe_allow_html=True)
-    # actionable buttons
     btn_cols = st.columns(min(4, len(suggestions)))
     for i, s in enumerate(suggestions):
         if btn_cols[i % len(btn_cols)].button(s, key=f"suggbtn_{i}"):
-            # append user message and call for AI response
             st.session_state["chat_history"].append({"role":"user", "text": s})
-            # generate AI response using LLM (GROQ) with context
-            # prepare context docs: uploaded + local
             context_docs = local_docs.copy()
             ai_resp = query_groq(s, context_docs) if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here" else None
             if ai_resp:
                 audio_b64 = generate_audio_base64(ai_resp)
                 st.session_state["chat_history"].append({"role":"assistant","text":ai_resp,"audio_b64":audio_b64})
             else:
-                # fallback: local search + structured reply
                 snippets = local_search_snippets(s, chunks, metas, top_n=5)
                 if snippets:
                     ai_text = "**Summary from references:**\n" + "\n".join([f"- {sn['text'][:200]}..." for sn in snippets])
@@ -444,7 +428,7 @@ with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
                     ai_text = "I couldn't find direct references locally. Please refine the prompt or upload relevant docs."
                 audio_b64 = generate_audio_base64(ai_text)
                 st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-            st.experimental_rerun()
+            st.rerun()
 
 # -------------------------
 # Chat display
@@ -470,26 +454,27 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
         with c1:
             if st.button("👍 Like", key=f"like_{idx}"):
                 st.session_state["feedback_stats"]["like"] += 1
+                # optional short preference probe
+                pref_text = "Thanks! Quick preference: 1) Short scripts, 2) Data bullets, 3) Role-plays — reply with 1/2/3."
+                st.session_state["chat_history"].append({"role":"assistant","text":pref_text,"audio_b64":generate_audio_base64(pref_text)})
+                st.rerun()
         with c2:
             if st.button("👎 Dislike", key=f"dislike_{idx}"):
                 st.session_state["feedback_stats"]["dislike"] += 1
-                # Generate 2-3 short closed follow-up questions via GROQ if available, otherwise fallback options
                 followup_key = f"followup_{idx}"
                 if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here":
-                    # ask GROQ to generate 3 short closed follow-up questions
                     fu_prompt = f"Generate 3 very short closed follow-up questions (each 5-10 words) to clarify or improve this assistant response:\n\n\"{text}\"\n\nReturn them as separate lines."
                     fu_resp = query_groq(fu_prompt, local_docs, max_tokens=150)
-                    # parse into lines
                     opts = [line.strip() for line in re.split(r'[\r\n]+', fu_resp) if line.strip()][:3]
                     if not opts:
                         opts = ["Make it shorter", "Focus on objections", "Add data points"]
                 else:
                     opts = ["Make it shorter & punchy", "Focus on objections handling", "Add more persuasive language"]
                 st.session_state["followup_options"][followup_key] = opts
+                st.rerun()
         with c3:
             if st.button("🔄 Regenerate", key=f"more_{idx}"):
                 st.session_state["feedback_stats"]["need_more"] += 1
-                # Regenerate using context: call GROQ if available
                 context_docs = local_docs.copy()
                 regen_prompt = f"Please regenerate and expand this assistant answer for clarity and more practical steps:\n\nOriginal answer:\n{text}"
                 if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here":
@@ -497,26 +482,23 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                     audio_b64 = generate_audio_base64(new_resp)
                     st.session_state["chat_history"].append({"role":"assistant","text":new_resp,"audio_b64":audio_b64})
                 else:
-                    # fallback simple expansion by appending suggestion
                     new_resp = text + "\n\n[Regenerated: please provide more details about implementation and examples.]"
                     audio_b64 = generate_audio_base64(new_resp)
                     st.session_state["chat_history"].append({"role":"assistant","text":new_resp,"audio_b64":audio_b64})
-                st.experimental_rerun()
+                st.rerun()
         with c4:
-            # show current feedback counts for this message if any stored
             fb_val = st.session_state.get("feedback", {}).get(fb_key, "")
             if fb_val:
                 st.markdown(f"**Feedback:** {fb_val}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # If follow-up options exist for this message, show them as buttons
+        # Display follow-up options if present
         followup_key = f"followup_{idx}"
         if st.session_state.get("followup_options", {}).get(followup_key):
             st.markdown("💡 **Refine this answer — choose one:**")
             fcols = st.columns(len(st.session_state["followup_options"][followup_key]))
             for i, q in enumerate(st.session_state["followup_options"][followup_key]):
                 if fcols[i].button(q, key=f"{followup_key}_opt_{i}"):
-                    # Regenerate guided by the chosen follow-up
                     st.session_state["feedback_stats"]["need_more"] += 1
                     context_docs = local_docs.copy()
                     guided_prompt = f"User selected follow-up: '{q}'. Please regenerate the previous assistant answer to address that request, be concise and actionable.\n\nOriginal answer:\n{text}"
@@ -525,13 +507,11 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                         audio_b64 = generate_audio_base64(new_text)
                         st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":audio_b64})
                     else:
-                        # fallback behavior
                         new_text = text + f"\n\n[Regenerated for: {q}]"
                         audio_b64 = generate_audio_base64(new_text)
                         st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":audio_b64})
-                    # remove followups for this message
                     st.session_state["followup_options"].pop(followup_key, None)
-                    st.experimental_rerun()
+                    st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
@@ -547,14 +527,11 @@ c_send, c_clear, c_export = st.columns([1,1,1])
 with c_send:
     if st.button("Send", key="send_main"):
         if main_text and main_text.strip():
-            # append user message
             st.session_state["chat_history"].append({"role":"user", "text": main_text.strip()})
-            # Use GROQ if available else local-search fallback
             context_docs = local_docs.copy()
             if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here":
                 ai_text = query_groq(main_text.strip(), context_docs)
             else:
-                # fallback: use local snippets to build reply
                 snippets = local_search_snippets(main_text.strip(), chunks, metas, top_n=5)
                 if snippets:
                     ai_text = "Relevant excerpts:\n" + "\n".join([f"- {s['text'][:220]}..." for s in snippets])
@@ -563,13 +540,13 @@ with c_send:
             audio_b64 = generate_audio_base64(ai_text)
             st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
             st.session_state["main_input"] = ""
-            st.experimental_rerun()
+            st.rerun()
 with c_clear:
     if st.button("Clear input", key="clear_main_btn"):
         st.session_state["main_input"] = ""
+        st.rerun()
 with c_export:
     if st.button("Export latest assistant answer", key="export_btn"):
-        # find last assistant message
         last = None
         for e in reversed(st.session_state["chat_history"]):
             if e.get("role") in ("assistant","ai"):
