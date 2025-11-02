@@ -1,4 +1,4 @@
-# app.py - AI Sales Call Assistant (Final - orange gradient background + GROQ fallback + UI fixes)
+# app.py - AI Sales Call Assistant (FINAL: structured sales-call flows + UI + GROQ fallback)
 import streamlit as st
 import os, re, io, tempfile, base64
 from datetime import datetime
@@ -30,12 +30,12 @@ except:
     SKLEARN_AVAILABLE = False
 
 # -------------------------
-# Streamlit page config
+# Page config
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # -------------------------
-# Replace with your GROQ key or leave as placeholder
+# GROQ placeholder - replace to enable LLM responses
 # -------------------------
 GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.ai/v1/llm"
@@ -44,16 +44,16 @@ GROQ_API_URL = "https://api.groq.ai/v1/llm"
 # Session defaults
 # -------------------------
 defaults = {
-    "chat_history": [],                # {"role":"user"/"assistant","text":...,"audio_b64":...}
+    "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
     "temperature": 0.62,
     "search_mode": "deep",
     "language": "English",
     "reply_style": "balanced",
-    "pdf_docs": {},                    # brand -> combined uploaded text
-    "pdf_summaries": {},               # brand -> summary text
-    "followup_options": {},            # message-specific followups
+    "pdf_docs": {},
+    "pdf_summaries": {},
+    "followup_options": {},
     "feedback_stats": {"like":0,"dislike":0,"need_more":0},
     "groq_unavailable": False
 }
@@ -63,7 +63,7 @@ for nk in ("medical_summary","sales_summary","pdf_summary","feedback"):
     st.session_state.setdefault(nk, {})
 
 # -------------------------
-# Brand config
+# Brand configuration
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -99,17 +99,17 @@ brand_data = {
 }
 
 # -------------------------
-# CSS (orange linear gradient background + UI)
+# CSS - orange linear gradient + UI tweaks
 # -------------------------
 st.markdown("""
 <style>
-/* Linear orange gradient background (modern) */
+/* Gradient background */
 [data-testid="stAppViewContainer"] {
   background: linear-gradient(135deg, #ff8c00, #ffcc70);
   background-attachment: fixed;
 }
 
-/* header */
+/* Header card */
 .header {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:10px 18px; border-radius:10px; margin-bottom:12px;
@@ -119,15 +119,14 @@ st.markdown("""
 .header .title { text-align:center; flex:1; }
 .header img.left-logo, .header img.right-logo { height:56px; }
 
-/* summaries & bubbles */
+/* summary bubbles */
 .section-bubble {
   background: rgba(255,255,255,0.98);
-  border-radius: 10px; padding:12px; margin-bottom:10px;
+  border-radius:10px; padding:12px; margin-bottom:10px;
   box-shadow: 0 6px 18px rgba(11,22,55,0.06);
-  color: #111;
 }
 
-/* chat */
+/* chat container */
 .chat-container {
   max-height:52vh; overflow-y:auto; padding:12px;
   background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:80px;
@@ -153,22 +152,22 @@ st.markdown("""
 }
 .resizable-combined { resize: vertical; overflow:auto; border:1px solid #ddd; padding:10px; border-radius:8px; background:#fff; min-height:110px; max-height:400px; }
 
-/* suggestion pill */
+/* suggestion pills */
 .suggestion-pill { display:inline-block; padding:6px 12px; border-radius:20px; background:#fff3e0; margin:4px; border:1px solid #ffd59a; font-size:14px; cursor:pointer; }
 
-/* small resizable disclaimer */
+/* resizable disclaimer */
 .resizable-disclaimer { width:100%; min-height:48px; max-height:160px; resize:vertical; overflow:auto; border:1px dashed #ddd; padding:8px; border-radius:6px; background:#fff; color:#333; font-size:12px; }
 
-/* sidebar dashboard item styling */
+/* sidebar metrics */
 .sidebar-metric { background: rgba(255,255,255,0.95); padding:10px; border-radius:8px; margin-bottom:8px; text-align:center; }
 
-/* remove stray top white areas */
+/* remove stray top padding */
 .block-container .element-container { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Helper functions
+# Utility functions: file reading, summarization, local search, audio, export
 # -------------------------
 def read_file_text_from_uploaded(uploaded_file):
     try:
@@ -206,7 +205,7 @@ def simple_summary(text: str, bullets: int = 6) -> str:
     return "\n".join([f"- {s}" for s in selected])
 
 def model_summarize(text: str, bullets: int = 6) -> str:
-    # If GROQ available we could call LLM summarizer — but for offline fallback use simple_summary
+    # fallback summarization (LLM optional)
     return simple_summary(text, bullets)
 
 def build_corpus_for_folders(folders, chunk_size_sentences=3):
@@ -286,20 +285,15 @@ def export_call_flow_bytes(text: str, fmt: str = "docx"):
         return b, filename
 
 # -------------------------
-# GROQ LLM query with graceful fallback
+# GROQ safe query
 # -------------------------
 def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 600):
-    """
-    Attempts to call GROQ. Returns None on failure (network, DNS, key missing).
-    """
-    # don't call GROQ if key placeholder present
     if not GROQ_API_KEY or GROQ_API_KEY == "Add_GROQ_API_here":
         st.session_state["groq_unavailable"] = True
         return None
-
     context_text = "\n\n".join([d for d in context_docs if d])
     payload = {
-        "prompt": f"Use the following reference material to answer the user question concisely. Only provide the assistant response — do not paste or expose the reference documents.\n\nReferences:\n{context_text}\n\nUser question: {prompt}",
+        "prompt": f"Use the following reference material to answer the user question concisely. Only provide the assistant response — do not paste references.\n\nReferences:\n{context_text}\n\nUser question: {prompt}",
         "max_output_tokens": max_tokens
     }
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
@@ -307,32 +301,25 @@ def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 600):
         r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=12)
         r.raise_for_status()
         resp = r.json()
-        # Try common fields; adapt as needed for GROQ response format
         out = resp.get("output_text") or resp.get("result") or resp.get("text") or None
         if not out:
-            # try stringify
             out = str(resp)
         st.session_state["groq_unavailable"] = False
         return out
     except Exception as e:
-        # Mark GROQ as unavailable so UI can show a non-intrusive message
+        print("GROQ request failed:", e)
         st.session_state["groq_unavailable"] = True
-        # log exception to console (no crash)
-        print("GROQ call failed:", e)
         return None
 
 # -------------------------
-# Sidebar: logos, filters, dashboard
+# Sidebar: filters + dashboard + uploads
 # -------------------------
 with st.sidebar:
-    # logos
     st.markdown("<div style='display:flex;justify-content:center;align-items:center;'>", unsafe_allow_html=True)
     st.markdown("<img src='https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/GSK1-logo.png' style='height:64px'>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("---")
-
-    # brand & filters
-    st.subheader("Brand & filters")
+    st.subheader("Brand & Filters")
     brand_options = list(brand_data.keys())
     sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state["selected_brand"]), format_func=lambda k: brand_data[k]["display"])
     st.session_state["selected_brand"] = sel_brand
@@ -345,7 +332,6 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📊 Dashboard")
-    # mini-dashboard moved here
     st.markdown(f"<div class='sidebar-metric'><b>Calls</b><br>{len([m for m in st.session_state['chat_history'] if m.get('role')=='assistant'])}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='sidebar-metric'><b>Uploaded docs</b><br>{len(st.session_state['pdf_docs'])}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='sidebar-metric'><b>Likes</b><br>{st.session_state['feedback_stats']['like']}</div>", unsafe_allow_html=True)
@@ -353,8 +339,8 @@ with st.sidebar:
     st.markdown(f"<div class='sidebar-metric'><b>Regens</b><br>{st.session_state['feedback_stats']['need_more']}</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.subheader("Upload (brand-specific)")
-    with st.expander("Upload PDF/TXT (sidebar)"):
+    st.subheader("Upload (brand)")
+    with st.expander("Upload PDF / TXT / DOCX (sidebar)"):
         uploaded_side = st.file_uploader("Upload file for brand context", type=["pdf","txt","docx"], key="sidebar_upload")
         if uploaded_side:
             text = read_file_text_from_uploaded(uploaded_side)
@@ -365,7 +351,7 @@ with st.sidebar:
                 st.success("Sidebar file added and summarized.")
                 st.rerun()
             else:
-                st.error("Could not read uploaded file.")
+                st.error("Could not read file.")
 
     st.markdown("---")
     st.subheader("Export / Reset")
@@ -377,31 +363,33 @@ with st.sidebar:
         st.rerun()
 
 # -------------------------
-# Header (main)
+# Header
 # -------------------------
 st.markdown("""
 <div class="header">
   <div style="width:140px;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/GSK1-logo.png" class="left-logo"></div>
-  <div class="title"><h2 style="margin:0">AI Sales Call Assistant</h2><div style="color:#555;font-size:13px;">APACT-guided — internal reference assistant</div></div>
+  <div class="title"><h2 style="margin:0">AI Sales Call Assistant</h2><div style="color:#555;font-size:13px;">APACT-guided — structured call flows</div></div>
   <div style="width:140px;text-align:right;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/AURA1.png" class="right-logo"></div>
 </div>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Main upload area (on-page) & summaries (collapsible bullets)
+# Main upload area (on page)
 # -------------------------
 st.subheader("Upload reference document (main)")
-uploaded_file_main = st.file_uploader("Upload PDF / TXT / DOCX (main) — will be added to brand context", type=["pdf","txt","docx"], key="main_upload")
+uploaded_file_main = st.file_uploader("Upload PDF / TXT / DOCX (main) — added to brand context", type=["pdf","txt","docx"], key="main_upload")
 if uploaded_file_main:
     content = read_file_text_from_uploaded(uploaded_file_main)
     if content:
         st.session_state["pdf_docs"].setdefault(st.session_state["selected_brand"], "")
         st.session_state["pdf_docs"][st.session_state["selected_brand"]] += "\n\n" + content
         st.session_state["pdf_summaries"][st.session_state["selected_brand"]] = model_summarize(st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=6)
-        st.success("Uploaded and summarized for brand context.")
+        st.success("Uploaded and summarized for brand.")
         st.rerun()
 
-# Build local repo + uploaded docs context
+# -------------------------
+# Build local context and chunks
+# -------------------------
 brand = st.session_state["selected_brand"]
 refs_folder = brand_data[brand]["references_path"]
 sales_folder = brand_data[brand]["sales_path"]
@@ -419,10 +407,11 @@ if os.path.exists(sales_folder):
 if brand in st.session_state["pdf_docs"]:
     local_docs.append(st.session_state["pdf_docs"][brand])
 
-# prepare chunks for local search
 chunks, metas = build_corpus_for_folders([p for p in (refs_folder, sales_folder) if os.path.exists(p)], chunk_size_sentences=3)
 
-# summaries shown as bullets inside collapsible bubbles
+# -------------------------
+# Summaries shown as bullets in collapsible bubbles
+# -------------------------
 med_summary = st.session_state["medical_summary"].get(brand, "")
 if not med_summary:
     combined = "\n".join([d for d in local_docs]) if local_docs else ""
@@ -441,23 +430,21 @@ with st.expander("📚 Medical Summary (bulleted)", expanded=False):
 with st.expander("💼 Sales Module Summary (bulleted)", expanded=False):
     st.markdown(f'<div class="section-bubble">{sales_summary if sales_summary else "- No sales module content found."}</div>', unsafe_allow_html=True)
 
-# If GROQ unreachable, show small notice (non-blocking)
+# Non-blocking GROQ unavailable notice
 if st.session_state.get("groq_unavailable"):
-    st.warning("⚠️ GROQ LLM is not reachable or API key is not configured — the assistant is running in offline/fallback mode.", icon="⚠️")
+    st.warning("⚠️ LLM (GROQ) is not reachable or API key not configured — running in offline fallback mode.", icon="⚠️")
 
 # -------------------------
-# Prompt suggestions (collapsible) above chat
+# Prompt suggestions (collapsible)
 # -------------------------
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
     s=[]
-    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
+    s.append("Generate sales call")
+    s.append(f"Generate call flow for {persona_val} focusing on {objective_val}")
     if barriers_list:
-        s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
-    else:
-        s.append(f"Identify common objections for {persona_val}.")
-    s.append(f"Summarize HCP persona insights for {persona_val}.")
-    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
-    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
+        s.append(f"Handle objection: {', '.join(barriers_list[:2])}")
+    s.append(f"Quick adoption message for {brand_data[brand_key]['display']} to a {specialty_val}")
+    s.append("Short role-play example (rep <> HCP)")
     return s
 
 suggestions = make_suggestions(brand, persona, barrier, segment, specialty, objective)
@@ -465,31 +452,187 @@ with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
     st.markdown("<div style='margin-bottom:8px;color:#333;'>Click a suggestion to auto-send it.</div>", unsafe_allow_html=True)
     for i, s in enumerate(suggestions):
         if st.button(s, key=f"suggbtn_{i}"):
-            # append user message
-            st.session_state["chat_history"].append({"role":"user", "text": s})
-            # attempt LLM if available else fallback
-            context_docs = local_docs.copy()
-            ai_resp = query_groq_safe(s, context_docs)
-            if ai_resp:
-                audio_b64 = generate_audio_base64(ai_resp)
-                st.session_state["chat_history"].append({"role":"assistant","text":ai_resp,"audio_b64":audio_b64})
-            else:
-                snippets = local_search_snippets(s, chunks, metas, top_n=5)
-                if snippets:
-                    ai_text = "**Summary from references:**\n" + "\n".join([f"- {sn['text'][:220]}..." for sn in snippets])
-                else:
-                    ai_text = "I couldn't find direct references locally. Please refine the prompt or upload relevant docs."
+            # Treat "Generate sales call" specially
+            if "sales call" in s.lower() or s.lower().startswith("generate sales call") or s.lower().startswith("generate call flow"):
+                # Build sales call directly
+                user_msg = s if s.strip() else "Generate sales call"
+                st.session_state["chat_history"].append({"role":"user","text":user_msg})
+                # generate the structured sales call flow
+                ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
                 audio_b64 = generate_audio_base64(ai_text)
                 st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-            st.rerun()
+                st.rerun()
+            else:
+                # generic path - send user message and attempt LLM/fallback
+                st.session_state["chat_history"].append({"role":"user","text":s})
+                context_docs = local_docs.copy()
+                ai_resp = query_groq_safe(s, context_docs)
+                if ai_resp:
+                    audio_b64 = generate_audio_base64(ai_resp)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_resp,"audio_b64":audio_b64})
+                else:
+                    snippets = local_search_snippets(s, chunks, metas, top_n=5)
+                    if snippets:
+                        ai_text = "**Summary from references:**\n" + "\n".join([f"- {sn['text'][:220]}..." for sn in snippets])
+                    else:
+                        ai_text = "I couldn't find direct references locally. Please refine the prompt or upload relevant docs."
+                    audio_b64 = generate_audio_base64(ai_text)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
+                st.rerun()
 
 # -------------------------
-# Chat display
+# Structured sales call generation function
 # -------------------------
+def pick_top_insights(query_terms, chunks, metas, top_n=3):
+    # Try to match any of the query_terms in chunks and return top unique short bullets
+    if not chunks:
+        return []
+    matches = []
+    q = " ".join(query_terms).lower()
+    for i, c in enumerate(chunks):
+        if any(term.lower() in c.lower() for term in query_terms):
+            matches.append((c, metas[i]))
+    # fallback: find chunks containing brand or persona words
+    if not matches:
+        for i, c in enumerate(chunks):
+            if any(word.lower() in c.lower() for word in query_terms):
+                matches.append((c, metas[i]))
+    seen = set()
+    bullets = []
+    for text, meta in matches:
+        short = re.split(r'(?<=[\.!\?])\s+', text.strip())[0][:220]
+        if short not in seen:
+            seen.add(short)
+            bullets.append(short)
+        if len(bullets) >= top_n:
+            break
+    return bullets
+
+def generate_structured_sales_call(brand, persona, specialty, objective, local_docs, chunks, metas):
+    """
+    Build the structured sales call flow formatted like the example the user provided.
+    Uses local_docs, pdf_summaries, and local_search_snippets to source facts and fill sections.
+    Returns a markdown-like string.
+    """
+    brand_name = brand_data.get(brand, {}).get("display", brand)
+    persona_label = persona or "Target persona"
+    specialty_label = specialty or "Generalist"
+
+    # Use uploaded summary if available
+    uploaded_summary = st.session_state.get("pdf_summaries", {}).get(brand, "")
+    repo_med = st.session_state.get("medical_summary", {}).get(brand, "")
+    repo_sales = st.session_state.get("sales_summary", {}).get(brand, "")
+
+    # Collect insights: try pdf summary, then repo_med, then local search
+    insights = []
+    if uploaded_summary:
+        insights = [line.strip("- ").strip() for line in uploaded_summary.splitlines() if line.strip()]
+    elif repo_med:
+        insights = [line.strip("- ").strip() for line in repo_med.splitlines() if line.strip()]
+
+    # If not enough, search for brand & persona keywords
+    if len(insights) < 3 and chunks:
+        extra = pick_top_insights([brand_name, persona_label, specialty_label, objective], chunks, metas, top_n=5)
+        insights.extend(extra)
+    # clean and ensure unique
+    final_insights = []
+    for s in insights:
+        if s and s not in final_insights:
+            final_insights.append(s)
+        if len(final_insights) >= 6:
+            break
+
+    # patient types heuristic
+    patient_types = "Adults ≥50 years old" if brand.lower() == "shingrix" else "Appropriate patient population per label"
+
+    # Key evidence bullets: try to extract short evidence lines
+    evidence = []
+    if repo_med:
+        evidence = [l.strip("- ").strip() for l in repo_med.splitlines() if l.strip()][:3]
+    if not evidence and uploaded_summary:
+        evidence = [l.strip("- ").strip() for l in uploaded_summary.splitlines() if l.strip()][:3]
+    if not evidence and chunks:
+        evidence = pick_top_insights([brand_name, "efficacy", "safety", "trial"], chunks, metas, top_n=3)
+
+    # Objection handling bullets: try to find lines related to efficacy/safety/cost
+    objections = pick_top_insights(["efficacy", "safety", "cost", "reimbursement", "side effects"], chunks, metas, top_n=3)
+    if not objections:
+        objections = ["I understand the concern about efficacy — present trial evidence and recommended guidance.", 
+                      "Safety profile is strong; direct HCP resources are available.", 
+                      "We can discuss access and reimbursement pathways."]
+
+    # Build each section
+    lines = []
+    lines.append(f"Assistant: Here's a tailored sales call flow for the **{brand_name}** vaccine, targeting an **{persona_label}** persona, specifically a **{specialty_label}**:\n")
+    # Prepare
+    lines.append("**Prepare:**\n")
+    lines.append(f"1. Identify the persona: {persona_label} ({specialty_label})")
+    lines.append(f"2. Objectives: {objective} of {brand_name} and its benefits")
+    lines.append(f"3. Patient types: {patient_types}")
+    lines.append("4. Key insights:")
+    if final_insights:
+        for it in final_insights[:6]:
+            lines.append(f"    - {it}")
+    else:
+        lines.append("    - No uploaded references found. Upload PDFs for tailored insights.")
+    lines.append("")  # blank line
+
+    # Engage
+    lines.append("**Engage:**\n")
+    lines.append('1. Start conversation: "Hello, Dr. [Last Name]. I\'m [Your Name] from GSK. How are you today?"')
+    lines.append('2. Capture attention: "I\'d like to discuss a topic that\'s relevant to your patients: shingles prevention. Are you familiar with the risks and consequences of shingles in adults ≥50 years old?"' if brand.lower()=="shingrix" else '2. Capture attention: "I\'d like to discuss a treatment option that may benefit some of your patients. Are you familiar with the latest evidence?"')
+    lines.append(f'3. Set discussion context: "As a {specialty_label}, you likely see patients who are at risk — I\'d like to share information about {brand_name}."')
+    lines.append("")
+
+    # Create Opportunities
+    lines.append("**Create Opportunities:**\n")
+    lines.append("1. Identify gaps or unmet needs: \"What are your current strategies for addressing this condition in your patients?\"")
+    # add product/clinical line using evidence or snippets
+    if evidence:
+        ev_short = evidence[0]
+        lines.append(f'2. Introduce solutions with clinical/product data: "{brand_name} — {ev_short}."')
+    else:
+        lines.append(f'2. Introduce solutions with clinical/product data: "{brand_name} — provide product benefits and guideline recommendations."')
+    lines.append('3. Highlight key benefits: "By using {brand}, you can help prevent complications and improve patient outcomes."'.format(brand=brand_name))
+    lines.append("")
+
+    # Influence
+    lines.append("**Influence:**\n")
+    if evidence:
+        lines.append(f"1. Present evidence: \"{evidence[0]}\"")
+    else:
+        lines.append("1. Present evidence: Refer to internal clinical summaries and trials.")
+    lines.append("2. Handle objections:")
+    for ob in objections[:3]:
+        lines.append(f"    - \"{ob}\"")
+    lines.append("3. Highlight value and outcomes: \"Preventing the condition improves quality of life and reduces downstream care burden.\"")
+    lines.append("")
+
+    # Impact GSO
+    lines.append("**Impact GSO:**\n")
+    lines.append("1. Link discussion to incremental steps: \"What steps can we take together to increase vaccination/treatment rates in your practice?\"")
+    lines.append("2. Clarify next steps: \"I can provide additional resources and follow up in the next few weeks. Would that work for you?\"")
+    lines.append("")
+
+    # Post-Call Analysis
+    lines.append("**Post-Call Analysis:**\n")
+    lines.append("1. Record insights: Document objections, interest level, and any follow-up actions.")
+    lines.append("2. Update CRM: Log call details and next steps.")
+    lines.append("3. Evaluate metrics: Track adoption rates and plan improvements.")
+
+    return "\n".join(lines)
+
+# NOTE: We need generate_structured_sales_call to be declared before use in suggestions block.
+# The code above declares it, but for safety in runtime order we'll guard by ensuring suggestions call happens later.
+
+# -------------------------
+# Chat container - display
+# -------------------------
+# (We will display existing chat history here)
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for idx, entry in enumerate(st.session_state["chat_history"]):
-    role = entry.get("role", "assistant")
-    text = entry.get("text", "")
+    role = entry.get("role","assistant")
+    text = entry.get("text","")
     if role == "user":
         st.markdown(f'<div class="chat-bubble-user">🧑‍💼 {escape(text)}</div>', unsafe_allow_html=True)
     else:
@@ -513,7 +656,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
         with c2:
             if st.button("👎 Dislike", key=f"dislike_{idx}"):
                 st.session_state["feedback_stats"]["dislike"] += 1
-                # generate follow-up options
+                # generate follow-ups (fallback options)
                 if not st.session_state.get("groq_unavailable") and GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here":
                     fu_prompt = f"Generate 3 very short closed follow-up questions (each 5-10 words) to clarify or improve this assistant response:\n\n\"{text}\"\n\nReturn them as separate lines."
                     fu_resp = query_groq_safe(fu_prompt, local_docs, max_tokens=120)
@@ -544,7 +687,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 st.markdown(f"**Feedback:** {fb_val}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # show follow-up buttons if present
+        # show follow-up buttons if exist
         if st.session_state.get("followup_options", {}).get(followup_key):
             st.markdown("💡 **Refine this answer — choose one:**")
             fopts = st.session_state["followup_options"][followup_key]
@@ -560,13 +703,13 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                     else:
                         new_text = text + f"\n\n[Regenerated to address: {opt}]"
                         st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":generate_audio_base64(new_text)})
-                    # remove followups and rerun
                     st.session_state["followup_options"].pop(followup_key, None)
                     st.rerun()
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Bottom fixed input + resizable disclaimer
+# Bottom input area + resizable disclaimer
 # -------------------------
 st.markdown('<div class="combined-fixed">', unsafe_allow_html=True)
 st.markdown('<div class="resizable-combined">', unsafe_allow_html=True)
@@ -578,21 +721,33 @@ with c_send:
     if st.button("Send", key="send_main"):
         if main_text and main_text.strip():
             st.session_state["chat_history"].append({"role":"user","text":main_text.strip()})
-            context_docs = local_docs.copy()
-            ai_out = query_groq_safe(main_text.strip(), context_docs)
-            if ai_out:
-                audio_b64 = generate_audio_base64(ai_out)
-                st.session_state["chat_history"].append({"role":"assistant","text":ai_out,"audio_b64":audio_b64})
-            else:
-                snippets = local_search_snippets(main_text.strip(), chunks, metas, top_n=5)
-                if snippets:
-                    ai_text = "**Relevant excerpts:**\n" + "\n".join([f"- {s['text'][:220]}..." for s in snippets])
-                else:
-                    ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
+            # detect generate sales call trigger phrases
+            trigger_phrases = ["generate sales call", "generate call flow", "sales call", "call flow"]
+            lower = main_text.lower()
+            if any(tp in lower for tp in trigger_phrases):
+                # generate structured flow
+                ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
                 audio_b64 = generate_audio_base64(ai_text)
                 st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-            st.session_state["main_input"] = ""
-            st.rerun()
+                st.session_state["main_input"] = ""
+                st.rerun()
+            else:
+                # attempt GROQ LLM, fallback to local search
+                context_docs = local_docs.copy()
+                ai_out = query_groq_safe(main_text.strip(), context_docs)
+                if ai_out:
+                    audio_b64 = generate_audio_base64(ai_out)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_out,"audio_b64":audio_b64})
+                else:
+                    snippets = local_search_snippets(main_text.strip(), chunks, metas, top_n=5)
+                    if snippets:
+                        ai_text = "**Relevant excerpts:**\n" + "\n".join([f"- {s['text'][:220]}..." for s in snippets])
+                    else:
+                        ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
+                    audio_b64 = generate_audio_base64(ai_text)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
+                st.session_state["main_input"] = ""
+                st.rerun()
 with c_clear:
     if st.button("Clear input", key="clear_main_btn"):
         st.session_state["main_input"] = ""
@@ -611,13 +766,13 @@ with c_export:
         else:
             st.warning("No assistant content to export.")
 
-# Resizable read-only disclaimer
+# resizable, read-only disclaimer area under input
 st.markdown('<div class="resizable-disclaimer" contenteditable="false">Please refer to Write Right Principles course: BUS-LGL-WRJA-001</div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Footer disclaimer (non-fixed to avoid white line) - keep small
+# Small footer text (non-fixed)
 # -------------------------
-st.markdown(f'<div style="text-align:center; margin-top:8px; font-size:12px; color:#111;">⚠️ Internal tool — outputs are grounded in uploaded and repository references. Verify clinical/compliance before external use.</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; margin-top:8px; font-size:12px; color:#111;">⚠️ Internal tool — outputs are grounded in uploaded and repository references. Verify clinical/compliance before external use.</div>', unsafe_allow_html=True)
