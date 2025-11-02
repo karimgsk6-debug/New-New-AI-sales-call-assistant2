@@ -37,7 +37,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 # -------------------------
 # GROQ placeholder - replace to enable LLM responses
 # -------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.ai/v1/llm"
 
 # -------------------------
