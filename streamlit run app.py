@@ -1,4 +1,4 @@
-# app.py - AI Sales Call Assistant (FINAL - Frameworks verbatim + PDF-aware enrichment + UI)
+# app.py - AI Sales Call Assistant (FINAL - Brand-responsive, copilot input fixed, sticky disclaimer)
 import streamlit as st
 import os, re, io, tempfile, base64
 from datetime import datetime
@@ -63,7 +63,7 @@ for nk in ("medical_summary","sales_summary","pdf_summary","feedback"):
     st.session_state.setdefault(nk, {})
 
 # -------------------------
-# Brand configuration
+# Brand configuration & verbatim frameworks
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -98,9 +98,6 @@ brand_data = {
     }
 }
 
-# -------------------------
-# Official verbatim frameworks (kept as requested)
-# -------------------------
 JEMPERLI_FRAMEWORK_TITLE = "IMPACT Competitive Selling Framework"
 JEMPERLI_FRAMEWORK_VERBATIM = """COCO, or the commercial-oriented call objective, represents the pre-call planning step. This is where customer insights are used to identify the customer persona, as well as the call objective that includes the incremental steps to achieve a GSO. When preparing your COCO, identify a select patient type to align on and develop thought-provoking questions that will challenge status quo thinking and encourage the customer to do differently.
 
@@ -135,7 +132,6 @@ a-Did I achieve GSO, having a clear commitment of the HCP with a new experience 
 b-What’s my next call objective?
 """
 
-# Default GSK Competitive Selling Module (verbatim per user)
 GSK_DEFAULT_TITLE = "Competitive Selling Module"
 GSK_DEFAULT_VERBATIM = """1-Prepare to sell
 2-Open the sales call
@@ -146,7 +142,7 @@ GSK_DEFAULT_VERBATIM = """1-Prepare to sell
 """
 
 # -------------------------
-# CSS (white card style for collapsibles, orange gradient background, merged input, etc.)
+# CSS: gradient background, white cards, copilot fixed input, sticky disclaimer
 # -------------------------
 st.markdown("""
 <style>
@@ -166,10 +162,10 @@ st.markdown("""
 .header .title { text-align:center; flex:1; }
 .header img.left-logo { height:56px; border-radius:6px; }
 .header .ai-logo {
-  width:86px; height:86px; border-radius:50%; object-fit:cover; box-shadow:0 10px 30px rgba(0,0,0,0.16);
+  width:92px; height:92px; border-radius:50%; object-fit:cover; box-shadow:0 12px 36px rgba(0,0,0,0.16);
 }
 
-/* Collapsible white card (for summaries and frameworks) */
+/* Collapsible white card */
 .collapsible-white {
   background: #ffffff; border-radius:10px; padding:14px; margin-bottom:10px;
   box-shadow: 0 8px 22px rgba(0,0,0,0.08); color:#111;
@@ -177,7 +173,7 @@ st.markdown("""
 
 /* Chat container */
 .chat-container {
-  max-height:60vh; overflow-y:auto; padding:12px;
+  max-height:calc(100vh - 420px); overflow-y:auto; padding:12px;
   background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:12px;
 }
 .chat-bubble-user {
@@ -198,42 +194,66 @@ st.markdown("""
 /* Suggestion pill */
 .suggestion-pill { display:inline-block; padding:6px 12px; border-radius:20px; background:#fff; margin:4px; border:1px solid #eee; font-size:14px; cursor:pointer; }
 
-/* merged input bubble */
-.input-row {
-  display:flex; gap:8px; align-items:stretch; width:100%;
-  background:#ffffff; padding:8px; border-radius:12px; border:1px solid #e6e6e6;
-  box-shadow:0 6px 18px rgba(0,0,0,0.06);
+/* Copilot fixed input area (above disclaimer) */
+.copilot-fixed {
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 110px; /* above sticky disclaimer */
+  z-index: 10010;
+  display:flex;
+  justify-content:center;
+  pointer-events: auto;
 }
-.input-textarea { flex:1; border:none; resize:none; outline:none; font-size:14px; padding:8px; }
-.send-btn { background:#ff8c00; color:#fff; border:none; padding:10px 12px; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; min-width:56px; }
+.copilot-box {
+  width:100%; max-width:1100px;
+  background:#ffffff; border-radius:12px; padding:8px; box-shadow:0 12px 30px rgba(0,0,0,0.12);
+  border:1px solid #e8e5df;
+  display:flex; flex-direction:column; gap:8px;
+}
 
-/* footer bubble */
-.footer-fixed {
-  position: fixed; left:20px; right:20px; bottom:18px; z-index:9999;
-  display:flex; justify-content:center; pointer-events:none;
+/* top row of suggestions inside copilot */
+.copilot-suggestions { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* input row merged */
+.copilot-input-row { display:flex; gap:8px; align-items:center; }
+.copilot-textarea { flex:1; border:none; outline:none; resize:none; padding:8px; font-size:14px; }
+.copilot-btn { background:#ff8c00; color:#fff; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; }
+
+/* Sticky disclaimer bubble (always visible) */
+.disclaimer-sticky {
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 18px;
+  z-index: 10000;
+  display:flex;
+  justify-content:center;
+  pointer-events: auto;
 }
-.footer-bubble {
-  pointer-events:auto; width:100%; max-width:1100px;
+.disclaimer-bubble {
+  width:100%; max-width:1100px;
   background: #ffffff; border-radius:12px; padding:10px;
-  box-shadow:0 12px 40px rgba(0,0,0,0.08); resize:vertical; overflow:auto; min-height:56px; max-height:240px; border:1px solid #e6e1d7;
+  box-shadow:0 12px 40px rgba(0,0,0,0.08); border:1px solid #e6e1d7;
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
 }
 
 /* small bottom-right text */
 .small-bottom-right {
-  position: fixed; right:36px; bottom:28px; z-index:10001; font-size:12px; color:#333;
+  position: fixed; right:36px; bottom:80px; z-index:10011; font-size:12px; color:#333;
   background: #ffffff; padding:6px 10px; border-radius:8px; border:1px solid #eee; box-shadow:0 6px 18px rgba(0,0,0,0.06);
 }
 
 /* sidebar metric */
 .sidebar-metric { background: #ffffff; padding:10px; border-radius:8px; margin-bottom:8px; text-align:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
 
-/* remove stray top white padding */
+/* ensure no extra top padding in blocks */
 .block-container .element-container { padding-top: 0rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Helper functions (read files, summarize, search, audio, export)
+# Utility functions (read files, summarise, local search, audio, export)
 # -------------------------
 def read_file_text_from_uploaded(uploaded_file):
     try:
@@ -243,10 +263,13 @@ def read_file_text_from_uploaded(uploaded_file):
         elif hasattr(uploaded_file, "type") and uploaded_file.type == "text/plain":
             return uploaded_file.getvalue().decode("utf-8", errors="ignore")
         elif hasattr(uploaded_file, "type") and uploaded_file.type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] and DOCX_AVAILABLE:
-            doc = Document(uploaded_file)
-            return "\n".join([p.text for p in doc.paragraphs])
+            # docx reading via python-docx not available when streaming file-like; fallback
+            try:
+                doc = Document(uploaded_file)
+                return "\n".join([p.text for p in doc.paragraphs])
+            except Exception:
+                return uploaded_file.getvalue().decode("utf-8", errors="ignore")
         else:
-            # fallback: try reading bytes as text
             try:
                 return uploaded_file.getvalue().decode("utf-8", errors="ignore")
             except Exception:
@@ -266,13 +289,6 @@ def read_file_text(path: str) -> str:
                 return fh.read()
     except Exception:
         return ""
-
-def simple_summary(text: str, bullets: int = 6) -> str:
-    if not text:
-        return ""
-    sents = re.split(r'(?<=[\.!\?])\s+', text)
-    selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join([f"- {s}" for s in selected])
 
 def model_summarize(text: str, bullets: int = 6) -> str:
     # Enhanced summary: include top sentences + counts
@@ -360,22 +376,23 @@ def export_call_flow_bytes(text: str, fmt: str = "docx"):
         return b, filename
 
 # -------------------------
-# GROQ safe query (keeps placeholder)
+# GROQ safe query
 # -------------------------
-def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 600):
+def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 700):
     if not GROQ_API_KEY or GROQ_API_KEY == "Add_GROQ_API_here":
         st.session_state["groq_unavailable"] = True
         return None
     context_text = "\n\n".join([d for d in context_docs if d])
     payload = {
-        "prompt": f"Use the following reference material to answer the user question concisely. Only provide the assistant response — do not paste references.\n\nReferences:\n{context_text}\n\nUser question: {prompt}",
+        "prompt": f"Use the following reference material to create a practical, example-driven sales call plan. Follow the framework steps exactly and provide practical instructions, example phrases, probing questions, and suggested next actions. Only return the assistant response.\n\nReferences:\n{context_text}\n\nUser prompt:\n{prompt}",
         "max_output_tokens": max_tokens
     }
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     try:
-        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=12)
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
         r.raise_for_status()
         resp = r.json()
+        # Try common fields
         out = resp.get("output_text") or resp.get("result") or resp.get("text") or None
         if not out:
             out = str(resp)
@@ -387,7 +404,7 @@ def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 600):
         return None
 
 # -------------------------
-# Local extraction helpers and structured generation
+# Local extraction & structured generator (brand-responsive)
 # -------------------------
 def extract_by_patterns(full_text: str, patterns: list, keep_lines: int = 6):
     out = []
@@ -442,20 +459,68 @@ def clean_list(lst, max_items=6):
             break
     return out
 
-# Main generator that respects verbatim frameworks when brand matches
 def generate_structured_sales_call(brand, persona, specialty, objective, local_docs, chunks, metas):
-    brand_name = brand_data.get(brand, {}).get("display", brand)
+    """
+    Brand-responsive: uses verbatim framework header for Shingrix/Jemperli/Trelegy mapping,
+    then attempts to create a rich, practical plan. If GROQ available, call LLM with guided prompt;
+    otherwise, create local-extraction enriched guidance.
+    """
+    brand_key = brand.lower()
+    brand_name = brand_data.get(brand_key, {}).get("display", brand)
     persona_label = persona or "Target persona"
     specialty_label = specialty or "Generalist"
-
     full_text = "\n\n".join(local_docs) if local_docs else ""
 
-    # Patterns
-    patterns_insights = [r"(?:key insights|key messages|main messages|highlights|summary)[\:\-\s]*([\s\S]{20,400})",
-                         r"(?:highlights|takeaways|key messages)[\:\-\s]*([\s\S]{20,400})"]
+    # Determine framework
+    if brand_key == "jemperli":
+        framework_title = JEMPERLI_FRAMEWORK_TITLE
+        framework_verbatim = JEMPERLI_FRAMEWORK_VERBATIM
+        steps = ["COCO", "Anchor", "Engage", "Close"]
+    elif brand_key == "shingrix":
+        framework_title = SHINGRIX_FRAMEWORK_TITLE
+        framework_verbatim = SHINGRIX_FRAMEWORK_VERBATIM
+        steps = ["PREPARE","ENGAGE","CREATE OPPORTUNITY","INFLUENCE","IMPACT GSO","ANALYSE"]
+    else:
+        framework_title = GSK_DEFAULT_TITLE
+        framework_verbatim = GSK_DEFAULT_VERBATIM
+        steps = ["Prepare to sell","Open the sales call","Uncover opportunities","Align on brand and address objections","Close with commitments","Analyse sales call and plan next steps"]
+
+    # If GROQ available, build a guided prompt using the verbatim framework and context
+    if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here" and not st.session_state.get("groq_unavailable"):
+        # Build framework steps block for LLM
+        framework_block = framework_verbatim + "\n\n"
+        prompt = f"""
+You are a sales coach for pharmaceutical reps. Use the framework below EXACTLY as section headers (do not modify headers). Build a practical, example-driven, step-by-step sales call plan for the rep.
+
+Brand: {brand_name}
+Persona: {persona_label}
+Specialty: {specialty_label}
+Call objective: {objective}
+
+Framework (verbatim):
+{framework_block}
+
+References (internal docs may follow):
+{full_text}
+
+For each framework step:
+- Explain what the rep should *do* (3-6 practical actions)
+- Provide 1-2 example phrases (short) to open/transition/close
+- Give 1 probing question the rep can ask
+- Suggest 1 measurable next action to record in CRM
+
+Return strictly the assistant response (no citations, no extra commentary). Use bullet points and clear headers.
+"""
+        groq_out = query_groq_safe(prompt, local_docs, max_tokens=900)
+        if groq_out:
+            return f"Assistant: Using the **{framework_title}** for **{brand_name}** (verbatim framework used as guidance):\n\n{groq_out}"
+        # else fallback to local
+    # Local-extraction fallback (build rich guidance using extracted bullets)
+    # extract various elements
+    patterns_insights = [r"(?:key insights|key messages|main messages|highlights|summary)[\:\-\s]*([\s\S]{20,400})"]
     patterns_benefits = [r"(?:benefits|advantages|key benefits|value proposition)[\:\-\s]*([\s\S]{20,400})"]
     patterns_objections = [r"(?:objections|concerns|barriers)[\:\-\s]*([\s\S]{20,400})"]
-    patterns_evidence = [r"(?:efficacy results|efficacy|results from|clinical results|trial)[\:\-\s]*([\s\S]{20,400})"]
+    patterns_evidence = [r"(?:efficacy|results|trial|outcome|safety|study)[\:\-\s]*([\s\S]{20,400})"]
     patterns_indication = [r"(?:indication|indicated for|indicated)[\:\-\s]*([\s\S]{10,200})"]
 
     key_insights = extract_by_patterns(full_text, patterns_insights, keep_lines=6)
@@ -481,116 +546,130 @@ def generate_structured_sales_call(brand, persona, specialty, objective, local_d
     evidence = clean_list(evidence, max_items=3)
     indications = clean_list(indications, max_items=2)
 
-    if brand.lower() == "jemperli":
-        # Use IMPACT Competitive Selling Framework verbatim, then enrich under each header
-        header = JEMPERLI_FRAMEWORK_TITLE
-        verbatim = JEMPERLI_FRAMEWORK_VERBATIM
-        # Build enriched output
-        lines = [f"Assistant: Using the **{header}** for **{brand_name}** (verbatim framework shown below):", ""]
-        lines.append(verbatim)
-        lines.append("")  # blank line
-        lines.append("Enriched bullets (from uploaded references):")
-        # COCO (pre-call planning)
-        lines.append("\n**COCO (Pre-call planning):**")
-        lines.append(f"- Persona: {persona_label} ({specialty_label})")
-        lines.append(f"- Objective: {objective}")
-        lines.append(f"- Suggested patient type: {indications[0] if indications else 'Select one patient type to align on.'}")
-        if key_insights:
-            lines.append("- Key insights:")
-            for k in key_insights:
-                lines.append(f"    - {k}")
-        if benefits:
-            lines.append("- Key benefits to highlight:")
-            for b in benefits:
-                lines.append(f"    - {b}")
-        if evidence:
-            lines.append("- Evidence snippets:")
-            for e in evidence:
-                lines.append(f"    - {e}")
-        if objections:
-            lines.append("- Anticipated objections:")
-            for o in objections:
-                lines.append(f"    - {o}")
-        return "\n".join(lines)
+    # Build a rich response manually using the framework steps
+    out_lines = [f"Assistant: Using the **{framework_title}** for **{brand_name}** (verbatim framework used as guidance):", ""]
+    out_lines.append(framework_verbatim)
+    out_lines.append("")
+    out_lines.append("Enriched practical guidance (examples, probing questions, and next actions):")
+    out_lines.append("")
 
-    elif brand.lower() == "shingrix":
-        # Use EMOTIVE Selling Framework verbatim
-        header = SHINGRIX_FRAMEWORK_TITLE
-        verbatim = SHINGRIX_FRAMEWORK_VERBATIM
-        lines = [f"Assistant: Using the **{header}** for **{brand_name}** (verbatim framework shown below):", ""]
-        lines.append(verbatim)
-        lines.append("")
-        lines.append("Enriched bullets (from uploaded references):")
-        # PREPARE
-        lines.append("\n**PREPARE:**")
-        lines.append(f"- Link to last call: [Add link or summary from CRM]")
-        if key_insights:
-            lines.append("- Key clinical/patient insights:")
-            for k in key_insights:
-                lines.append(f"    - {k}")
-        lines.append(f"- Suggested patient profile: {indications[0] if indications else 'Adults ≥50 or relevant per label'}")
-        # ENGAGE
-        lines.append("\n**ENGAGE:**")
-        if benefits:
-            lines.append("- Emotive hooks & patient story bullets:")
-            for b in benefits:
-                lines.append(f"    - {b}")
-        if evidence:
-            lines.append("- Clinical data to weave into story:")
-            for e in evidence:
-                lines.append(f"    - {e}")
-        # CREATE OPPORTUNITY
-        lines.append("\n**CREATE OPPORTUNITY:**")
-        lines.append("- Suggested insightful questions:")
-        lines.append("    - What would happen if this patient developed shingles today?")
-        lines.append("    - How do you currently assess shingles risk in patients with comorbidities?")
-        # INFLUENCE
-        lines.append("\n**INFLUENCE:**")
-        if objections:
-            lines.append("- Objections & suggested responses:")
-            for o in objections:
-                lines.append(f"    - {o}")
-        # IMPACT GSO & ANALYSE
-        lines.append("\n**IMPACT GSO:**")
-        lines.append("- Agree incremental steps and next actions (e.g., start discussions, patient materials).")
-        lines.append("\n**ANALYSE:**")
-        lines.append("- Capture outcome, next objective, and CRM updates.")
-        return "\n".join(lines)
+    # For each step, generate practical bullets
+    if brand_key == "jemperli":
+        # COCO
+        out_lines.append("**COCO (Pre-call planning):**")
+        out_lines.append(f"- Persona: {persona_label} ({specialty_label})")
+        out_lines.append(f"- Objective: {objective}")
+        out_lines.append(f"- Suggested patient type: {indications[0] if indications else 'Select a patient type to align on.'}")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Review last call notes & CRM flags for similar patients.")
+        out_lines.append('    - Draft 2 thought-provoking questions to challenge status quo (example below).')
+        out_lines.append("- Example probing question: \"What would you change about current care for this patient if we could reduce treatment burden?\"")
+        out_lines.append("")
 
+        out_lines.append("**Anchor (Open the conversation):**")
+        out_lines.append("- Actions:")
+        out_lines.append('    - Start with the patient story based on COCO insights and align on the call objective.')
+        out_lines.append('    - Example opening: "Dr. X, based on our last discussion, I want to focus on patients who... Is that OK?"')
+        out_lines.append("")
+
+        out_lines.append("**Engage (Two-way dialogue):**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Use open questions, listen, and reflect; connect clinical data where appropriate.")
+        out_lines.append('    - Example phrase: "Tell me how you manage patients like Mrs. D — what is your biggest concern?"')
+        out_lines.append("    - Suggested data to reference: " + (evidence[0] if evidence else "trial results or label data relevant to efficacy/safety."))
+        out_lines.append("")
+
+        out_lines.append("**Close (Commit & next steps):**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Agree on a measurable incremental step (e.g., identify one eligible patient to start the discussion).")
+        out_lines.append('    - Example close: "Can we agree you will discuss this with one eligible patient this week and I will follow up?"')
+        out_lines.append("    - Next action to record: set follow-up date and CRM note.")
+        out_lines.append("")
+    elif brand_key == "shingrix":
+        out_lines.append("**PREPARE:**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Link to last call & identify eligible patient types (e.g., adults ≥50, patients with comorbidities).")
+        out_lines.append('    - Example opening prep line: "I reviewed our last call regarding older adults at risk — I want to focus on prevention."')
+        if key_insights:
+            out_lines.append("- Key clinical insights to use:")
+            for k in key_insights:
+                out_lines.append(f"    - {k}")
+        out_lines.append("")
+
+        out_lines.append("**ENGAGE:**")
+        out_lines.append("- Actions (emotive):")
+        out_lines.append("    - Build rapport, tell the patient story, highlight feelings and impact (pain, quality of life).")
+        out_lines.append('    - Example question: "Imagine if a 65-year-old diabetic patient developed shingles — how might that affect their daily life?"')
+        out_lines.append("    - Use vivid language: 'excruciating pain, lasting impact on sleep & mobility.'")
+        out_lines.append("")
+
+        out_lines.append("**CREATE OPPORTUNITY:**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Ask powerful, insightful questions to reveal unmet needs.")
+        out_lines.append('    - Example probe: "How do you currently discuss prevention in chronic disease reviews?"')
+        if benefits:
+            out_lines.append("- Benefits to highlight:")
+            for b in benefits:
+                out_lines.append(f"    - {b}")
+        out_lines.append("")
+
+        out_lines.append("**INFLUENCE:**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Tailor message to co-identified patient; handle objections via APACT (Acknowledge, Probe, Advise, Confirm, Transition).")
+        if objections:
+            out_lines.append("- Anticipated objections & short responses:")
+            for o in objections:
+                out_lines.append(f"    - {o} — Suggested reply: 'I understand — here's the evidence and a practical way to mitigate.'")
+        out_lines.append("")
+
+        out_lines.append("**IMPACT GSO & ANALYSE:**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Secure a commitment (e.g., discuss Shingrix with the next eligible patient).")
+        out_lines.append("    - CRM action: log commitment, set follow-up date, record barriers and agreed next steps.")
+        out_lines.append("")
     else:
-        # Default GSK Competitive Selling Module (use verbatim header)
-        header = GSK_DEFAULT_TITLE
-        verbatim = GSK_DEFAULT_VERBATIM
-        lines = [f"Assistant: Using the **{header}** (default GSK selling module) for **{brand_name}**:", ""]
-        lines.append(verbatim)
-        lines.append("")
-        lines.append("Enriched bullets (from uploaded references):")
-        # Map enrichment to the 6 steps
-        lines.append("\n**1 - Prepare to sell**")
-        lines.append(f"- Persona: {persona_label} ({specialty_label})")
-        if key_insights:
-            lines.append("- Key insights:")
-            for k in key_insights:
-                lines.append(f"    - {k}")
-        lines.append("\n**2 - Open the sales call**")
-        lines.append('- Suggested opening lines: "Hello Dr..., I’d like to discuss..."')
-        lines.append("\n**3 - Uncover opportunities**")
-        lines.append("- Insightful questions to uncover gaps:")
-        lines.append('    - "What are your main challenges with this patient group?"')
-        if benefits:
-            lines.append("- Key solution benefits:")
-            for b in benefits:
-                lines.append(f"    - {b}")
-        lines.append("\n**4 - Align on brand and address objections**")
+        # default competitive module
+        out_lines.append("**1 - Prepare to sell**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Gather patient examples, recent clinic data, and prior call notes.")
+        out_lines.append("    - Example: identify 2 patients who would benefit most.")
+        out_lines.append("")
+
+        out_lines.append("**2 - Open the sales call**")
+        out_lines.append("- Actions:")
+        out_lines.append('    - Use an attention opener linking to patient need: "Can I share a quick case?"')
+        out_lines.append("    - Example opening phrase and quick value statement.")
+        out_lines.append("")
+
+        out_lines.append("**3 - Uncover opportunities**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Ask insightful questions to surface unmet needs.")
+        out_lines.append('    - Example probe: "What is your process for identifying patients who would benefit from this therapy?"')
+        out_lines.append("")
+
+        out_lines.append("**4 - Align on brand and address objections**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Map key benefits to the patient's unmet needs and preempt common objections.")
         if objections:
-            lines.append("- Anticipated objections and responses:")
+            out_lines.append("- Objections & suggested responses:")
             for o in objections:
-                lines.append(f"    - {o}")
-        lines.append("\n**5 - Close with commitments**")
-        lines.append("- Agree on next steps and commitments (e.g., follow-up, sample, checklist).")
-        lines.append("\n**6 - Analyse sales call and plan next steps**")
-        lines.append("- Record insights, update CRM, set next call objective.")
-        return "\n".join(lines)
+                out_lines.append(f"    - {o} — Suggested reply: provide data or a practical workaround.")
+        out_lines.append("")
+
+        out_lines.append("**5 - Close with commitments**")
+        out_lines.append("- Actions:")
+        out_lines.append('    - Ask for a commitment: "Would you be willing to try this with one patient and feedback?"')
+        out_lines.append("    - Set a specific next step and timeline.")
+        out_lines.append("")
+
+        out_lines.append("**6 - Analyse sales call and plan next steps**")
+        out_lines.append("- Actions:")
+        out_lines.append("    - Capture insights in CRM, set follow-up objectives, and iterate.")
+        out_lines.append("")
+
+    if not (key_insights or benefits or evidence or indications):
+        out_lines.append("**Note:** I could not find uploaded brand-specific documents to enrich this call fully. Upload the brand sales/medical PDFs for a richer, evidence-based plan.")
+    return "\n".join(out_lines)
 
 # -------------------------
 # Sidebar (logos, filters, dashboard, uploads)
@@ -631,7 +710,7 @@ with st.sidebar:
                 # store enhanced bullet summary
                 st.session_state["pdf_summaries"][sel_brand] = model_summarize(st.session_state["pdf_docs"][sel_brand], bullets=8)
                 st.success("Sidebar file added and summarized.")
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.error("Could not read file.")
 
@@ -642,7 +721,7 @@ with st.sidebar:
         st.session_state["chat_history"] = []
         st.session_state["followup_options"] = {}
         st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
-        st.rerun()
+        st.experimental_rerun()
 
 # -------------------------
 # Header (main)
@@ -651,7 +730,7 @@ st.markdown("""
 <div class="header">
   <div style="width:140px;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/GSK1-logo.png" class="left-logo"></div>
   <div class="title"><h2 style="margin:0">AI Sales Call Assistant</h2><div style="color:#555;font-size:13px;">APACT-guided — structured call flows</div></div>
-  <div style="width:120px;text-align:right;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/AURA1.png" class="ai-logo"></div>
+  <div style="width:140px;text-align:right;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/AURA1.png" class="ai-logo"></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -667,7 +746,7 @@ if uploaded_file_main:
         st.session_state["pdf_docs"][st.session_state["selected_brand"]] += "\n\n" + content
         st.session_state["pdf_summaries"][st.session_state["selected_brand"]] = model_summarize(st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=8)
         st.success("Uploaded and summarized for brand.")
-        st.rerun()
+        st.experimental_rerun()
 
 # Build local docs list (repo + uploaded)
 brand = st.session_state["selected_brand"]
@@ -689,24 +768,21 @@ if brand in st.session_state["pdf_docs"]:
 chunks, metas = build_corpus_for_folders([p for p in (refs_folder, sales_folder) if os.path.exists(p)], chunk_size_sentences=3)
 
 # -------------------------
-# Collapsible bullet summaries (opened by default)
+# PDF summary (collapsible, opened by default)
 # -------------------------
-# PDF summary (collapsible white card)
 pdf_sum = st.session_state["pdf_summaries"].get(brand, "")
 if not pdf_sum and brand in st.session_state["pdf_docs"]:
     pdf_sum = model_summarize(st.session_state["pdf_docs"][brand], bullets=8)
     st.session_state["pdf_summaries"][brand] = pdf_sum
 
-# Show collapsible summary opened by default if we have content
 if pdf_sum:
     with st.expander("📄 Uploaded PDF Summary (bulleted)", expanded=True):
         st.markdown(f'<div class="collapsible-white">{pdf_sum.replace("\\n","<br>")}</div>', unsafe_allow_html=True)
 else:
-    # Show an empty but explanatory white card telling user to upload
     with st.expander("📄 Uploaded PDF Summary (bulleted)", expanded=True):
         st.markdown('<div class="collapsible-white">No uploaded brand documents yet. Upload a PDF/TXT/DOCX in the main or sidebar upload to enable tailored outputs.</div>', unsafe_allow_html=True)
 
-# Repository-based medical & sales summaries (collapsed)
+# Repository-based summaries collapsed
 med_summary = st.session_state["medical_summary"].get(brand, "")
 if not med_summary:
     combined = "\n".join([d for d in local_docs]) if local_docs else ""
@@ -725,12 +801,11 @@ with st.expander("📚 Medical Summary (bulleted)", expanded=False):
 with st.expander("💼 Sales Module Summary (bulleted)", expanded=False):
     st.markdown(f'<div class="collapsible-white">{sales_summary.replace("\\n","<br>") if sales_summary else "- No sales module content found."}</div>', unsafe_allow_html=True)
 
-# GROQ unavailable notice (non-blocking)
 if st.session_state.get("groq_unavailable"):
     st.warning("⚠️ LLM (GROQ) not reachable or API key not set — running in offline/fallback mode.", icon="⚠️")
 
 # -------------------------
-# Prompt suggestions (collapsible)
+# Prompt suggestions & copilot fixed input (bottom) - suggestions inside the copilot box
 # -------------------------
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
     s=[]
@@ -742,39 +817,9 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     s.append("Short role-play example (rep <> HCP)")
     return s
 
-suggestions = make_suggestions(brand, persona, barrier, segment, specialty, objective)
-with st.expander("💡 Prompt Suggestions (click to expand)", expanded=False):
-    st.markdown("<div style='margin-bottom:8px;color:#333;'>Click a suggestion to auto-send it.</div>", unsafe_allow_html=True)
-    for i, s in enumerate(suggestions):
-        if st.button(s, key=f"suggbtn_{i}"):
-            st.session_state["chat_history"].append({"role":"user","text":s})
-            # If it's a Generate sales call prompt, produce structured flow using verbatim frameworks where detected
-            if "sales call" in s.lower() or s.lower().startswith("generate sales call") or s.lower().startswith("generate call flow"):
-                ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
-                audio_b64 = generate_audio_base64(ai_text)
-                # Show the framework header as a collapsible white card, opened by default
-                with st.expander(f"{(JEMPERLI_FRAMEWORK_TITLE if brand.lower()=='jemperli' else SHINGRIX_FRAMEWORK_TITLE if brand.lower()=='shingrix' else GSK_DEFAULT_TITLE)}", expanded=True):
-                    st.markdown(f'<div class="collapsible-white">{ai_text.replace("\\n","<br>")}</div>', unsafe_allow_html=True)
-                st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-                st.rerun()
-            else:
-                ai_resp = query_groq_safe(s, local_docs)
-                if ai_resp:
-                    audio_b64 = generate_audio_base64(ai_resp)
-                    st.session_state["chat_history"].append({"role":"assistant","text":ai_resp,"audio_b64":audio_b64})
-                else:
-                    snippets = local_search_snippets(s, chunks, metas, top_n=5)
-                    if snippets:
-                        ai_text = "**Summary from references:**\n" + "\n".join([f"- {sn['text'][:200]}..." for sn in snippets])
-                    else:
-                        ai_text = "I couldn't find direct references locally. Please refine the prompt or upload relevant docs."
-                    audio_b64 = generate_audio_base64(ai_text)
-                    st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-                st.rerun()
+copilot_suggestions = make_suggestions(brand, persona, barrier, segment, specialty, objective)
 
-# -------------------------
-# Chat display (no stray white gaps)
-# -------------------------
+# Render chat history area (main) - placed above fixed copilot input
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 for idx, entry in enumerate(st.session_state["chat_history"]):
     role = entry.get("role","assistant")
@@ -789,7 +834,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
             except Exception:
                 pass
 
-        # interactive feedback row
+        # feedback and followups
         followup_key = f"followup_{idx}"
         st.markdown('<div class="feedback-row">', unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns([1,1,1,6])
@@ -798,7 +843,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 st.session_state["feedback_stats"]["like"] += 1
                 pref_text = "Thanks! Quick preference: 1) Short scripts, 2) Data bullets, 3) Role-plays — reply 1/2/3."
                 st.session_state["chat_history"].append({"role":"assistant","text":pref_text,"audio_b64":generate_audio_base64(pref_text)})
-                st.rerun()
+                st.experimental_rerun()
         with c2:
             if st.button("👎 Dislike", key=f"dislike_{idx}"):
                 st.session_state["feedback_stats"]["dislike"] += 1
@@ -812,7 +857,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 else:
                     opts = ["Make it shorter & punchy", "Focus on objections handling", "Add more persuasive language"]
                 st.session_state["followup_options"][followup_key] = opts
-                st.rerun()
+                st.experimental_rerun()
         with c3:
             if st.button("🔄 Regenerate", key=f"reg_{idx}"):
                 st.session_state["feedback_stats"]["need_more"] += 1
@@ -825,14 +870,14 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 else:
                     new_text = text + "\n\n[Regenerated: more actionable steps would be added here.]"
                     st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":generate_audio_base64(new_text)})
-                st.rerun()
+                st.experimental_rerun()
         with c4:
             fb_val = st.session_state.get("feedback", {}).get(f"fb_{idx}", "")
             if fb_val:
                 st.markdown(f"**Feedback:** {fb_val}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # follow-up options display
+        # followup options block
         if st.session_state.get("followup_options", {}).get(followup_key):
             st.markdown("💡 **Refine this answer — choose one:**")
             fopts = st.session_state["followup_options"][followup_key]
@@ -849,70 +894,118 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                         new_text = text + f"\n\n[Regenerated to address: {opt}]"
                         st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":generate_audio_base64(new_text)})
                     st.session_state["followup_options"].pop(followup_key, None)
-                    st.rerun()
+                    st.experimental_rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Merged input (textarea + send) centered above footer bubble
+# Copilot fixed input box (suggestions + input + send) - fixed above sticky disclaimer
 # -------------------------
-st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
-st.markdown('<div style="display:flex; justify-content:center;">', unsafe_allow_html=True)
-st.markdown('<div style="width:100%; max-width:1100px;">', unsafe_allow_html=True)
+# Build the copilot box HTML using Streamlit layout primitives for functionality
+copilot_container = st.empty()
+with copilot_container.container():
+    st.markdown('<div class="copilot-fixed">', unsafe_allow_html=True)
+    st.markdown('<div class="copilot-box">', unsafe_allow_html=True)
 
-st.markdown('<div class="input-row">', unsafe_allow_html=True)
-main_text = st.text_area("", value=st.session_state.get("main_input",""), key="main_input_widget", height=96, placeholder="Type your message or click a suggestion...", label_visibility="collapsed")
-col_send, col_space = st.columns([1,0.05])
-with col_send:
-    send_clicked = st.button("Send ➤", key="send_main", help="Send message")
-st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
-
-# handle send action
-if send_clicked:
-    if main_text and main_text.strip():
-        st.session_state["chat_history"].append({"role":"user","text":main_text.strip()})
-        trigger_phrases = ["generate sales call", "generate call flow", "sales call", "call flow"]
-        lower = main_text.lower()
-        if any(tp in lower for tp in trigger_phrases):
-            ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
-            audio_b64 = generate_audio_base64(ai_text)
-            # display the framework header as a white collapsible card opened by default
-            header_title = JEMPERLI_FRAMEWORK_TITLE if brand.lower()=='jemperli' else SHINGRIX_FRAMEWORK_TITLE if brand.lower()=='shingrix' else GSK_DEFAULT_TITLE
-            with st.expander(header_title, expanded=True):
-                st.markdown(f'<div class="collapsible-white">{ai_text.replace("\\n","<br>")}</div>', unsafe_allow_html=True)
-            st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-            st.session_state["main_input"] = ""
-            st.rerun()
-        else:
-            ai_out = query_groq_safe(main_text.strip(), local_docs)
-            if ai_out:
-                audio_b64 = generate_audio_base64(ai_out)
-                st.session_state["chat_history"].append({"role":"assistant","text":ai_out,"audio_b64":audio_b64})
-            else:
-                snippets = local_search_snippets(main_text.strip(), chunks, metas, top_n=5)
-                if snippets:
-                    ai_text = "**Relevant excerpts:**\n" + "\n".join([f"- {s['text'][:220]}..." for s in snippets])
+    # Suggestions row
+    cols = st.columns([1,6,1])
+    with cols[1]:
+        st.markdown('<div class="copilot-suggestions">', unsafe_allow_html=True)
+        # Render suggestion buttons
+        for i, s in enumerate(copilot_suggestions):
+            if st.button(s, key=f"copilot_sugg_{i}"):
+                # populate main_input and auto-send
+                st.session_state["main_input"] = s
+                # emulate sending immediately
+                # note: can't call st.rerun() here and then use send_clicked logic below - instead push to history and generate
+                st.session_state["chat_history"].append({"role":"user","text":s})
+                # handle generate sales call specially
+                if any(tp in s.lower() for tp in ["generate sales call","generate call flow","call flow"]):
+                    # require uploaded docs or repo files for a rich response; otherwise warn
+                    if not local_docs:
+                        warn_text = "No brand documents found. Upload the brand PDF/TXT/DOCX to generate a tailored sales call."
+                        st.session_state["chat_history"].append({"role":"assistant","text":warn_text})
+                        st.experimental_rerun()
+                    ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
+                    st.experimental_rerun()
                 else:
-                    ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
-                audio_b64 = generate_audio_base64(ai_text)
-                st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":audio_b64})
-            st.session_state["main_input"] = ""
-            st.rerun()
+                    ai_out = query_groq_safe(s, local_docs)
+                    if ai_out:
+                        st.session_state["chat_history"].append({"role":"assistant","text":ai_out,"audio_b64":generate_audio_base64(ai_out)})
+                    else:
+                        snippets = local_search_snippets(s, chunks, metas, top_n=5)
+                        if snippets:
+                            ai_text = "**Relevant excerpts:**\n" + "\n".join([f"- {sn['text'][:200]}..." for sn in snippets])
+                        else:
+                            ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
+                        st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
+                    st.experimental_rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Input row
+    st.markdown('<div class="copilot-input-row">', unsafe_allow_html=True)
+    # Use a text_area bound to session_state for persistent content
+    main_text = st.text_area("", value=st.session_state.get("main_input",""), key="copilot_main_input", height=84, placeholder="Type your message, or click a suggestion... (e.g. 'Generate sales call')", label_visibility="collapsed")
+    send_col, empty_col = st.columns([0.18,0.02])
+    with send_col:
+        if st.button("Send ➤", key="copilot_send"):
+            user_msg = main_text.strip()
+            if not user_msg:
+                # do nothing
+                pass
+            else:
+                st.session_state["chat_history"].append({"role":"user","text":user_msg})
+                # handle trigger phrases
+                triggers = ["generate sales call","generate call flow","sales call","call flow"]
+                if any(t in user_msg.lower() for t in triggers):
+                    # require documents for tailored outputs
+                    if not local_docs:
+                        warn_text = "No brand documents found. Upload the brand PDF/TXT/DOCX to generate a tailored sales call."
+                        st.session_state["chat_history"].append({"role":"assistant","text":warn_text})
+                        st.session_state["main_input"] = ""
+                        st.experimental_rerun()
+                    ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
+                    st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
+                    st.session_state["main_input"] = ""
+                    st.experimental_rerun()
+                else:
+                    ai_out = query_groq_safe(user_msg, local_docs)
+                    if ai_out:
+                        st.session_state["chat_history"].append({"role":"assistant","text":ai_out,"audio_b64":generate_audio_base64(ai_out)})
+                    else:
+                        snippets = local_search_snippets(user_msg, chunks, metas, top_n=5)
+                        if snippets:
+                            ai_text = "**Relevant excerpts:**\n" + "\n".join([f"- {s['text'][:200]}..." for s in snippets])
+                        else:
+                            ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
+                        st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
+                    st.session_state["main_input"] = ""
+                    st.experimental_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Footer bubble (fixed, resizable) and small bottom-right text
+# Sticky resizable disclaimer bubble (always visible)
 # -------------------------
-st.markdown(f"""
-<div class="footer-fixed" aria-hidden="false">
-  <div class="footer-bubble" role="region" aria-label="Footer Bubble (resizable)">
-    <div style="opacity:0.85; font-size:12px;">Footer (resizable). Use the input above to send messages. This bubble is resizable for convenience.</div>
+st.markdown("""
+<div class="disclaimer-sticky" aria-hidden="false">
+  <div class="disclaimer-bubble" role="region" aria-label="Disclaimer (sticky)">
+    <div style="font-size:13px; color:#111;">
+      ⚠️ Internal tool — outputs are grounded in uploaded and repository references. Verify clinical and compliance information before external use.
+    </div>
+    <div style="font-size:13px; color:#333; opacity:0.9;">
+      <b>Contact:</b> Compliance Team • <span style="margin-left:10px">GROQ key: {key_state}</span>
+    </div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""".format(key_state=("set" if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here" else "not set")), unsafe_allow_html=True)
 
-# small bottom-right text
+# small bottom-right reference text
 st.markdown('<div class="small-bottom-right">Please refer to Write Right Principles course: BUS-LGL-WRJA-001</div>', unsafe_allow_html=True)
 
-# small footer note
-st.markdown('<div style="text-align:center; margin-top:8px; font-size:12px; color:#111;">⚠️ Internal tool — outputs are grounded in uploaded and repository references. Verify clinical/compliance before external use.</div>', unsafe_allow_html=True)
+# -------------------------
+# Small footer note (non-fixed)
+# -------------------------
+st.markdown('<div style="text-align:center; margin-top:8px; font-size:12px; color:#111;">&nbsp;</div>', unsafe_allow_html=True)
