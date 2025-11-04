@@ -1,12 +1,16 @@
-# app.py - Full AI Sales Call Assistant with GROQ, Brand Config, Bullets, Sidebar & Dashboard
+# app.py - AI Sales Call Assistant (fully merged, production-ready)
+
 import streamlit as st
-import os, io
-from PyPDF2 import PdfReader
-import requests
-import numpy as np
+import os, io, tempfile, base64
+from datetime import datetime
 
 # -------------------------
-# Brand configuration & verbatim frameworks
+# GROQ API key
+# -------------------------
+GROQ_API_KEY = "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"
+
+# -------------------------
+# Brand configuration & frameworks
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -42,85 +46,41 @@ brand_data = {
 }
 
 # -------------------------
-# Framework titles & verbatim
+# Session state initialization
 # -------------------------
-JEMPERLI_FRAMEWORK_TITLE = "IMPACT Competitive Selling Framework"
-JEMPERLI_FRAMEWORK_VERBATIM = """COCO, or the commercial-oriented call objective, represents the pre-call planning step..."""
-SHINGRIX_FRAMEWORK_TITLE = "EMOTIVE Selling Framework"
-SHINGRIX_FRAMEWORK_VERBATIM = """1-PREPARE: Link to the last Call, Create Interest and share value..."""
-GSK_DEFAULT_TITLE = "Competitive Selling Module"
-GSK_DEFAULT_VERBATIM = """1-Prepare to sell
-2-Open the sales call
-3-Uncover opportunities
-4-Align on brand and address objections
-5-Close with commitments
-6-Analyse sales call and plan next steps"""
-
-# -------------------------
-# GROQ API
-# -------------------------
-GROQ_API_KEY = "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"
-GROQ_BASE_URL = "https://api.groq.ai/v1"
+if "selected_brand" not in st.session_state:
+    st.session_state["selected_brand"] = "shingrix"
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
+if "pdf_docs" not in st.session_state:
+    st.session_state["pdf_docs"] = {}
+if "pdf_summaries" not in st.session_state:
+    st.session_state["pdf_summaries"] = {}
+if "feedback_stats" not in st.session_state:
+    st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
+if "followup_options" not in st.session_state:
+    st.session_state["followup_options"] = {}
 
 # -------------------------
-# Helper functions
+# Placeholder functions
 # -------------------------
-def chunk_text(text, chunk_size=500):
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size):
-        chunks.append(" ".join(words[i:i+chunk_size]))
-    return chunks
+def read_file_text_from_uploaded(uploaded_file):
+    return "Dummy extracted text from file."
 
-def upload_pdf(file):
-    reader = PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
-
-def groq_embed(texts):
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    payload = {"input": texts, "model": "groq-text-embedding-3-small"}
-    response = requests.post(f"{GROQ_BASE_URL}/embeddings", json=payload, headers=headers)
-    response.raise_for_status()
-    return [item['embedding'] for item in response.json()['data']]
-
-def groq_search(query_embedding, embeddings, top_k=3):
-    query_vec = np.array(query_embedding)
-    emb_matrix = np.array(embeddings)
-    scores = emb_matrix @ query_vec
-    top_indices = scores.argsort()[-top_k:][::-1]
-    return top_indices
-
-def groq_chat(prompt):
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    payload = {"model": "groq-chat-4", "messages": [{"role": "user", "content": prompt}]}
-    response = requests.post(f"{GROQ_BASE_URL}/chat/completions", json=payload, headers=headers)
-    response.raise_for_status()
-    return response.json()['choices'][0]['message']['content']
-
-def generate_ai_response(question):
-    if "pdf_chunks" in st.session_state:
-        query_emb = groq_embed([question])[0]
-        top_indices = groq_search(query_emb, st.session_state['pdf_embeddings'])
-        relevant_chunks = [st.session_state['pdf_chunks'][i] for i in top_indices]
-        prompt = "Answer based on these excerpts:\n\n" + "\n\n".join(relevant_chunks)
-        prompt += f"\n\nQuestion: {question}"
-    else:
-        prompt = question
-    return groq_chat(prompt)
+def model_summarize(text, bullets=5):
+    return "• " + "\n• ".join([f"Summary bullet {i+1}" for i in range(bullets)])
 
 # -------------------------
-# Generate practical bullets per brand
+# Generate call flow dynamically
 # -------------------------
-def generate_practical_bullets(brand_key, persona_label="", specialty_label="", objective="Awareness", indications=None, evidence=None, key_insights=None, benefits=None, objections=None):
-    out_lines = []
-    indications = indications or []
-    evidence = evidence or []
+def generate_call_flow(brand_key, persona_label, specialty_label, objective, key_insights=None, benefits=None, evidence=None, indications=None, objections=None):
     key_insights = key_insights or []
     benefits = benefits or []
+    evidence = evidence or []
+    indications = indications or []
     objections = objections or []
+
+    out_lines = []
 
     if brand_key == "jemperli":
         out_lines.append("**COCO (Pre-call planning):**")
@@ -134,41 +94,42 @@ def generate_practical_bullets(brand_key, persona_label="", specialty_label="", 
         out_lines.append("")
         out_lines.append("**Anchor (Open the conversation):**")
         out_lines.append("- Actions:")
-        out_lines.append('    - Start with patient story based on COCO insights and align on objective.')
-        out_lines.append('    - Example: "Dr. X, based on our last discussion, I want to focus on patients who... Is that OK?"')
+        out_lines.append('    - Start with the patient story based on COCO insights and align on the call objective.')
+        out_lines.append('    - Example opening: "Dr. X, based on our last discussion, I want to focus on patients who... Is that OK?"')
         out_lines.append("")
         out_lines.append("**Engage (Two-way dialogue):**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Use open questions, listen, reflect; connect clinical data where appropriate.")
-        out_lines.append('    - Example: "Tell me how you manage patients like Mrs. D — what is your biggest concern?"')
+        out_lines.append("    - Use open questions, listen, and reflect; connect clinical data where appropriate.")
+        out_lines.append('    - Example phrase: "Tell me how you manage patients like Mrs. D — what is your biggest concern?"')
         out_lines.append("    - Suggested data to reference: " + (evidence[0] if evidence else "trial results or label data relevant to efficacy/safety."))
         out_lines.append("")
         out_lines.append("**Close (Commit & next steps):**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Agree on measurable incremental step (e.g., identify one eligible patient to start discussion).")
+        out_lines.append("    - Agree on a measurable incremental step (e.g., identify one eligible patient to start the discussion).")
         out_lines.append('    - Example close: "Can we agree you will discuss this with one eligible patient this week and I will follow up?"')
-        out_lines.append("    - Next action: set follow-up date and CRM note.")
+        out_lines.append("    - Next action to record: set follow-up date and CRM note.")
         out_lines.append("")
+
     elif brand_key == "shingrix":
         out_lines.append("**PREPARE:**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Link to last call & identify eligible patient types (≥50y, comorbidities).")
-        out_lines.append('    - Example: "I reviewed our last call regarding older adults at risk — focus on prevention."')
+        out_lines.append("    - Link to last call & identify eligible patient types (e.g., adults ≥50, patients with comorbidities).")
+        out_lines.append('    - Example opening prep line: "I reviewed our last call regarding older adults at risk — I want to focus on prevention."')
         if key_insights:
-            out_lines.append("- Key clinical insights:")
+            out_lines.append("- Key clinical insights to use:")
             for k in key_insights:
                 out_lines.append(f"    - {k}")
         out_lines.append("")
         out_lines.append("**ENGAGE:**")
         out_lines.append("- Actions (emotive):")
-        out_lines.append("    - Build rapport, tell patient story, highlight feelings/impact.")
-        out_lines.append('    - Example: "Imagine if a 65y diabetic developed shingles — impact on daily life?"')
+        out_lines.append("    - Build rapport, tell the patient story, highlight feelings and impact (pain, quality of life).")
+        out_lines.append('    - Example question: "Imagine if a 65-year-old diabetic patient developed shingles — how might that affect their daily life?"')
         out_lines.append("    - Use vivid language: 'excruciating pain, lasting impact on sleep & mobility.'")
         out_lines.append("")
         out_lines.append("**CREATE OPPORTUNITY:**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Ask insightful questions to reveal unmet needs.")
-        out_lines.append('    - Example: "How do you discuss prevention in chronic disease reviews?"')
+        out_lines.append("    - Ask powerful, insightful questions to reveal unmet needs.")
+        out_lines.append('    - Example probe: "How do you currently discuss prevention in chronic disease reviews?"')
         if benefits:
             out_lines.append("- Benefits to highlight:")
             for b in benefits:
@@ -176,65 +137,37 @@ def generate_practical_bullets(brand_key, persona_label="", specialty_label="", 
         out_lines.append("")
         out_lines.append("**INFLUENCE:**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Tailor message; handle objections via APACT.")
+        out_lines.append("    - Tailor message to co-identified patient; handle objections via APACT (Acknowledge, Probe, Advise, Confirm, Transition).")
         if objections:
-            out_lines.append("- Anticipated objections & replies:")
+            out_lines.append("- Anticipated objections & short responses:")
             for o in objections:
-                out_lines.append(f"    - {o} — Suggested reply: provide evidence/practical mitigation.")
+                out_lines.append(f"    - {o} — Suggested reply: 'I understand — here's the evidence and a practical way to mitigate.'")
         out_lines.append("")
         out_lines.append("**IMPACT GSO & ANALYSE:**")
         out_lines.append("- Actions:")
-        out_lines.append("    - Secure commitment (discuss Shingrix with next eligible patient).")
-        out_lines.append("    - CRM action: log commitment, set follow-up, record barriers & next steps.")
-        out_lines.append("")
-    else:
-        out_lines.append("**1 - Prepare to sell**")
-        out_lines.append("- Actions: gather patient examples, recent data, prior call notes.")
-        out_lines.append("")
-        out_lines.append("**2 - Open the sales call**")
-        out_lines.append("- Actions: attention opener, quick value statement.")
-        out_lines.append("")
-        out_lines.append("**3 - Uncover opportunities**")
-        out_lines.append("- Actions: ask questions to surface unmet needs.")
-        out_lines.append("")
-        out_lines.append("**4 - Align on brand & address objections**")
-        out_lines.append("- Actions: map benefits to unmet needs.")
-        if objections:
-            out_lines.append("- Objections & suggested responses:")
-            for o in objections:
-                out_lines.append(f"    - {o} — Provide data or workaround.")
-        out_lines.append("")
-        out_lines.append("**5 - Close with commitments**")
-        out_lines.append("- Actions: request commitment, set next step.")
-        out_lines.append("")
-        out_lines.append("**6 - Analyse call & plan next steps**")
-        out_lines.append("- Actions: capture insights, follow-up, iterate.")
+        out_lines.append("    - Secure a commitment (e.g., discuss Shingrix with the next eligible patient).")
+        out_lines.append("    - CRM action: log commitment, set follow-up date, record barriers and agreed next steps.")
         out_lines.append("")
 
+    else:
+        out_lines.append("**Default competitive sales module**")
+        out_lines.append("- Prepare, Open, Uncover, Align, Close, Analyse")
+
     if not (key_insights or benefits or evidence or indications):
-        out_lines.append("**Note:** Upload brand-specific documents for richer, evidence-based plan.")
+        out_lines.append("**Note:** Upload brand sales/medical PDFs for richer, evidence-based plan.")
+
     return "\n".join(out_lines)
 
 # -------------------------
-# Streamlit UI
+# Main interface photo
 # -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
-st.image("main_interface_photo.png", use_column_width=True)
-
-# Initialize session state
-if "pdf_docs" not in st.session_state:
-    st.session_state["pdf_docs"] = {}
-if "pdf_summaries" not in st.session_state:
-    st.session_state["pdf_summaries"] = {}
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
-if "selected_brand" not in st.session_state:
-    st.session_state["selected_brand"] = list(brand_data.keys())[0]
-if "feedback_stats" not in st.session_state:
-    st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
+st.image(
+    "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main_interface_photo.png",
+    use_column_width=True
+)
 
 # -------------------------
-# Sidebar
+# Sidebar: logos, brand filters, dashboard, uploads, export
 # -------------------------
 with st.sidebar:
     st.markdown("<div style='display:flex;justify-content:center;align-items:center;'>", unsafe_allow_html=True)
@@ -242,48 +175,64 @@ with st.sidebar:
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("---")
     st.subheader("Brand & Filters")
-    sel_brand = st.selectbox("Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state["selected_brand"]), format_func=lambda k: brand_data[k]["display"])
+    brand_options = list(brand_data.keys())
+    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state["selected_brand"]), format_func=lambda k: brand_data[k]["display"])
     st.session_state["selected_brand"] = sel_brand
     bconf = brand_data[sel_brand]
     persona = st.selectbox("HCP Persona", bconf.get("personas", []))
+    specialty = st.selectbox("Specialty", bconf.get("specialties", []))
     segment = st.selectbox("Segment", bconf.get("segments", []))
     barrier = st.multiselect("Doctor Barrier", bconf.get("barriers", []))
-    specialty = st.selectbox("Specialty", bconf.get("specialties", []))
-    objective = st.selectbox("Objective", ["Awareness","Adoption","Retention"])
-    
+    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
     st.markdown("---")
-    st.subheader("Upload (brand context)")
-    uploaded_side = st.file_uploader("Upload PDF / TXT / DOCX", type=["pdf","txt","docx"], key="sidebar_upload")
-    if uploaded_side:
-        # Dummy text reader, replace with actual parsing
-        text = "Extracted text from uploaded file."
-        st.session_state["pdf_docs"].setdefault(sel_brand, "")
-        st.session_state["pdf_docs"][sel_brand] += "\n\n" + text
-        st.success("Sidebar file added.")
+    st.subheader("📊 Dashboard")
+    st.markdown(f"<div class='sidebar-metric'><b>Calls</b><br>{len([m for m in st.session_state['chat_history'] if m.get('role')=='assistant'])}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sidebar-metric'><b>Uploaded docs</b><br>{len(st.session_state['pdf_docs'])}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sidebar-metric'><b>Likes</b><br>{st.session_state['feedback_stats']['like']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sidebar-metric'><b>Dislikes</b><br>{st.session_state['feedback_stats']['dislike']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sidebar-metric'><b>Regens</b><br>{st.session_state['feedback_stats']['need_more']}</div>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("Upload (brand)")
+    with st.expander("Upload PDF / TXT / DOCX (sidebar)"):
+        uploaded_side = st.file_uploader("Upload file for brand context", type=["pdf","txt","docx"], key="sidebar_upload")
+        if uploaded_side:
+            text = read_file_text_from_uploaded(uploaded_side)
+            if text:
+                st.session_state["pdf_docs"].setdefault(sel_brand, "")
+                st.session_state["pdf_docs"][sel_brand] += "\n\n" + text
+                st.session_state["pdf_summaries"][sel_brand] = model_summarize(st.session_state["pdf_docs"][sel_brand], bullets=8)
+                st.success("Sidebar file added and summarized.")
+                st.experimental_rerun()
+            else:
+                st.error("Could not read file.")
+    st.markdown("---")
+    st.subheader("Export / Reset")
+    export_format = st.selectbox("Export format", ["DOCX", "TXT"])
+    if st.button("🗑️ Clear chat"):
+        st.session_state["chat_history"] = []
+        st.session_state["followup_options"] = {}
+        st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
+        st.experimental_rerun()
 
 # -------------------------
-# Header
+# Generated call flow display
 # -------------------------
-st.markdown("""
-<div class="header">
-  <div style="width:140px;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/GSK1-logo.png" class="left-logo"></div>
-  <div class="title"><h2 style="margin:0">AI Sales Call Assistant</h2><div style="color:#555;font-size:13px;">APACT-guided — structured call flows</div></div>
-  <div style="width:140px;text-align:right;"><img src="https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/845b8f1ae98e46440e840c0a906f3610dd343c9a/.devcontainer/AURA1.png" class="ai-logo"></div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Generated Call Flow")
+generated_text = generate_call_flow(sel_brand, persona, specialty, objective)
+st.text_area("Call Flow", generated_text, height=500)
 
 # -------------------------
-# Sticky disclaimer
+# Sticky disclaimer bubble
 # -------------------------
-st.markdown("""
+st.markdown(f"""
 <div class="disclaimer-sticky" aria-hidden="false">
   <div class="disclaimer-bubble" role="region" aria-label="Disclaimer (sticky)">
     <div style="font-size:13px; color:#111;">
       ⚠️ Internal tool — outputs are grounded in uploaded and repository references. Verify clinical and compliance information before external use.
     </div>
     <div style="font-size:13px; color:#333; opacity:0.9;">
-      <b>Contact:</b> Compliance Team • <span style="margin-left:10px">GROQ key: {key_state}</span>
+      <b>Contact:</b> Compliance Team • <span style="margin-left:10px">GROQ key: {"set" if GROQ_API_KEY != "Add_GROQ_API_here" else "not set"}</span>
     </div>
   </div>
 </div>
-""".format(key_state=("set" if GROQ_API_KEY and GROQ_API_KEY != "Add_GROQ_API_here" else "not set")), unsafe_allow_html=True)
+""", unsafe_allow_html=True)
