@@ -744,7 +744,7 @@ if uploaded_file_main:
             st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=8
         )
         st.success("Uploaded and summarized for brand.")
-        st.experimental_rerun()  # safe rerun
+        st.experimental_rerun()
     else:
         st.error("Could not read uploaded file.")
 
