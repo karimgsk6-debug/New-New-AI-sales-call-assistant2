@@ -707,7 +707,6 @@ with st.sidebar:
             st.session_state["pdf_docs"][sel_brand] += "\n\n" + text
             st.session_state["pdf_summaries"][sel_brand] = model_summarize(st.session_state["pdf_docs"][sel_brand], bullets=8)
             st.success("Sidebar file added and summarized.")
-            st.experimental_rerun()  # safe rerun here after session update
         else:
             st.error("Could not read file.")
 
@@ -718,7 +717,6 @@ with st.sidebar:
         st.session_state["chat_history"] = []
         st.session_state["followup_options"] = {}
         st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
-        st.experimental_rerun()  # safe rerun after clearing session
 
 # -------------------------
 # Header (main)
@@ -744,7 +742,6 @@ if uploaded_file_main:
             st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=8
         )
         st.success("Uploaded and summarized for brand.")
-        st.experimental_rerun()
     else:
         st.error("Could not read uploaded file.")
 
@@ -843,7 +840,6 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 st.session_state["feedback_stats"]["like"] += 1
                 pref_text = "Thanks! Quick preference: 1) Short scripts, 2) Data bullets, 3) Role-plays — reply 1/2/3."
                 st.session_state["chat_history"].append({"role":"assistant","text":pref_text,"audio_b64":generate_audio_base64(pref_text)})
-                st.experimental_rerun()
         with c2:
             if st.button("👎 Dislike", key=f"dislike_{idx}"):
                 st.session_state["feedback_stats"]["dislike"] += 1
@@ -857,7 +853,6 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 else:
                     opts = ["Make it shorter & punchy", "Focus on objections handling", "Add more persuasive language"]
                 st.session_state["followup_options"][followup_key] = opts
-                st.experimental_rerun()
         with c3:
             if st.button("🔄 Regenerate", key=f"reg_{idx}"):
                 st.session_state["feedback_stats"]["need_more"] += 1
@@ -870,7 +865,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                 else:
                     new_text = text + "\n\n[Regenerated: more actionable steps would be added here.]"
                     st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":generate_audio_base64(new_text)})
-                st.experimental_rerun()
+                
         with c4:
             fb_val = st.session_state.get("feedback", {}).get(f"fb_{idx}", "")
             if fb_val:
@@ -894,7 +889,7 @@ for idx, entry in enumerate(st.session_state["chat_history"]):
                         new_text = text + f"\n\n[Regenerated to address: {opt}]"
                         st.session_state["chat_history"].append({"role":"assistant","text":new_text,"audio_b64":generate_audio_base64(new_text)})
                     st.session_state["followup_options"].pop(followup_key, None)
-                    st.experimental_rerun()
+                    
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
@@ -924,10 +919,10 @@ with copilot_container.container():
                     if not local_docs:
                         warn_text = "No brand documents found. Upload the brand PDF/TXT/DOCX to generate a tailored sales call."
                         st.session_state["chat_history"].append({"role":"assistant","text":warn_text})
-                        st.experimental_rerun()
+                        
                     ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
                     st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
-                    st.experimental_rerun()
+                    
                 else:
                     ai_out = query_groq_safe(s, local_docs)
                     if ai_out:
@@ -939,7 +934,7 @@ with copilot_container.container():
                         else:
                             ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
                         st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
-                    st.experimental_rerun()
+                    
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Input row
@@ -963,11 +958,11 @@ with copilot_container.container():
                         warn_text = "No brand documents found. Upload the brand PDF/TXT/DOCX to generate a tailored sales call."
                         st.session_state["chat_history"].append({"role":"assistant","text":warn_text})
                         st.session_state["main_input"] = ""
-                        st.experimental_rerun()
+                        
                     ai_text = generate_structured_sales_call(brand=brand, persona=persona, specialty=specialty, objective=objective, local_docs=local_docs, chunks=chunks, metas=metas)
                     st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
                     st.session_state["main_input"] = ""
-                    st.experimental_rerun()
+                    
                 else:
                     ai_out = query_groq_safe(user_msg, local_docs)
                     if ai_out:
@@ -980,7 +975,7 @@ with copilot_container.container():
                             ai_text = "I couldn't find direct references locally. Please upload relevant documents or rephrase the question."
                         st.session_state["chat_history"].append({"role":"assistant","text":ai_text,"audio_b64":generate_audio_base64(ai_text)})
                     st.session_state["main_input"] = ""
-                    st.experimental_rerun()
+                    
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
