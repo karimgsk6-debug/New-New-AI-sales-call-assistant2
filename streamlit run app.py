@@ -1,4 +1,4 @@
-# app.py - AI Sales Call Assistant (FINAL - Brand-responsive, copilot input fixed, sticky disclaimer)
+# app.py - AI Sales Call Assistant (FINAL FIXED FOR SAFE st.experimental_rerun)
 import streamlit as st
 import os, re, io, tempfile, base64
 from datetime import datetime
@@ -97,7 +97,6 @@ brand_data = {
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
     }
 }
-
 JEMPERLI_FRAMEWORK_TITLE = "IMPACT Competitive Selling Framework"
 JEMPERLI_FRAMEWORK_VERBATIM = """COCO, or the commercial-oriented call objective, represents the pre-call planning step. This is where customer insights are used to identify the customer persona, as well as the call objective that includes the incremental steps to achieve a GSO. When preparing your COCO, identify a select patient type to align on and develop thought-provoking questions that will challenge status quo thinking and encourage the customer to do differently.
 
@@ -700,19 +699,17 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("Upload (brand)")
-    with st.expander("Upload PDF / TXT / DOCX (sidebar)"):
-        uploaded_side = st.file_uploader("Upload file for brand context", type=["pdf","txt","docx"], key="sidebar_upload")
-        if uploaded_side:
-            text = read_file_text_from_uploaded(uploaded_side)
-            if text:
-                st.session_state["pdf_docs"].setdefault(sel_brand, "")
-                st.session_state["pdf_docs"][sel_brand] += "\n\n" + text
-                # store enhanced bullet summary
-                st.session_state["pdf_summaries"][sel_brand] = model_summarize(st.session_state["pdf_docs"][sel_brand], bullets=8)
-                st.success("Sidebar file added and summarized.")
-                st.experimental_rerun()
-            else:
-                st.error("Could not read file.")
+    uploaded_side = st.file_uploader("Upload file for brand context", type=["pdf","txt","docx"], key="sidebar_upload")
+    if uploaded_side:
+        text = read_file_text_from_uploaded(uploaded_side)
+        if text:
+            st.session_state["pdf_docs"].setdefault(sel_brand, "")
+            st.session_state["pdf_docs"][sel_brand] += "\n\n" + text
+            st.session_state["pdf_summaries"][sel_brand] = model_summarize(st.session_state["pdf_docs"][sel_brand], bullets=8)
+            st.success("Sidebar file added and summarized.")
+            st.experimental_rerun()  # safe rerun here after session update
+        else:
+            st.error("Could not read file.")
 
     st.markdown("---")
     st.subheader("Export / Reset")
@@ -721,7 +718,7 @@ with st.sidebar:
         st.session_state["chat_history"] = []
         st.session_state["followup_options"] = {}
         st.session_state["feedback_stats"] = {"like":0,"dislike":0,"need_more":0}
-        st.experimental_rerun()
+        st.experimental_rerun()  # safe rerun after clearing session
 
 # -------------------------
 # Header (main)
@@ -735,18 +732,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Main upload area & build context
+# Main upload area & rerun
 # -------------------------
-st.subheader("Upload reference document (main)")
 uploaded_file_main = st.file_uploader("Upload PDF / TXT / DOCX (main) — added to brand context", type=["pdf","txt","docx"], key="main_upload")
 if uploaded_file_main:
     content = read_file_text_from_uploaded(uploaded_file_main)
     if content:
         st.session_state["pdf_docs"].setdefault(st.session_state["selected_brand"], "")
         st.session_state["pdf_docs"][st.session_state["selected_brand"]] += "\n\n" + content
-        st.session_state["pdf_summaries"][st.session_state["selected_brand"]] = model_summarize(st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=8)
+        st.session_state["pdf_summaries"][st.session_state["selected_brand"]] = model_summarize(
+            st.session_state["pdf_docs"][st.session_state["selected_brand"]], bullets=8
+        )
         st.success("Uploaded and summarized for brand.")
-        st.experimental_rerun()
+        st.experimental_rerun()  # safe rerun
+    else:
+        st.error("Could not read uploaded file.")
 
 # Build local docs list (repo + uploaded)
 brand = st.session_state["selected_brand"]
