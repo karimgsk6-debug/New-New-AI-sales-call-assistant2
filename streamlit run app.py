@@ -378,7 +378,7 @@ def export_call_flow_bytes(text: str, fmt: str = "docx"):
 # GROQ safe query
 # -------------------------
 def query_groq_safe(prompt: str, context_docs: list, max_tokens: int = 700):
-    if not GROQ_API_KEY or GROQ_API_KEY == "Add_GROQ_API_here":
+    if not GROQ_API_KEY or GROQ_API_KEY == "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":
         st.session_state["groq_unavailable"] = True
         return None
     context_text = "\n\n".join([d for d in context_docs if d])
