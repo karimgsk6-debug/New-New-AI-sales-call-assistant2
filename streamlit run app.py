@@ -98,7 +98,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 .title-box {{
   background: rgba(255,255,255,0.7);
-  padding: 12px;
+  padding: 15px;
   border-radius: 10px;
   margin-bottom: 12px;
   position: relative;
