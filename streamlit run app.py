@@ -84,14 +84,25 @@ for k,v in defaults.items():
 CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-  background-image: url('{BACKGROUND_URL}');
-  background-size: contain;        /* or 'cover' if you prefer full-screen */
-  background-repeat: no-repeat;
-  background-position: right;
-  background-attachment: fixed;
-  image-rendering: -webkit-optimize-contrast;
-  filter: brightness(0.99) saturate(1.1);
+  background-image:
+    linear-gradient(135deg, #F98C2C 0%, #FFD3A0 100%),
+    url('{BACKGROUND_URL}');
+  background-size:
+    cover,         /* gradient fill */
+    contain;       /* your background photo */
+  background-repeat:
+    no-repeat,
+    no-repeat;
+  background-position:
+    center center,
+    center center;
+  background-attachment:
+    fixed,
+    fixed;
 }}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
 
 .title-box {{
   background: rgba(255,255,255,0.7);
