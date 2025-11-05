@@ -55,7 +55,7 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
-BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/Bacground2.png"
+BACKGROUND_URL = REPO_RAW_BASE + ".devcontainer/Visuals/MR mentor final.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
@@ -84,17 +84,13 @@ for k,v in defaults.items():
 CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-  /* Linear gradient orange background with image overlay on right */
-  background-image: 
-      linear-gradient(135deg, #FF6F00, #FFA726),
-      url('.devcontainer/Visuals/Bacground2.png');
-  background-size: cover, auto; /* gradient covers, image keeps normal size */
-  background-position: center, right top; /* gradient center, image at top-right */
-  background-repeat: no-repeat, no-repeat;
-  background-attachment: fixed, scroll;
+  background-image: url('{BACKGROUND_URL}');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.95);
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 12px;
@@ -105,7 +101,7 @@ CSS = f"""
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.7); border-radius:8px; margin-bottom:160px; }}
+.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
 .chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
@@ -115,7 +111,7 @@ CSS = f"""
 .input-area textarea {{ width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
 .send-button {{ height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }}
 .feedback-buttons button {{ margin-right:6px; }}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.7); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
+.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
