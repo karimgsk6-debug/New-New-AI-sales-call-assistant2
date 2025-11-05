@@ -90,7 +90,7 @@ CSS = f"""
   background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.7);
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 12px;
@@ -100,7 +100,7 @@ CSS = f"""
   justify-content:center;
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
-.title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
+.title-box img.right-logo {{ position:absolute; right:12px; height:70px; }}
 .chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
 .chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
