@@ -83,12 +83,15 @@ for k,v in defaults.items():
 # -------------------------
 CSS = f"""
 <style>
-[data-testid="stAppViewContainer"] {{
+[data-testid="stAppViewContainer"] {
   background-image: url('{BACKGROUND_URL}');
-  background-size: cover;
-  background-position: right;
-  background-attachment: flex;
-}}
+  background-size: contain;        /* Or try 'cover' vs 'contain' for best fit */
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-attachment: fixed;
+  image-rendering: -webkit-optimize-contrast; /* Makes it sharper on Chrome */
+  filter: brightness(0.98) saturate(1.1);     /* Slight polish */
+}
 .title-box {{
   background: rgba(255,255,255,0.7);
   padding: 12px;
