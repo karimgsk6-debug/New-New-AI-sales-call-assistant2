@@ -85,40 +85,113 @@ CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
   background-image: url('{BACKGROUND_URL}');
-  background-size: contain;        /* or 'cover' */
+  background-size: contain;        /* or 'cover' if you prefer full-screen */
   background-repeat: no-repeat;
   background-position: center center;
   background-attachment: fixed;
   image-rendering: -webkit-optimize-contrast;
   filter: brightness(0.98) saturate(1.1);
 }}
-</style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
 
 .title-box {{
-  background: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.95);
   padding: 15px;
   border-radius: 10px;
   margin-bottom: 12px;
   position: relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
-.title-box img.right-logo {{ position:absolute; right:12px; height:70px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
-.chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
-.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
+.title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
+
+.chat-container {{
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 12px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 8px;
+  margin-bottom: 160px;
+}}
+.chat-bubble-user {{
+  background:#0078D7;
+  color:white;
+  padding:10px;
+  border-radius:12px;
+  margin:8px 0;
+  max-width:78%;
+  margin-left:auto;
+}}
+.chat-bubble-ai {{
+  background:#eef9ff;
+  color:#000;
+  padding:10px;
+  border-radius:12px;
+  margin:8px 0;
+  max-width:78%;
+}}
+.suggestion-pill {{
+  background:#fff;
+  border:1px solid #ddd;
+  padding:8px 12px;
+  border-radius:20px;
+  margin:6px;
+  cursor:pointer;
+  display:inline-block;
+}}
 .suggestion-pill:hover {{ background:#f0f8ff; }}
-.citation-box {{ background:#fbfbff; border-left:4px solid #0078D7; padding:8px; margin-top:8px; border-radius:6px; font-size:13px; white-space:pre-wrap; }}
-.input-area {{ position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; display:flex; gap:8px; align-items:flex-end; }}
-.input-area textarea {{ width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
-.send-button {{ height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }}
+.citation-box {{
+  background:#fbfbff;
+  border-left:4px solid #0078D7;
+  padding:8px;
+  margin-top:8px;
+  border-radius:6px;
+  font-size:13px;
+  white-space:pre-wrap;
+}}
+.input-area {{
+  position: fixed;
+  left:20px;
+  right:20px;
+  bottom:18px;
+  z-index:9999;
+  display:flex;
+  gap:8px;
+  align-items:flex-end;
+}}
+.input-area textarea {{
+  width:100%;
+  min-height:72px;
+  max-height:250px;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  resize:vertical;
+}}
+.send-button {{
+  height:44px;
+  padding:0 14px;
+  border-radius:8px;
+  border:none;
+  background:#FF6F00;
+  color:white;
+  cursor:pointer;
+  font-weight:600;
+}}
 .feedback-buttons button {{ margin-right:6px; }}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
+.fixed-disclaimer {{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  background:rgba(255,255,255,0.95);
+  padding:8px;
+  border-top:2px solid #FF6F00;
+  text-align:center;
+  font-size:12px;
+  z-index:9997;
+}}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
