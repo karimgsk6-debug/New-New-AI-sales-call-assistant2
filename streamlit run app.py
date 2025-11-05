@@ -83,15 +83,19 @@ for k,v in defaults.items():
 # -------------------------
 CSS = f"""
 <style>
-[data-testid="stAppViewContainer"] {
+[data-testid="stAppViewContainer"] {{
   background-image: url('{BACKGROUND_URL}');
-  background-size: contain;        /* Or try 'cover' vs 'contain' for best fit */
+  background-size: contain;        /* or 'cover' */
   background-repeat: no-repeat;
   background-position: center center;
   background-attachment: fixed;
-  image-rendering: -webkit-optimize-contrast; /* Makes it sharper on Chrome */
-  filter: brightness(0.98) saturate(1.1);     /* Slight polish */
-}
+  image-rendering: -webkit-optimize-contrast;
+  filter: brightness(0.98) saturate(1.1);
+}}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
 .title-box {{
   background: rgba(255,255,255,0.7);
   padding: 12px;
