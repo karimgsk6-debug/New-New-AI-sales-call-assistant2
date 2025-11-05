@@ -91,7 +91,7 @@ CSS = f"""
   background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.7);
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 12px;
