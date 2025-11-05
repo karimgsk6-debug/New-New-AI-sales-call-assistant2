@@ -66,7 +66,7 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.62,
+    "temperature": 0.75,
     "search_mode": "deep",
     "medical_summary": "",
     "sales_summary": "",
@@ -90,7 +90,7 @@ CSS = f"""
   background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.7);
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 12px;
@@ -101,8 +101,8 @@ CSS = f"""
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
+.chat-container {{ max-height: 60vh; overflow-y:fix; padding:12px; background: rgba(255,255,255,0.7); border-radius:8px; margin-bottom:160px; }}
+.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:fix; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
 .suggestion-pill:hover {{ background:#f0f8ff; }}
