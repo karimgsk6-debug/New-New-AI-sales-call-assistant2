@@ -87,7 +87,7 @@ CSS = f"""
   background-image: url('{BACKGROUND_URL}');
   background-size: contain;        /* or 'cover' if you prefer full-screen */
   background-repeat: no-repeat;
-  background-position: center center;
+  background-position: center;
   background-attachment: fixed;
   image-rendering: -webkit-optimize-contrast;
   filter: brightness(0.98) saturate(1.1);
