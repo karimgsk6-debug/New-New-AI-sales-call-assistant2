@@ -79,7 +79,7 @@ for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# CSS & background
+# CSS & Background
 # -------------------------
 CSS = f"""
 <style>
@@ -88,8 +88,8 @@ CSS = f"""
     linear-gradient(135deg, #F98C2C 0%, #FFD3A0 100%),
     url('{BACKGROUND_URL}');
   background-size:
-    cover,         /* gradient fill */
-    contain;       /* your background photo */
+    cover,
+    contain;
   background-repeat:
     no-repeat,
     no-repeat;
