@@ -84,7 +84,8 @@ for k,v in defaults.items():
 CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-  background-image: url('{BACKGROUND_URL}');
+  /* Linear gradient orange background */
+  background-image: linear-gradient(135deg, #FF6F00, #FFA726);
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
