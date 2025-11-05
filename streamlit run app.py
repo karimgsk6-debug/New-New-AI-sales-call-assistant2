@@ -79,7 +79,7 @@ for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# CSS & Background
+# CSS & Background (gradient + image)
 # -------------------------
 CSS = f"""
 <style>
