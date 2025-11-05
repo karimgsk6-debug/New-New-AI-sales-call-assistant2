@@ -84,11 +84,14 @@ for k,v in defaults.items():
 CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-  /* Linear gradient orange background */
-  background-image: linear-gradient(135deg, #FF6F00, #FFA726);
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  /* Linear gradient orange background with image overlay on right */
+  background-image: 
+      linear-gradient(135deg, #FF6F00, #FFA726),
+      url('.devcontainer/Visuals/Bacground2.png');
+  background-size: cover, auto; /* gradient covers, image keeps normal size */
+  background-position: center, right top; /* gradient center, image at top-right */
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed, scroll;
 }}
 .title-box {{
   background: rgba(255,255,255,0.7);
