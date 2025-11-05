@@ -86,8 +86,8 @@ CSS = f"""
 [data-testid="stAppViewContainer"] {{
   background-image: url('{BACKGROUND_URL}');
   background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background-position: right;
+  background-attachment: flex;
 }}
 .title-box {{
   background: rgba(255,255,255,0.7);
