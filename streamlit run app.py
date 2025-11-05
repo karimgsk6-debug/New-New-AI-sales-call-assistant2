@@ -87,14 +87,14 @@ CSS = f"""
   background-image: url('{BACKGROUND_URL}');
   background-size: contain;        /* or 'cover' if you prefer full-screen */
   background-repeat: no-repeat;
-  background-position: center;
+  background-position: right;
   background-attachment: fixed;
   image-rendering: -webkit-optimize-contrast;
-  filter: brightness(0.98) saturate(1.1);
+  filter: brightness(0.99) saturate(1.1);
 }}
 
 .title-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.7);
   padding: 15px;
   border-radius: 10px;
   margin-bottom: 12px;
