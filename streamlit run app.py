@@ -181,18 +181,20 @@ def read_file_text(path):
 def build_corpus_for_folders(folders, chunk_size_sentences=3):
     chunks, metas = [], []
     for folder in folders:
-        if not folder or not os.path.exists(folder): continue
-        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf",".txt"))]
+        if not folder or not os.path.exists(folder):
+            continue
+        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf", ".txt"))]
         for fname in files:
-            p = os.path.join(folder,fname)
+            p = os.path.join(folder, fname)
             text = read_file_text(p)
-            if not text: continue
-            sents = re.split(r'(?<=[\.\?\!])\s',text)
-            for i in range(0,max(1,len(sents)),chunk_size_sentences):
-                chunk = " ".join(sents[i:ichunk_size_sentences]).strip()
+            if not text:
+                continue
+            sents = re.split(r'(?<=[\.\?\!])\s+', text)
+            for i in range(0, max(1, len(sents)), chunk_size_sentences):
+                chunk = " ".join(sents[i:i + chunk_size_sentences]).strip()  # ✅ Fixed here
                 if chunk:
                     chunks.append(chunk)
-                    metas.append({"filename":fname,"folder":folder,"start":i})
+                    metas.append({"filename": fname, "folder": folder, "start": i})
     return chunks, metas
 
 def local_search_snippets(query,chunks,metas,top_n=3):
