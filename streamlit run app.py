@@ -1,4 +1,4 @@
-# app.py - Full AI Sales Call Assistant (Enhanced)
+# app.py  Full AI Sales Call Assistant (Enhanced)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
@@ -45,23 +45,23 @@ try:
 except:
     PYTTSX3_AVAILABLE = False
 
-# -------------------------
+# 
 # Page config & background
-# -------------------------
+# 
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
-REPO_USER = "karimgsk6-debug"
-REPO_NAME = "New-New-AI-sales-call-assistant2"
+REPO_USER = "karimgsk6debug"
+REPO_NAME = "NewNewAIsalescallassistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
-BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/MR mentor final.png"
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6debug/NewNewAIsalescallassistant2/main/.devcontainer/Visuals/MR mentor final.png"
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
-# -------------------------
+# 
 # Session defaults
-# -------------------------
+# 
 defaults = {
     "chat_history": [],
     "main_input": "",
@@ -78,47 +78,47 @@ defaults = {
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
-# -------------------------
+# 
 # CSS & background
-# -------------------------
+# 
 CSS = f"""
 <style>
-[data-testid="stAppViewContainer"] {{
-  background-image: url('{BACKGROUND_URL}');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+[datatestid="stAppViewContainer"] {{
+  backgroundimage: url('{BACKGROUND_URL}');
+  backgroundsize: cover;
+  backgroundposition: center;
+  backgroundattachment: fixed;
 }}
-.title-box {{
+.titlebox {{
   background: rgba(255,255,255,0.7);
   padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 12px;
+  borderradius: 10px;
+  marginbottom: 12px;
   position: relative;
   display:flex;
-  align-items:center;
-  justify-content:center;
+  alignitems:center;
+  justifycontent:center;
 }}
-.title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
-.title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:fix; padding:12px; background: rgba(255,255,255,0.7); border-radius:8px; margin-bottom:160px; }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:fix; }}
-.chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
-.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
-.suggestion-pill:hover {{ background:#f0f8ff; }}
-.citation-box {{ background:#fbfbff; border-left:4px solid #0078D7; padding:8px; margin-top:8px; border-radius:6px; font-size:13px; white-space:pre-wrap; }}
-.input-area {{ position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; display:flex; gap:8px; align-items:flex-end; }}
-.input-area textarea {{ width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
-.send-button {{ height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }}
-.feedback-buttons button {{ margin-right:6px; }}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
+.titlebox img.leftlogo {{ position:absolute; left:12px; height:64px; }}
+.titlebox img.rightlogo {{ position:absolute; right:12px; height:64px; }}
+.chatcontainer {{ maxheight: 60vh; overflowy:fix; padding:12px; background: rgba(255,255,255,0.7); borderradius:8px; marginbottom:160px; }}
+.chatbubbleuser {{ background:#0078D7; color:white; padding:10px; borderradius:12px; margin:8px 0; maxwidth:78%; marginleft:fix; }}
+.chatbubbleai {{ background:#eef9ff; color:#000; padding:10px; borderradius:12px; margin:8px 0; maxwidth:78%; }}
+.suggestionpill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; borderradius:20px; margin:6px; cursor:pointer; display:inlineblock; }}
+.suggestionpill:hover {{ background:#f0f8ff; }}
+.citationbox {{ background:#fbfbff; borderleft:4px solid #0078D7; padding:8px; margintop:8px; borderradius:6px; fontsize:13px; whitespace:prewrap; }}
+.inputarea {{ position: fixed; left:20px; right:20px; bottom:18px; zindex:9999; display:flex; gap:8px; alignitems:flexend; }}
+.inputarea textarea {{ width:100%; minheight:72px; maxheight:250px; padding:10px; borderradius:8px; border:1px solid #ccc; resize:vertical; }}
+.sendbutton {{ height:44px; padding:0 14px; borderradius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; fontweight:600; }}
+.feedbackbuttons button {{ marginright:6px; }}
+.fixeddisclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; bordertop:2px solid #FF6F00; textalign:center; fontsize:12px; zindex:9997; }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# -------------------------
+# 
 # Initialize GROQ client
-# -------------------------
+# 
 GROQ_API_KEY = "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"
 client = None
 if Groq and GROQ_API_KEY:
@@ -127,9 +127,9 @@ if Groq and GROQ_API_KEY:
     except:
         client = None
 
-# -------------------------
+# 
 # Brand info
-# -------------------------
+# 
 brand_data = {
     "shingrix": {
         "display":"Shingrix",
@@ -139,12 +139,12 @@ brand_data = {
         "specialties":["GP","Dermatologist","Geriatrician"],
         "references_path":".devcontainer/references/shingrix/",
         "sales_path":".devcontainer/SalesModule/shingrix/",
-        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
+        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Postcall Analysis"]
     },
     "jemperli": {
         "display":"Jemperli",
         "segments":["Target Identification","Trial Adoption","Routine Use","Advocacy"],
-        "personas":["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
+        "personas":["DataDriven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
         "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
         "specialties":["Oncologist","Medical Oncologist"],
         "references_path":".devcontainer/references/jemperli/",
@@ -163,9 +163,9 @@ brand_data = {
     }
 }
 
-# -------------------------
+# 
 # Helper functions
-# -------------------------
+# 
 def read_file_text(path):
     if not os.path.exists(path): return ""
     try:
@@ -173,7 +173,7 @@ def read_file_text(path):
             reader = PdfReader(path)
             return "".join([p.extract_text() or "" for p in reader.pages])
         else:
-            with open(path,"r",encoding="utf-8",errors="ignore") as fh:
+            with open(path,"r",encoding="utf8",errors="ignore") as fh:
                 return fh.read()
     except:
         return ""
@@ -187,9 +187,9 @@ def build_corpus_for_folders(folders, chunk_size_sentences=3):
             p = os.path.join(folder,fname)
             text = read_file_text(p)
             if not text: continue
-            sents = re.split(r'(?<=[\.\?\!])\s+',text)
+            sents = re.split(r'(?<=[\.\?\!])\s',text)
             for i in range(0,max(1,len(sents)),chunk_size_sentences):
-                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
+                chunk = " ".join(sents[i:ichunk_size_sentences]).strip()
                 if chunk:
                     chunks.append(chunk)
                     metas.append({"filename":fname,"folder":folder,"start":i})
@@ -199,11 +199,11 @@ def local_search_snippets(query,chunks,metas,top_n=3):
     if not chunks: return []
     if SKLEARN_AVAILABLE:
         try:
-            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks+[query])
+            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks[query])
             chunk_vecs = vectorizer.transform(chunks)
             q_vec = vectorizer.transform([query])
             sims = linear_kernel(q_vec,chunk_vecs).flatten()
-            top_idxs = sims.argsort()[::-1][:top_n]
+            top_idxs = sims.argsort()[::1][:top_n]
             results = []
             for idx in top_idxs:
                 if sims[idx]<=0: continue
@@ -221,16 +221,16 @@ def local_search_snippets(query,chunks,metas,top_n=3):
 
 def simple_summary(text, bullets=6):
     if not text: return ""
-    sents = re.split(r'(?<=[\.\?\!])\s+',text)
+    sents = re.split(r'(?<=[\.\?\!])\s',text)
     selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join(["- "+s for s in selected])
+    return "\n".join([" "s for s in selected])
 
 def model_summarize(text, bullets=6):
     if not text: return ""
     if client:
         try:
             prompt=f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
+            resp = client.chat.completions.create(model="llama3.370bversatile",
                 messages=[{"role":"user","content":prompt}],
                 temperature=0.2)
             return resp.choices[0].message.content
@@ -259,9 +259,9 @@ def generate_audio(text):
         except: pass
     return ""
 
-# -------------------------
+# 
 # Sidebar filters
-# -------------------------
+# 
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand_options = list(brand_data.keys())
     sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
@@ -283,32 +283,35 @@ with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expa
 with st.sidebar.expander("📄 Export Options", expanded=False):
     export_format = st.radio("Choose Export Format", ["TXT","DOCX"], horizontal=True)
 
-# -------------------------
+with st.sidebar.expander("Response Style", expanded=True):
+    st.session_state.response_mode = st.radio("Choose Response Style", ["Detailed", "Concise"], index=1)
+
+# 
 # Title box
-# -------------------------
+# 
 st.markdown(f"""
-<div class="title-box">
-<img src="{GSK_LOGO_RAW}" class="left-logo">
+<div class="titlebox">
+<img src="{GSK_LOGO_RAW}" class="leftlogo">
 <h2>💡 AI Sales Call Assistant — {brand_data[sel_brand]['display']}</h2>
-<img src="{AI_LOGO_RAW}" class="right-logo">
+<img src="{AI_LOGO_RAW}" class="rightlogo">
 </div>
 """, unsafe_allow_html=True)
 
-# -------------------------
+# 
 # Load references and sales summaries
-# -------------------------
+# 
 refs_folder = bconf["references_path"]
 sales_folder = bconf["sales_path"]
 combined_refs = ""
 if os.path.exists(refs_folder):
     for f in sorted(os.listdir(refs_folder)):
         if f.lower().endswith((".pdf",".txt")):
-            combined_refs += read_file_text(os.path.join(refs_folder,f)) + "\n"
+            combined_refs = read_file_text(os.path.join(refs_folder,f))  "\n"
 combined_sales = ""
 if os.path.exists(sales_folder):
     for f in sorted(os.listdir(sales_folder)):
         if f.lower().endswith((".pdf",".txt")):
-            combined_sales += read_file_text(os.path.join(sales_folder,f)) + "\n"
+            combined_sales = read_file_text(os.path.join(sales_folder,f))  "\n"
 if not st.session_state.medical_summary and combined_refs.strip():
     st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
 if not st.session_state.sales_summary and combined_sales.strip():
@@ -319,9 +322,9 @@ with st.expander("📚 Medical References Summary", expanded=False):
 with st.expander("💼 Sales Module Summary", expanded=False):
     st.markdown(st.session_state.sales_summary or "No sales summary available.")
 
-# -------------------------
+# 
 # PDF Upload and summarize
-# -------------------------
+# 
 uploaded_file = st.file_uploader("Upload PDF for summary", type=["pdf"])
 if uploaded_file and PdfReader:
     reader = PdfReader(uploaded_file)
@@ -333,15 +336,15 @@ if st.session_state.pdf_summary:
     with st.expander("📄 Uploaded PDF Summary", expanded=False):
         st.markdown(st.session_state.pdf_summary)
 
-# -------------------------
+# 
 # Build corpus
-# -------------------------
+# 
 corpus_folders = [refs_folder, sales_folder]
 chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
-# -------------------------
+# 
 # Prompt suggestions
-# -------------------------
+# 
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
     s=[]
     s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
@@ -352,44 +355,89 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
     return s
 
-# -------------------------
-# AI Response with APACT + humanized + interactive feedback
-# -------------------------
+# 
+# AI Response with APACT  humanized  interactive feedback
+# 
 def add_ai_response(prompt, follow_up=False):
-    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
-    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
+     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
+     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
 
-    response_lines = []
+     response_lines = []
 
-    if not follow_up:
-        # --- APACT ---
-        response_lines.append(f"**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
-        response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
-        response_lines.append("**Actions:** Based on your input, here are recommended steps:")
-        for step in bconf["call_flow"]:
-            step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
-            if step_snippets:
-                response_lines.append(f"**{step}:**")
-                for sn in step_snippets:
-                    response_lines.append(f"- {sn}")
-            else:
-                response_lines.append(f"**{step}:** - Refer to the sales module and uploaded references for guidance.")
-        response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
-        response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
-        response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
-    else:
-        # Follow-up for feedback
-        response_lines.append("I noticed you disliked the previous answer. Could you help me understand better?")
-        response_lines.append("- What specific part was unclear or insufficient?")
-        response_lines.append("- Are you looking for more examples, data, or step-by-step guidance?")
-        response_lines.append("- Any particular objection you want me to focus on next?")
+     if not follow_up:
+         #  APACT 
+         response_lines.append(f"**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
+         response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
+         response_lines.append("**Actions:** Based on your input, here are recommended steps:")
+         for step in bconf["call_flow"]:
+             step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+             if step_snippets:
+                 response_lines.append(f"**{step}:**")
+                 for sn in step_snippets:
+                     response_lines.append(f" {sn}")
+             else:
+                 response_lines.append(f"**{step}:**  Refer to the sales module and uploaded references for guidance.")
+         response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
+         response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
+         response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+     else:
+         # Followup for feedback
+         response_lines.append("I noticed you disliked the previous answer. Could you help me understand better?")
+         response_lines.append(" What specific part was unclear or insufficient?")
+         response_lines.append(" Are you looking for more examples, data, or stepbystep guidance?")
+         response_lines.append(" Any particular objection you want me to focus on next?")
 
-    ai_text = "\n".join(response_lines)
-    st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
+     ai_text = "\n".join(response_lines)
+     st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
+ def add_ai_response(prompt, follow_up=False):
+     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
+     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
 
-# -------------------------
+     response_lines = []
+
+     if not follow_up:
+         if st.session_state.response_mode == "Concise":
+             response_lines.append("### ✅ Recommended Approach")
+             response_lines.append("**Acknowledge:** 👍 Thank you for raising this concern.")
+             response_lines.append("**Probing:** 🔍 Is your main concern efficacy, safety, or patient eligibility?")
+             response_lines.append("\n**Actions (with examples):**")
+             for step in bconf["call_flow"]:
+                 step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+                 if step_snippets:
+                     response_lines.append(f" **{step}:**")
+                     for sn in step_snippets[:2]:
+                         response_lines.append(f"    • Example: {sn}")
+                 else:
+                     response_lines.append(f" **{step}:** Refer to sales module and uploaded references.")
+             response_lines.append("\n**Confirm:** ✅ Does this address your concern?")
+             response_lines.append("**Transition:** ➡ Ready to move to the next objective?")
+         else:
+             response_lines.append("**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
+             response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
+             response_lines.append("**Actions:** Based on your input, here are recommended steps:")
+             for step in bconf["call_flow"]:
+                 step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+                 if step_snippets:
+                     response_lines.append(f"**{step}:**")
+                     for sn in step_snippets:
+                         response_lines.append(f" {sn}")
+                 else:
+                     response_lines.append(f"**{step}:**  Refer to the sales module and uploaded references for guidance.")
+             response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
+             response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
+
+         response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+     else:
+         response_lines.append("### 🔍 FollowUp Questions")
+         response_lines.append(" Which part was unclear?")
+         response_lines.append(" Do you need more **examples**, **data**, or **stepbystep guidance**?")
+         response_lines.append(" Any specific objection to focus on next?")
+
+     ai_text = "\n".join(response_lines)
+     st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
+# 
 # Chat container and input
-# -------------------------
+# 
 chat_container = st.container()
 
 with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
@@ -408,17 +456,17 @@ with st.form("main_input_form", clear_on_submit=True):
         add_ai_response(user_input.strip())
         st.session_state.main_input = ""
 
-# -------------------------
+# 
 # Display chat with audio and interactive feedback
-# -------------------------
+# 
 with chat_container:
     for idx,entry in enumerate(st.session_state.chat_history):
         if entry["role"]=="user":
-            st.markdown(f'<div class="chat-bubble-user">{escape(entry["content"])}</div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="chatbubbleuser">{escape(entry["content"])}</div>',unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="chatbubbleai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
             if "citation" in entry and entry["citation"]:
-                st.markdown(f'<div class="citation-box">{escape(entry["citation"])}</div>',unsafe_allow_html=True)
+                st.markdown(f'<div class="citationbox">{escape(entry["citation"])}</div>',unsafe_allow_html=True)
             # Audio playback
             audio_b64 = generate_audio(entry["content"])
             if audio_b64:
@@ -429,16 +477,16 @@ with chat_container:
                 if fb_cols[0].button("👍 Like", key=f"like_{idx}"): st.session_state.feedback[entry["content"]]="like"
                 if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"): 
                     st.session_state.feedback[entry["content"]]="dislike"
-                    add_ai_response("Follow-up based on user dislike", follow_up=True)
+                    add_ai_response("Followup based on user dislike", follow_up=True)
                 if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"): 
                     st.session_state.feedback[entry["content"]]="need_more"
                     add_ai_response("The user requested more information; expand the previous answer.", follow_up=True)
 
-# -------------------------
+# 
 # Footer disclaimer
-# -------------------------
+# 
 st.markdown("""
-<div class="fixed-disclaimer">
+<div class="fixeddisclaimer">
 💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
 </div>
 """,unsafe_allow_html=True)
