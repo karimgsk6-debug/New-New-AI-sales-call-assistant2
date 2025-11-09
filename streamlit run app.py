@@ -312,7 +312,7 @@ combined_sales = ""
 if os.path.exists(sales_folder):
     for f in sorted(os.listdir(sales_folder)):
         if f.lower().endswith((".pdf",".txt")):
-            combined_sales = read_file_text(os.path.join(sales_folder,f))  "\n"
+            combined_refs += read_file_text(os.path.join(refs_folder, f)) + "\n"
 if not st.session_state.medical_summary and combined_refs.strip():
     st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
 if not st.session_state.sales_summary and combined_sales.strip():
