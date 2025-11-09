@@ -307,7 +307,7 @@ combined_refs = ""
 if os.path.exists(refs_folder):
     for f in sorted(os.listdir(refs_folder)):
         if f.lower().endswith((".pdf",".txt")):
-            combined_refs = read_file_text(os.path.join(refs_folder,f))  "\n"
+           combined_refs += read_file_text(os.path.join(refs_folder, f)) + "\n"
 combined_sales = ""
 if os.path.exists(sales_folder):
     for f in sorted(os.listdir(sales_folder)):
