@@ -360,83 +360,51 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
 # AI Response with APACT  humanized  interactive feedback
 # 
 def add_ai_response(prompt, follow_up=False):
-     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
-     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
+    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
+    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
 
-     response_lines = []
+    response_lines = []
 
-     if not follow_up:
-         #  APACT 
-         response_lines.append(f"**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
-         response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
-         response_lines.append("**Actions:** Based on your input, here are recommended steps:")
-         for step in bconf["call_flow"]:
-             step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
-             if step_snippets:
-                 response_lines.append(f"**{step}:**")
-                 for sn in step_snippets:
-                     response_lines.append(f" {sn}")
-             else:
-                 response_lines.append(f"**{step}:**  Refer to the sales module and uploaded references for guidance.")
-         response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
-         response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
-         response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
-     else:
-         # Followup for feedback
-         response_lines.append("I noticed you disliked the previous answer. Could you help me understand better?")
-         response_lines.append(" What specific part was unclear or insufficient?")
-         response_lines.append(" Are you looking for more examples, data, or stepbystep guidance?")
-         response_lines.append(" Any particular objection you want me to focus on next?")
+    if not follow_up:
+        if st.session_state.response_mode == "Concise":
+            response_lines.append("### ✅ Recommended Approach")
+            response_lines.append("**Acknowledge:** 👍 Thank you for raising this concern.")
+            response_lines.append("**Probing:** 🔍 Is your main concern efficacy, safety, or patient eligibility?")
+            response_lines.append("\n**Actions (with examples):**")
+            for step in bconf["call_flow"]:
+                step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+                if step_snippets:
+                    response_lines.append(f"- **{step}:**")
+                    for sn in step_snippets[:2]:
+                        response_lines.append(f"    • Example: {sn}")
+                else:
+                    response_lines.append(f"- **{step}:** Refer to sales module and uploaded references.")
+            response_lines.append("\n**Confirm:** ✅ Does this address your concern?")
+            response_lines.append("**Transition:** ➡ Ready to move to the next objective?")
+        else:
+            response_lines.append("**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
+            response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
+            response_lines.append("**Actions:** Based on your input, here are recommended steps:")
+            for step in bconf["call_flow"]:
+                step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+                if step_snippets:
+                    response_lines.append(f"**{step}:**")
+                    for sn in step_snippets:
+                        response_lines.append(f"- {sn}")
+                else:
+                    response_lines.append(f"**{step}:** - Refer to the sales module and uploaded references for guidance.")
+            response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
+            response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
 
-     ai_text = "\n".join(response_lines)
-     st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
- def add_ai_response(prompt, follow_up=False):
-     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
-     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
+        response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+    else:
+        response_lines.append("### 🔍 Follow-Up Questions")
+        response_lines.append("- Which part was unclear?")
+        response_lines.append("- Do you need more **examples**, **data**, or **step-by-step guidance**?")
+        response_lines.append("- Any specific objection to focus on next?")
 
-     response_lines = []
-
-     if not follow_up:
-         if st.session_state.response_mode == "Concise":
-             response_lines.append("### ✅ Recommended Approach")
-             response_lines.append("**Acknowledge:** 👍 Thank you for raising this concern.")
-             response_lines.append("**Probing:** 🔍 Is your main concern efficacy, safety, or patient eligibility?")
-             response_lines.append("\n**Actions (with examples):**")
-             for step in bconf["call_flow"]:
-                 step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
-                 if step_snippets:
-                     response_lines.append(f" **{step}:**")
-                     for sn in step_snippets[:2]:
-                         response_lines.append(f"    • Example: {sn}")
-                 else:
-                     response_lines.append(f" **{step}:** Refer to sales module and uploaded references.")
-             response_lines.append("\n**Confirm:** ✅ Does this address your concern?")
-             response_lines.append("**Transition:** ➡ Ready to move to the next objective?")
-         else:
-             response_lines.append("**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
-             response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
-             response_lines.append("**Actions:** Based on your input, here are recommended steps:")
-             for step in bconf["call_flow"]:
-                 step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
-                 if step_snippets:
-                     response_lines.append(f"**{step}:**")
-                     for sn in step_snippets:
-                         response_lines.append(f" {sn}")
-                 else:
-                     response_lines.append(f"**{step}:**  Refer to the sales module and uploaded references for guidance.")
-             response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
-             response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
-
-         response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
-     else:
-         response_lines.append("### 🔍 FollowUp Questions")
-         response_lines.append(" Which part was unclear?")
-         response_lines.append(" Do you need more **examples**, **data**, or **stepbystep guidance**?")
-         response_lines.append(" Any specific objection to focus on next?")
-
-     ai_text = "\n".join(response_lines)
-     st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
-# 
+    ai_text = "\n".join(response_lines)
+    st.session_state.chat_history.append({"role": "assistant", "content": ai_text, "citation": citation})# 
 # Chat container and input
 # 
 chat_container = st.container()
