@@ -220,10 +220,11 @@ def local_search_snippets(query,chunks,metas,top_n=3):
     return out
 
 def simple_summary(text, bullets=6):
-    if not text: return ""
-    sents = re.split(r'(?<=[\.\?\!])\s',text)
+    if not text:
+        return ""
+    sents = re.split(r'(?<=[\.\?\!])\s+', text)
     selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join([" "s for s in selected])
+    return "\n".join([f"- {s}" for s in selected])  # ✅ Corrected line
 
 def model_summarize(text, bullets=6):
     if not text: return ""
