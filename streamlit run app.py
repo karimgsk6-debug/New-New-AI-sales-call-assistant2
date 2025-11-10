@@ -80,7 +80,7 @@ for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# Dynamic background (full cover & resizable with sidebar)
+# Dynamic background (cover + slide with sidebar)
 # -------------------------
 def set_dynamic_background(image_path):
     if not os.path.exists(image_path):
@@ -99,14 +99,26 @@ def set_dynamic_background(image_path):
             background-size: cover;
             transition: all 0.5s ease;
         }}
+        /* Slide background when sidebar toggles */
         [data-testid="stSidebar"][aria-expanded="true"] ~ [data-testid="stAppViewContainer"] {{
-            background-size: cover;
-            background-position: right top;
+            background-position: right 200px top;
         }}
         [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] {{
-            background-size: cover;
-            background-position: right top;
+            background-position: right 0px top;
         }}
+
+        .title-box {{
+            background: rgba(255,255,255,0.7);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            position: relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }}
+        .title-box img.left-logo {{ position:absolute; left:12px; height:48px; }}  /* updated size */
+        .title-box img.right-logo {{ position:absolute; right:12px; height:48px; }} /* updated size */
         </style>
         """, unsafe_allow_html=True
     )
