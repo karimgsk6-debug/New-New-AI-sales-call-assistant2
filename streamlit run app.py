@@ -44,7 +44,7 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 BACKGROUND_REL = ".devcontainer/Visuals/MR mentor final1.png"
-BACKGROUND_URL = f"https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/ef6947d67d0a851afc9674feb013bb7634df7a5e/.devcontainer/Visuals/MR%20mentor%20final1.png"
+BACKGROUND_URL = f"https://github.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/blob/ef6947d67d0a851afc9674feb013bb7634df7a5e/.devcontainer/Visuals/MRmentorfinal1.png"
 GSK_LOGO_RAW = f"{REPO_RAW_BASE}/GSK1-logo.png"
 AI_LOGO_RAW = f"{REPO_RAW_BASE}/AURA1.png"
 
@@ -106,7 +106,7 @@ CSS = f"""
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center right;
-  opacity: 0.75;
+  opacity: 0.99;
   pointer-events: none;
   z-index: 1;
   transition: right 220ms ease, width 220ms ease, opacity 220ms ease;
