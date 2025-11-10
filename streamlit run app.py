@@ -85,7 +85,7 @@ CSS = f"""
 <style>
 [data-testid="stAppViewContainer"] {{
   background-image: url('{BACKGROUND_URL}');
-  background-size: cover;
+  background-size: flex;
   background-position: center;
   background-attachment: flex;
 }}
