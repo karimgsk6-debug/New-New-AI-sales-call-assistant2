@@ -111,7 +111,7 @@ CSS = f"""
   z-index: 1;
   transition: right 220ms ease, width 220ms ease, opacity 220ms ease;
   filter: saturate(0.95) contrast(0.95);
-}
+
 @media (max-width: 1000px) {{
   #bg-right {{ display:none; }}
 }}
