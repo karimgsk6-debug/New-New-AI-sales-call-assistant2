@@ -575,14 +575,14 @@ with chat_container:
                         "meta": {}
                     })
                     # rerun so UI updates to show buttons for reasons
-                    st.experimental_rerun()
+                    st.rerun()
                 if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
                     st.session_state.feedback[entry["content"]] = "need_more"
                     # auto-expand previous content with more depth
                     expand_prompt = f"Expand the following answer with more examples and step-by-step guidance:\n\n{entry['content']}"
                     extra = ai_generate(expand_prompt)
                     st.session_state.chat_history.append({"role": "assistant", "content": extra})
-                    st.experimental_rerun()
+                    st.rerun()
 
             elif is_target and current_df.get("stage") == 1:
                 # Present reason buttons: Unclear, Too long, Not relevant, Missing important info
@@ -609,7 +609,7 @@ with chat_container:
                             opts = ["Clinical data", "Practical steps", "Examples", "References"]
 
                         st.session_state.chat_history.append({"role":"assistant","content": follow_q, "meta": {"options": opts}})
-                        st.experimental_rerun()
+                        st.rerun()
 
             elif is_target and current_df.get("stage") == 2:
                 # Show refinement choices from last assistant message's meta options if present
@@ -640,7 +640,7 @@ with chat_container:
                             # mark feedback final
                             st.session_state.feedback[entry["content"]] = f"dislike->{reason}->{refinement_choice}"
                             st.session_state.dislike_flow = None
-                            st.experimental_rerun()
+                            st.rerun()
                 else:
                     # fallback: allow user to type clarification (if options not found)
                     st.write("You may type a short clarification in the input box below to refine the answer.")
