@@ -106,7 +106,7 @@ CSS = f"""
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center right;
-  opacity: 0.95;
+  opacity: 0.75;
   pointer-events: none;
   z-index: 1;
   transition: right 220ms ease, width 220ms ease, opacity 220ms ease;
