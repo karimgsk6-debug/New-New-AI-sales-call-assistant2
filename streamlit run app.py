@@ -66,7 +66,7 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.75,
+    "temperature": 0.95,
     "search_mode": "deep",
     "medical_summary": "",
     "sales_summary": "",
@@ -87,7 +87,7 @@ CSS = f"""
   background-image: url('{BACKGROUND_URL}');
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
+  background-attachment: flex;
 }}
 .title-box {{
   background: rgba(255,255,255,0.7);
