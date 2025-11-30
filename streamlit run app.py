@@ -110,12 +110,12 @@ set_dynamic_background(BACKGROUND_PATH)
 # -------------------------
 # Initialize GROQ client (if available)
 # -------------------------
-GROQ_API_KEY = "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"  # <--- safe placeholder
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "GROQ_API_KEY_PLACEHOLDER") if hasattr(st, "secrets") else os.environ.get("GROQ_API_KEY", "")
 client = None
 if Groq and GROQ_API_KEY:
     try:
         client = Groq(api_key=GROQ_API_KEY)
-    except:
+    except Exception:
         client = None
 
 # -------------------------
