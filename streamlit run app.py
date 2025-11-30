@@ -79,13 +79,19 @@ def set_dynamic_background(image_path: str):
             background-attachment: fixed;
         }}
 
-        .background-image-overlay {{
+        .background-image-overlay {
             position: fixed;
             top: 0;
             right: 0;
             width: 40%;
             height: 100%;
-            background-image: url('data:image/png;base64,{encoded_bg}'}');
+            background-image: url('data:image/png;base64,{encoded_bg}');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: right center;
+            pointer-events: none;
+            z-index: 0;
+        }'}');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: right center;
