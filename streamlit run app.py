@@ -64,12 +64,62 @@ for k,v in defaults.items():
 # -------------------------
 # Small helper: dynamic background (keeps previous behaviour)
 # -------------------------
-def set_dynamic_background(image_path):
-    if not os.path.exists(image_path):
-        return
-    with open(image_path, "rb") as img_file:
-        encoded = base64.b64encode(img_file.read()).decode()
-    st.markdown(
+def set_dynamic_background(image_path: str):
+    """
+    Injects CSS to set the background image + keeps gradient behind it.
+    """
+    if os.path.exists(image_path):
+        encoded_bg = base64.b64encode(open(image_path, "rb").read()).decode()
+
+        css = f"""
+        <style>
+        .stApp {{
+            background: linear-gradient(135deg, #ff7e33 0%, #ffbb66 100%);
+            background-size: cover;
+            background-attachment: fixed;
+        }}
+
+        .background-image-overlay {{
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 40%;
+            height: 100%;
+            background-image: url('data:image/png;base64,{encoded_bg}');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: right center;
+            pointer-events: none;
+            z-index: 0;
+        }}
+
+        .chat-bubble {{
+            background: #ffffff;
+            padding: 14px 18px;
+            border-radius: 14px;
+            margin-top: 15px;
+            box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+        }}
+
+        .summary-bubble {{
+            background: #ffffff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-top: 10px;
+            box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+        }}
+
+        .citation-box {{
+            font-size: 12px;
+            color: #374151;
+            margin-top: 6px;
+        }}
+        </style>
+
+        <div class="background-image-overlay"></div>
+        """
+
+        st.markdown(css, unsafe_allow_html=True)(
         f"""
         <style>
         [data-testid="stAppViewContainer"] {{
