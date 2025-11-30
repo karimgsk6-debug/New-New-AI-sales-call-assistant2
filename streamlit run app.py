@@ -129,10 +129,12 @@ brand_data = globals().get("brand_data", st.session_state.get("brand_data", {}))
 if not brand_data:
     brand_data = {"Default": {"module":"No data loaded"}}
 
-# Brand selector (fixed syntax)
+# Brand selector (final clean version)
 sel_brand = st.sidebar.selectbox(
     "Brand",
     list(brand_data.keys()),
+    index=0
+)),
     index=0
 )), index=0("Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
 st.session_state.selected_brand = sel_brand
