@@ -85,7 +85,7 @@ def set_dynamic_background(image_path: str):
             right: 0;
             width: 40%;
             height: 100%;
-            background-image: url('data:image/png;base64,{encoded_bg}');
+            background-image: url('data:image/png;base64,{encoded_bg}'}');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: right center;
