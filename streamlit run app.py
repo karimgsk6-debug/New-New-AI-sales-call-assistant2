@@ -132,7 +132,7 @@ if not brand_data:
 # Brand selector (final clean version)
 sel_brand = st.sidebar.selectbox(
     "Brand",
-    list(brand_data.keys()),
+    list(brand_data.keys()
     index=0
 )),
     index=0
