@@ -108,7 +108,7 @@ def set_dynamic_background(image_path):
 set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
-# Initialize GROQ client
+# Initialize GROQ client (if available)
 # -------------------------
 GROQ_API_KEY = "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"  # <--- safe placeholder
 client = None
@@ -117,6 +117,7 @@ if Groq and GROQ_API_KEY:
         client = Groq(api_key=GROQ_API_KEY)
     except:
         client = None
+
 # -------------------------
 # Brand info and paths (as requested)
 # -------------------------
