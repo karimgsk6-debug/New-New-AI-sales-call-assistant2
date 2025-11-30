@@ -124,7 +124,12 @@ def gather_text_from_folder(folder):
 # -------------------------
 # Build brand-specific combined texts
 # -------------------------
-sel_brand = st.sidebar.selectbox("Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
+# Safe brand_data fallback
+brand_data = globals().get("brand_data", st.session_state.get("brand_data", {}))
+if not brand_data:
+    brand_data = {"Default": {"module":"No data loaded"}}
+
+sel_brand = st.sidebar.selectbox("Brand", list(brand_data.keys()), index=0("Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
 st.session_state.selected_brand = sel_brand
 bconf = brand_data[sel_brand]
 refs_text = gather_text_from_folder(bconf['references_path'])
