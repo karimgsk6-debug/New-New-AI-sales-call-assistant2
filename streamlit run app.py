@@ -64,143 +64,38 @@ for k,v in defaults.items():
 # -------------------------
 # Small helper: dynamic background (keeps previous behaviour)
 # -------------------------
-def set_dynamic_background(image_path: str):
-    """
-    Injects CSS to set the background image + keeps gradient behind it.
-    """
-    if os.path.exists(image_path):
-        encoded_bg = base64.b64encode(open(image_path, "rb").read()).decode()
-
+def set_dynamic_background(image_path):
+    import base64
+    try:
+        with open(image_path, "rb") as f:
+            encoded_bg = base64.b64encode(f.read()).decode()
         css = f"""
         <style>
         .stApp {{
-            background: linear-gradient(135deg, #ff7e33 0%, #ffbb66 100%);
-            background-size: cover;
+            background: linear-gradient(135deg, #ff7e00 0%, #ffb347 100%);
+            background-repeat: no-repeat;
             background-attachment: fixed;
         }}
-
-        .background-image-overlay {
+        .stApp::after {{
+            content: "";
             position: fixed;
             top: 0;
             right: 0;
-            width: 40%;
+            width: 600px;
             height: 100%;
             background-image: url('data:image/png;base64,{encoded_bg}');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: right center;
             pointer-events: none;
+            opacity: 1;
             z-index: 0;
-        }'}');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: right center;
-            pointer-events: none;
-            z-index: 0;
-        }}
-
-        .chat-bubble {{
-            background: #ffffff;
-            padding: 14px 18px;
-            border-radius: 14px;
-            margin-top: 15px;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
-        }}
-
-        .summary-bubble {{
-            background: #ffffff;
-            padding: 12px 16px;
-            border-radius: 12px;
-            margin-top: 10px;
-            box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
-        }}
-
-        .citation-box {{
-            font-size: 12px;
-            color: #374151;
-            margin-top: 6px;
         }}
         </style>
-
-        <div class="background-image-overlay"></div>
         """
-
-        st.markdown(css, unsafe_allow_html=True)(
-        f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background: linear-gradient(90deg, rgba(255,140,0,0.05), rgba(255,165,0,0.02)),
-                        url("data:image/png;base64,{encoded}");
-            background-repeat: no-repeat;
-            background-position: right top;
-            background-size: cover;
-        }}
-        .title-box {{ background: rgba(255,255,255,0.85); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; }}
-        .title-box img.left-logo {{ position:absolute; left:12px; height:48px; }}
-        .title-box img.right-logo {{ position:absolute; right:12px; height:48px; }}
-
-        /* White bubble styles for AI outputs and summaries */
-        .chat-bubble-ai, .summary-bubble {{
-            background: #ffffff;
-            color: #111827;
-            padding: 14px;
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-            margin: 8px 0;
-        }}
-        .chat-bubble-user {{
-            background: rgba(15,23,42,0.07);
-            color: #0f172a;
-            padding:10px 14px;
-            border-radius:12px;
-            margin:8px 0;
-        }}
-        .citation-box { font-size:12px; color:#374151; margin-top:6px; }
-        .fixed-disclaimer { font-size:12px; color:#374151; margin-top:18px; }
-        </style>
-        """, unsafe_allow_html=True
-    )
-
-set_dynamic_background(BACKGROUND_PATH)
-
-# -------------------------
-# Initialize GROQ client (if available)
-# -------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "GROQ_API_KEY_PLACEHOLDER") if hasattr(st, "secrets") else os.environ.get("GROQ_API_KEY", "")
-client = None
-if Groq and GROQ_API_KEY:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
+        st.markdown(css, unsafe_allow_html=True)
     except Exception:
-        client = None
-
-# -------------------------
-# Brand info and paths (as requested)
-# -------------------------
-brand_data = {
-    "shingrix": {
-        "display":"Shingrix",
-        "references_path":".devcontainer/references/shingrix",
-        "sales_path":".devcontainer/SalesModule/shingrix",
-        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
-    },
-    "jemperli": {
-        "display":"Jemperli",
-        "references_path":".devcontainer/references/jemperli",
-        "sales_path":".devcontainer/SalesModule/jemperli",
-        "call_flow":["COCO","Anchor","Engage","Close"]
-    },
-    "trelegy": {
-        "display":"Trelegy",
-        "references_path":".devcontainer/references/trelegy",
-        "sales_path":".devcontainer/SalesModule/trelegy",
-        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
-    }
-}
-
-# -------------------------
-# File reading helpers
-# -------------------------
+        pass
 
 def read_file_text(path):
     if not os.path.exists(path):
