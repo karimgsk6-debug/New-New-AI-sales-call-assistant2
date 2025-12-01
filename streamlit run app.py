@@ -1,4 +1,4 @@
-# app.py - Full AI Sales Call Assistant (with RAG, UI, Sidebar Segments, Background Image)
+# app.py - Full AI Sales Call Assistant (with Product Filter + RAG Summaries)
 
 import streamlit as st
 import os, glob, base64, io, numpy as np
@@ -25,7 +25,28 @@ if Groq and GROQ_API_KEY and GROQ_API_KEY != "gsk_xSOD0f1ONrQloa9ryn0MWGdyb3FYvj
         client = None
 
 # ========================================================================
-# 2. LOAD FILES FOR RAG (REFERENCES + SALES MODULES)
+# 2. PRODUCTS & PATHS
+# ========================================================================
+brand_data = {
+    "shingrix": {
+        "display": "Shingrix",
+        "references_path": ".devcontainer/references/shingrix",
+        "sales_path": ".devcontainer/SalesModule/shingrix",
+    },
+    "jemperli": {
+        "display": "Jemperli",
+        "references_path": ".devcontainer/references/jemperli",
+        "sales_path": ".devcontainer/SalesModule/jemperli",
+    },
+    "trelegy": {
+        "display": "Trelegy",
+        "references_path": ".devcontainer/references/trelegy",
+        "sales_path": ".devcontainer/SalesModule/trelegy",
+    }
+}
+
+# ========================================================================
+# 3. RAG UTILITIES (NO NLTK)
 # ========================================================================
 
 def load_all_files(base_path):
@@ -39,105 +60,29 @@ def load_all_files(base_path):
             pass
     return data
 
-# --- Tokenize without NLTK ---
 def split_into_chunks(text, max_words=180):
     words = text.split()
     chunks = []
     for i in range(0, len(words), max_words):
-        chunk = " ".join(words[i:i+max_words])
-        chunks.append(chunk)
+        chunks.append(" ".join(words[i:i+max_words]))
     return chunks
 
-def build_vector_db():
+def build_vector_db_for_paths(paths):
     all_docs = []
-
-    reference_paths = [
-        ".devcontainer/references/jemperli",
-        ".devcontainer/references/shingrix",
-        ".devcontainer/references/trelegy"
-    ]
-    
-    sales_paths = [
-        ".devcontainer/SalesModule/jemperli",
-        ".devcontainer/SalesModule/shingrix",
-        ".devcontainer/SalesModule/trelegy"
-    ]
-
-    for p in reference_paths + sales_paths:
+    for p in paths:
         for fname, text in load_all_files(p):
             for chunk in split_into_chunks(text):
                 all_docs.append(chunk)
-
     if not all_docs:
-        all_docs.append("Empty RAG dataset. No files found.")
-
+        all_docs.append("No files found for selected brand.")
     vectorizer = TfidfVectorizer(stop_words="english")
     vectors = vectorizer.fit_transform(all_docs)
-
     return all_docs, vectorizer, vectors
 
-docs, vectorizer, vectors = build_vector_db()
-
-def search_docs(query, top_k=5):
-    if not query.strip():
-        return []
-    q_vec = vectorizer.transform([query])
-    scores = np.dot(vectors, q_vec.T).toarray().ravel()
-    top_ids = np.argsort(scores)[::-1][:top_k]
-    return [docs[i] for i in top_ids]
-
 # ========================================================================
-# 3. GENERATE AI RESPONSE WITH HYBRID RAG
+# 4. STREAMLIT UI — BACKGROUND + STYLES
 # ========================================================================
 
-def generate_ai_response(user_input, context_info):
-    retrieved = search_docs(user_input, top_k=5)
-    rag_text = "\n\n--- Retrieved Relevant Medical & Sales Insights ---\n"
-    for idx, chunk in enumerate(retrieved):
-        rag_text += f"\n[{idx+1}] {chunk}\n"
-
-    prompt = f"""
-You are MR Mentor, an AI Sales Coach for pharmaceutical representatives.
-
-Follow **Hybrid RAG Mode**:
-- **Medical accuracy** must come ONLY from retrieved RAG data.
-- **Sales coaching** can include your own reasoning.
-- **Conversation style** can be natural.
-- Never invent medical facts not found in retrieved documents.
-
---------------------------
-HCP & Visit Context:
-{context_info}
-
---------------------------
-User Question:
-{user_input}
-
-{rag_text}
-
-Now produce:
-1. A crisp, structured, high-value answer.
-2. Medical claims ONLY from retrieved RAG evidence.
-3. Tailored sales guidance based on HCP segment, barriers & specialty.
-"""
-
-    if client:
-        try:
-            res = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return res.choices[0].message["content"]
-        except:
-            pass
-
-    return "⚠️ Running in offline/fallback mode — No GROQ response available."
-
-# ========================================================================
-# 4. STREAMLIT UI — WHITE CHAT BUBBLES + BACKGROUND IMAGE
-# ========================================================================
-
-# Background image
 def add_bg():
     image_path = ".devcontainer/Visuals/MR mentor final1.png"
     if os.path.exists(image_path):
@@ -153,14 +98,12 @@ def add_bg():
                 background-repeat: no-repeat;
             }}
             </style>
-            """,
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
 
 add_bg()
 
-st.markdown(
-    """
+st.markdown("""
     <style>
     .user-bubble {
         background: #DCF2FF;
@@ -194,63 +137,108 @@ st.markdown(
         backdrop-filter: blur(4px);
         z-index: 9999;
     }
-    .app-content-padding { padding-bottom: 70px; }
+    .app-content-padding { padding-bottom: 120px; }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
 
 st.title("💊 MR Mentor — AI Sales Call Assistant")
 
 # ========================================================================
-# 5. SIDEBAR — HCP SEGMENT + SPECIALTY + BARRIERS
+# 5. SIDEBAR — PRODUCT + HCP INFO
 # ========================================================================
 
-st.sidebar.title("HCP Profile")
+st.sidebar.title("Select Product & HCP Profile")
 
-hcp_segment = st.sidebar.selectbox(
-    "HCP Segment:",
-    ["High Value", "Medium Value", "Low Value", "New to Brand"]
+# 1. Product filter
+selected_brand = st.sidebar.selectbox(
+    "Product:",
+    list(brand_data.keys()),
+    format_func=lambda x: brand_data[x]["display"]
 )
 
-hcp_specialty = st.sidebar.selectbox(
-    "Specialty:",
-    ["GP", "Dermatology", "Oncology", "Immunology", "Pulmonology", "Other"]
-)
-
-hcp_barriers = st.sidebar.multiselect(
-    "HCP Barriers:",
-    ["Lack of Awareness", "Safety Concerns", "Efficacy Douts", "Too Busy", 
-     "Cost Concerns", "Prefers Competitor", "No Time for Reps"]
-)
-
-persona = st.sidebar.selectbox(
-    "Persona:",
-    ["Analytical", "Skeptical", "Supportive", "Passive", "Time-Pressed"]
-)
-
-behavior_type = st.sidebar.selectbox(
-    "Behavior Type:",
-    ["Early Adopter", "Follower", "Skeptic", "Unengaged"]
-)
-
-objection_type = st.sidebar.selectbox(
-    "Objection Type:",
-    ["Clinical", "Safety", "Cost", "Access", "Time", "Other"]
-)
-
-visit_type = st.sidebar.selectbox(
-    "Visit Type:",
-    ["Detailing Visit", "Follow-Up Visit", "Objection Handling", "Awareness Visit"]
-)
-
-engagement = st.sidebar.select_slider(
-    "Engagement Level:",
-    ["Very Low", "Low", "Medium", "High", "Very High"]
-)
+# 2. HCP Profile
+hcp_segment = st.sidebar.selectbox("HCP Segment:", ["High Value","Medium Value","Low Value","New to Brand"])
+hcp_specialty = st.sidebar.selectbox("Specialty:", ["GP","Dermatology","Oncology","Immunology","Pulmonology","Other"])
+hcp_barriers = st.sidebar.multiselect("HCP Barriers:", ["Lack of Awareness","Safety Concerns","Efficacy Douts","Too Busy","Cost Concerns","Prefers Competitor","No Time for Reps"])
+persona = st.sidebar.selectbox("Persona:", ["Analytical","Skeptical","Supportive","Passive","Time-Pressed"])
+behavior_type = st.sidebar.selectbox("Behavior Type:", ["Early Adopter","Follower","Skeptic","Unengaged"])
+objection_type = st.sidebar.selectbox("Objection Type:", ["Clinical","Safety","Cost","Access","Time","Other"])
+visit_type = st.sidebar.selectbox("Visit Type:", ["Detailing Visit","Follow-Up Visit","Objection Handling","Awareness Visit"])
+engagement = st.sidebar.select_slider("Engagement Level:", ["Very Low","Low","Medium","High","Very High"])
 
 # ========================================================================
-# 6. MAIN CHAT INTERFACE
+# 6. BUILD RAG VECTOR DB FOR SELECTED BRAND
+# ========================================================================
+
+ref_path = brand_data[selected_brand]["references_path"]
+sales_path = brand_data[selected_brand]["sales_path"]
+
+docs_ref, vector_ref, vectors_ref = build_vector_db_for_paths([ref_path])
+docs_sales, vector_sales, vectors_sales = build_vector_db_for_paths([sales_path])
+
+def search_docs_custom(query, docs, vectorizer, vectors, top_k=5):
+    if not query.strip(): return []
+    q_vec = vectorizer.transform([query])
+    scores = np.dot(vectors, q_vec.T).toarray().ravel()
+    top_ids = np.argsort(scores)[::-1][:top_k]
+    return [docs[i] for i in top_ids]
+
+# Summarize function
+def summarize_docs(docs_list, bullets=5):
+    if not docs_list: return "No data available."
+    summary = []
+    for doc in docs_list[:bullets]:
+        summary.append(f"- {doc[:200]}{'...' if len(doc)>200 else ''}")
+    return "\n".join(summary)
+
+# ========================================================================
+# 7. AI RESPONSE
+# ========================================================================
+
+def generate_ai_response(user_input, context_info):
+    retrieved_ref = search_docs_custom(user_input, docs_ref, vector_ref, vectors_ref, top_k=5)
+    retrieved_sales = search_docs_custom(user_input, docs_sales, vector_sales, vectors_sales, top_k=5)
+
+    rag_text = "\n\n--- Retrieved Relevant Medical & Sales Insights ---\n"
+    rag_text += "\n\n[Medical References]\n" + "\n".join([f"[{i+1}] {txt}" for i,txt in enumerate(retrieved_ref)])
+    rag_text += "\n\n[Sales Module]\n" + "\n".join([f"[{i+1}] {txt}" for i,txt in enumerate(retrieved_sales)])
+
+    prompt = f"""
+You are MR Mentor, an AI Sales Coach for pharmaceutical representatives.
+
+Follow **Hybrid RAG Mode**:
+- Medical accuracy must come ONLY from retrieved RAG data.
+- Sales coaching can include your own reasoning.
+- Conversation style can be natural.
+- Never invent medical facts not found in retrieved documents.
+
+HCP & Visit Context:
+{context_info}
+
+User Question:
+{user_input}
+
+{rag_text}
+
+Now produce:
+1. A crisp, structured, high-value answer.
+2. Medical claims ONLY from retrieved RAG evidence.
+3. Tailored sales guidance based on HCP segment, barriers & specialty.
+"""
+
+    if client:
+        try:
+            res = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role":"user","content":prompt}]
+            )
+            return res.choices[0].message["content"]
+        except:
+            pass
+    return "⚠️ Running in offline/fallback mode — No GROQ response available."
+
+# ========================================================================
+# 8. MAIN CHAT INTERFACE
 # ========================================================================
 
 if "history" not in st.session_state:
@@ -260,15 +248,16 @@ user_msg = st.text_input("Ask MR Mentor something...")
 
 if user_msg:
     context = f"""
-    Segment: {hcp_segment}
-    Specialty: {hcp_specialty}
-    Barriers: {', '.join(hcp_barriers) if hcp_barriers else 'None'}
-    Persona: {persona}
-    Behavior: {behavior_type}
-    Objection: {objection_type}
-    Visit Type: {visit_type}
-    Engagement: {engagement}
-    """
+Segment: {hcp_segment}
+Specialty: {hcp_specialty}
+Barriers: {', '.join(hcp_barriers) if hcp_barriers else 'None'}
+Persona: {persona}
+Behavior: {behavior_type}
+Objection: {objection_type}
+Visit Type: {visit_type}
+Engagement: {engagement}
+Product: {brand_data[selected_brand]['display']}
+"""
     ai_answer = generate_ai_response(user_msg, context)
     st.session_state.history.append(("user", user_msg))
     st.session_state.history.append(("ai", ai_answer))
@@ -281,16 +270,21 @@ for role, msg in st.session_state.history:
         st.markdown(f"<div class='user-bubble'>{escape(msg)}</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='ai-bubble'>{msg}</div>", unsafe_allow_html=True)
+
+# RAG summaries collapsible
+with st.expander("📚 Medical References Summary"):
+    st.text(summarize_docs(docs_ref))
+
+with st.expander("💼 Sales Module Summary"):
+    st.text(summarize_docs(docs_sales))
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========================================================================
-# DISCLAIMER (Fixed Footer)
+# 9. DISCLAIMER
 # ========================================================================
-st.markdown(
-    """
-    <div class="disclaimer-box">
-        This AI assistant provides general medical and product-related information for educational and sales-training purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Healthcare Professionals should rely on official product information and clinical judgment. Always refer to the approved prescribing information and your local compliance regulations.
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="disclaimer-box">
+This AI assistant provides general medical and product-related information for educational and sales-training purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Healthcare Professionals should rely on official product information and clinical judgment. Always refer to the approved prescribing information and your local compliance regulations.
+</div>
+""", unsafe_allow_html=True)
