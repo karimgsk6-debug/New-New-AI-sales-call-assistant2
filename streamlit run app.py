@@ -1,10 +1,9 @@
 # app.py - Full AI Sales Call Assistant (with RAG, UI, Sidebar Segments, Background Image)
 
 import streamlit as st
-import os, re, tempfile, base64, io
-from datetime import datetime
+import os, glob, base64, io, numpy as np
 from html import escape
-from PIL import Image
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # --------------------------
 # IMPORT GROQ
@@ -14,12 +13,10 @@ try:
 except:
     Groq = None
 
-
 # --------------------------
 # 1. SETUP GROQ API
 # --------------------------
-GROQ_API_KEY = "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"
-
+GROQ_API_KEY = "Add_GROQ_API_Here"
 client = None
 if Groq and GROQ_API_KEY and GROQ_API_KEY != "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":
     try:
@@ -27,17 +24,9 @@ if Groq and GROQ_API_KEY and GROQ_API_KEY != "gsk_xSOD0f1ONrQloa9ryn0MWGdyb3FYvj
     except:
         client = None
 
-
 # ========================================================================
 # 2. LOAD FILES FOR RAG (REFERENCES + SALES MODULES)
 # ========================================================================
-
-import glob
-import nltk
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-nltk.download("punkt", quiet=True)
 
 def load_all_files(base_path):
     data = []
@@ -50,16 +39,13 @@ def load_all_files(base_path):
             pass
     return data
 
+# --- Tokenize without NLTK ---
 def split_into_chunks(text, max_words=180):
-    words = nltk.word_tokenize(text)
-    chunks, current = [], []
-    for w in words:
-        current.append(w)
-        if len(current) >= max_words:
-            chunks.append(" ".join(current))
-            current = []
-    if current:
-        chunks.append(" ".join(current))
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), max_words):
+        chunk = " ".join(words[i:i+max_words])
+        chunks.append(chunk)
     return chunks
 
 def build_vector_db():
@@ -92,19 +78,16 @@ def build_vector_db():
 
 docs, vectorizer, vectors = build_vector_db()
 
-
 def search_docs(query, top_k=5):
     if not query.strip():
         return []
-
     q_vec = vectorizer.transform([query])
     scores = np.dot(vectors, q_vec.T).toarray().ravel()
     top_ids = np.argsort(scores)[::-1][:top_k]
     return [docs[i] for i in top_ids]
 
-
 # ========================================================================
-# 3. GENERATE AI RESPONSE WITH HYBRID RAG (OPTION C)
+# 3. GENERATE AI RESPONSE WITH HYBRID RAG
 # ========================================================================
 
 def generate_ai_response(user_input, context_info):
@@ -149,7 +132,6 @@ Now produce:
             pass
 
     return "⚠️ Running in offline/fallback mode — No GROQ response available."
-
 
 # ========================================================================
 # 4. STREAMLIT UI — WHITE CHAT BUBBLES + BACKGROUND IMAGE
@@ -198,7 +180,6 @@ st.markdown(
         border-left: 4px solid #FF6A00;
         box-shadow: 0 0 6px rgba(0,0,0,0.08);
     }
-    /* Disclaimer fixed footer style */
     .disclaimer-box {
         position: fixed;
         bottom: 0;
@@ -213,7 +194,6 @@ st.markdown(
         backdrop-filter: blur(4px);
         z-index: 9999;
     }
-    /* Make room for the fixed footer so content isn't hidden */
     .app-content-padding { padding-bottom: 70px; }
     </style>
     """,
@@ -221,7 +201,6 @@ st.markdown(
 )
 
 st.title("💊 MR Mentor — AI Sales Call Assistant")
-
 
 # ========================================================================
 # 5. SIDEBAR — HCP SEGMENT + SPECIALTY + BARRIERS
@@ -270,7 +249,6 @@ engagement = st.sidebar.select_slider(
     ["Very Low", "Low", "Medium", "High", "Very High"]
 )
 
-
 # ========================================================================
 # 6. MAIN CHAT INTERFACE
 # ========================================================================
@@ -291,12 +269,9 @@ if user_msg:
     Visit Type: {visit_type}
     Engagement: {engagement}
     """
-
     ai_answer = generate_ai_response(user_msg, context)
-
     st.session_state.history.append(("user", user_msg))
     st.session_state.history.append(("ai", ai_answer))
-
 
 # Display chat
 st.markdown("### Conversation")
