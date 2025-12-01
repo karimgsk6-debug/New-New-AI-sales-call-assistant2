@@ -18,7 +18,7 @@ except:
 # --------------------------
 GROQ_API_KEY = "Add_GROQ_API_Here"
 client = None
-if Groq and GROQ_API_KEY and GROQ_API_KEY != "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":
+if Groq and GROQ_API_KEY and GROQ_API_KEY != "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":
     try:
         client = Groq(api_key=GROQ_API_KEY)
     except:
