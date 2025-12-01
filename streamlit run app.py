@@ -18,7 +18,7 @@ except:
 # --------------------------
 # 1. SETUP GROQ API
 # --------------------------
-GROQ_API_KEY = "Add_GROQ_API_Here"
+GROQ_API_KEY = "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"
 
 client = None
 if Groq and GROQ_API_KEY and GROQ_API_KEY != "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":
@@ -198,6 +198,23 @@ st.markdown(
         border-left: 4px solid #FF6A00;
         box-shadow: 0 0 6px rgba(0,0,0,0.08);
     }
+    /* Disclaimer fixed footer style */
+    .disclaimer-box {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(255,255,255,0.88);
+        padding: 10px 16px;
+        font-size: 12px;
+        color: #444;
+        text-align: center;
+        border-top: 1px solid #e6e6e6;
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+    }
+    /* Make room for the fixed footer so content isn't hidden */
+    .app-content-padding { padding-bottom: 70px; }
     </style>
     """,
     unsafe_allow_html=True
@@ -224,7 +241,7 @@ hcp_specialty = st.sidebar.selectbox(
 
 hcp_barriers = st.sidebar.multiselect(
     "HCP Barriers:",
-    ["Lack of Awareness", "Safety Concerns", "Efficacy Doubts", "Too Busy", 
+    ["Lack of Awareness", "Safety Concerns", "Efficacy Douts", "Too Busy", 
      "Cost Concerns", "Prefers Competitor", "No Time for Reps"]
 )
 
@@ -283,8 +300,22 @@ if user_msg:
 
 # Display chat
 st.markdown("### Conversation")
+st.markdown('<div class="app-content-padding">', unsafe_allow_html=True)
 for role, msg in st.session_state.history:
     if role == "user":
         st.markdown(f"<div class='user-bubble'>{escape(msg)}</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='ai-bubble'>{msg}</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ========================================================================
+# DISCLAIMER (Fixed Footer)
+# ========================================================================
+st.markdown(
+    """
+    <div class="disclaimer-box">
+        This AI assistant provides general medical and product-related information for educational and sales-training purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Healthcare Professionals should rely on official product information and clinical judgment. Always refer to the approved prescribing information and your local compliance regulations.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
