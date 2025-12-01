@@ -1,9 +1,4 @@
-# app.py - Rewritten AI Sales Call Assistant
-# - Smarter bullet summaries for medical & sales modules
-# - White "bubble" UI for AI summaries and generated responses
-# - GROQ usage: when available, retrieves & conditions on files inside each brand's
-#   .devcontainer/references/<brand> and .devcontainer/SalesModule/<brand> folders
-
+# app.py - Full AI Sales Call Assistant (Enhanced & Multi-Turn Feedback)
 import streamlit as st
 import os, re, tempfile, base64, io
 from datetime import datetime
@@ -12,34 +7,57 @@ from html import escape
 # Optional libs
 try:
     from groq import Groq
-except Exception:
+except:
     Groq = None
 
 try:
     from PyPDF2 import PdfReader
-except Exception:
+except:
     PdfReader = None
+
+try:
+    from gtts import gTTS
+except:
+    gTTS = None
+
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except:
+    DOCX_AVAILABLE = False
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
-except Exception:
+except:
     SKLEARN_AVAILABLE = False
+
+try:
+    import elevenlabs
+    ELEVENLABS_AVAILABLE = True
+except:
+    ELEVENLABS_AVAILABLE = False
+
+try:
+    import pyttsx3
+    PYTTSX3_AVAILABLE = True
+except:
+    PYTTSX3_AVAILABLE = False
 
 # -------------------------
 # Page config
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
-# ---- Repo / visual assets (placeholders) ----
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
+REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-GSK_LOGO_RAW = f"{REPO_RAW_BASE}/GSK1-logo.png"
-AI_LOGO_RAW = f"{REPO_RAW_BASE}/AURA1.png"
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
 # -------------------------
 # Session defaults
@@ -48,375 +66,402 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.2,
+    "temperature": 0.95,
     "search_mode": "deep",
     "medical_summary": "",
     "sales_summary": "",
     "uploaded_pdf_text": "",
     "pdf_summary": "",
     "feedback": {},
-    "dislike_state": None,
+    "dislike_state": None,   # Track multi-turn dislike
     "language": "English",
 }
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# Small helper: dynamic background (keeps previous behaviour)
+# Dynamic background (cover + slide with sidebar)
 # -------------------------
 def set_dynamic_background(image_path):
-    import base64
-    try:
-        with open(image_path, "rb") as f:
-            encoded_bg = base64.b64encode(f.read()).decode()
-        css = f"""
+    if not os.path.exists(image_path):
+        return
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+
+    st.markdown(
+        f"""
         <style>
-        .stApp {{
-            background: linear-gradient(135deg, #ff7e00 0%, #ffb347 100%);
+        [data-testid="stAppViewContainer"] {{
+            background: linear-gradient(90deg, rgba(255,140,0,0.25), rgba(255,165,0,0.15)),
+                        url("data:image/png;base64,{encoded}");
             background-repeat: no-repeat;
-            background-attachment: fixed;
+            background-position: right top;
+            background-size: cover;
+            transition: all 0.5s ease;
         }}
-        .stApp::after {{
-            content: "";
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 600px;
-            height: 100%;
-            background-image: url('data:image/png;base64,{encoded_bg}');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: right center;
-            pointer-events: none;
-            opacity: 1;
-            z-index: 0;
+        /* Slide background when sidebar toggles */
+        [data-testid="stSidebar"][aria-expanded="true"] ~ [data-testid="stAppViewContainer"] {{
+            background-position: right 200px top;
         }}
+        [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] {{
+            background-position: right 0px top;
+        }}
+
+        .title-box {{
+            background: rgba(255,255,255,0.7);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            position: relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }}
+        .title-box img.left-logo {{ position:absolute; left:12px; height:48px; }}  /* updated size */
+        .title-box img.right-logo {{ position:absolute; right:12px; height:48px; }} /* updated size */
         </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-    except Exception:
-        pass
+        """, unsafe_allow_html=True
+    )
 
-def read_file_text(path):
-    if not os.path.exists(path):
-        return ""
+set_dynamic_background(BACKGROUND_PATH)
+
+# -------------------------
+# Initialize GROQ client
+# -------------------------
+GROQ_API_KEY = "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"  # <--- safe placeholder
+client = None
+if Groq and GROQ_API_KEY:
     try:
-        if path.lower().endswith('.pdf') and PdfReader:
+        client = Groq(api_key=GROQ_API_KEY)
+    except:
+        client = None
+
+# -------------------------
+# Brand info
+# -------------------------
+brand_data = {
+    "shingrix": {
+        "display":"Shingrix",
+        "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
+        "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
+        "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
+        "specialties":["GP","Dermatologist","Geriatrician"],
+        "references_path":".devcontainer/references/shingrix/",
+        "sales_path":".devcontainer/SalesModule/shingrix/",
+        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
+    },
+    "jemperli": {
+        "display":"Jemperli",
+        "segments":["Target Identification","Trial Adoption","Routine Use","Advocacy"],
+        "personas":["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
+        "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
+        "specialties":["Oncologist","Medical Oncologist"],
+        "references_path":".devcontainer/references/jemperli/",
+        "sales_path":".devcontainer/SalesModule/jemperli/",
+        "call_flow":["COCO","Anchor","Engage","Close"]
+    },
+    "trelegy": {
+        "display":"Trelegy",
+        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
+        "references_path":".devcontainer/references/trelegy/",
+        "sales_path":".devcontainer/SalesModule/trelegy/",
+        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"]
+    }
+}
+
+# -------------------------
+# Helper functions
+# -------------------------
+def read_file_text(path):
+    if not os.path.exists(path): return ""
+    try:
+        if path.lower().endswith(".pdf") and PdfReader:
             reader = PdfReader(path)
-            return "\n".join([p.extract_text() or "" for p in reader.pages])
+            return "".join([p.extract_text() or "" for p in reader.pages])
         else:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as fh:
+            with open(path,"r",encoding="utf-8",errors="ignore") as fh:
                 return fh.read()
-    except Exception:
+    except:
         return ""
 
-
-def gather_text_from_folder(folder):
-    """Concatenate text from .txt and .pdf files under a folder (non-recursive)."""
-    out = []
-    if not folder or not os.path.exists(folder):
-        return ""
-    for fname in sorted(os.listdir(folder)):
-        if fname.lower().endswith(('.txt', '.pdf')):
-            out.append(read_file_text(os.path.join(folder, fname)))
-    return "\n\n".join([t for t in out if t.strip()])
-
-# -------------------------
-# Build brand-specific combined texts
-# -------------------------
-# Safe brand_data fallback
-brand_data = globals().get("brand_data", st.session_state.get("brand_data", {}))
-if not brand_data:
-    brand_data = {"Default": {"module":"No data loaded"}}
-
-# Brand selector (final clean version)
-sel_brand = st.sidebar.selectbox(
-    "Brand",
-    list(brand_data.keys()
-    index=0
-)),
-    index=0
-)), index=0("Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
-st.session_state.selected_brand = sel_brand
-bconf = brand_data[sel_brand]
-refs_text = gather_text_from_folder(bconf['references_path'])
-sales_text = gather_text_from_folder(bconf['sales_path'])
-
-# -------------------------
-# Local corpus building for quick retrieval (simple chunking)
-# -------------------------
-
-def build_chunks_from_text(text, chunk_size_sentences=4):
-    if not text: return [], []
-    sents = re.split(r'(?<=[\.!?])\s+', text)
-    chunks = []
-    metas = []
-    for i in range(0, len(sents), chunk_size_sentences):
-        chunk = ' '.join(sents[i:i+chunk_size_sentences]).strip()
-        if chunk:
-            chunks.append(chunk)
-            metas.append({'start_sent': i})
+def build_corpus_for_folders(folders, chunk_size_sentences=3):
+    chunks, metas = [], []
+    for folder in folders:
+        if not folder or not os.path.exists(folder): continue
+        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf",".txt"))]
+        for fname in files:
+            p = os.path.join(folder,fname)
+            text = read_file_text(p)
+            if not text: continue
+            sents = re.split(r'(?<=[\.\?\!])\s+',text)
+            for i in range(0,max(1,len(sents)),chunk_size_sentences):
+                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
+                if chunk:
+                    chunks.append(chunk)
+                    metas.append({"filename":fname,"folder":folder,"start":i})
     return chunks, metas
 
-corpus_text = refs_text + "\n\n" + sales_text
-chunks, metas = build_chunks_from_text(corpus_text, chunk_size_sentences=4)
-
-# -------------------------
-# Local search helper (TF-IDF fallback)
-# -------------------------
-
-def local_search(query, chunks, metas, top_n=4):
+def local_search_snippets(query,chunks,metas,top_n=3):
     if not chunks: return []
-    q = query.lower()
     if SKLEARN_AVAILABLE:
         try:
-            vectorizer = TfidfVectorizer(stop_words='english').fit(chunks + [query])
+            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks+[query])
             chunk_vecs = vectorizer.transform(chunks)
             q_vec = vectorizer.transform([query])
-            sims = linear_kernel(q_vec, chunk_vecs).flatten()
-            idxs = sims.argsort()[::-1][:top_n]
-            out = []
-            for i in idxs:
-                if sims[i] <= 0: continue
-                out.append({'score': float(sims[i]), 'text': chunks[i], 'meta': metas[i]})
-            return out
-        except Exception:
+            sims = linear_kernel(q_vec,chunk_vecs).flatten()
+            top_idxs = sims.argsort()[::-1][:top_n]
+            results = []
+            for idx in top_idxs:
+                if sims[idx]<=0: continue
+                results.append({"score":float(sims[idx]),"text":chunks[idx],"meta":metas[idx]})
+            return results
+        except:
             pass
-    # simple substring fallback
     out = []
+    q=query.lower()
     for i,c in enumerate(chunks):
         if q in c.lower():
-            out.append({'score':1.0,'text':c,'meta':metas[i]})
-            if len(out) >= top_n: break
+            out.append({"score":1.0,"text":c,"meta":metas[i]})
+            if len(out)>=top_n: break
     return out
 
-# -------------------------
-# Improved summarization routines
-# -------------------------
-
-def simple_bullets_from_text(text, max_bullets=6):
+def simple_summary(text, bullets=6):
     if not text: return ""
-    sents = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', text) if s.strip()]
-    bullets = sents[:max_bullets]
-    return '\n'.join([f'- {b}' for b in bullets])
+    sents = re.split(r'(?<=[\.\?\!])\s+',text)
+    selected = [s.strip() for s in sents if s.strip()][:bullets]
+    return "\n".join(["- "+s for s in selected])
 
-
-def smart_summary_with_model(text, label="Summary", max_bullets=6, context_snippets=None):
-    """If Groq client is available, ask it to produce a smart, clinically-oriented bullet summary.
-       We include short context snippets (from local files) to ground the reply. Falls back to simple bullets."""
-    if not text:
-        return "No content available for summarization."
-
-    # Build a compact grounding context from local snippets (if provided)
-    grounding = ''
-    if context_snippets:
-        grounding = '\n\n'.join([s['text'] for s in context_snippets[:4]])
-
+def model_summarize(text, bullets=6):
+    if not text: return ""
     if client:
         try:
-            # Compose a clear instruction for the model
-            instruction = (
-                f"You are an expert medical communications assistant. Create a {max_bullets}-bullet "
-                f"{label} aimed at a pharmaceutical field sales rep. Each bullet should be concise, "
-                f"actionable, and include a one-line practical implication for a sales call. Use the "
-                f"grounding material below when relevant. If information is not present, say 'Not stated in provided documents'.\n\n"
-            )
-            prompt = instruction + "\n\nGROUNDING:\n" + grounding + "\n\nSOURCE TEXT:\n" + text[:12000]
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            prompt=f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
+            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
                 messages=[{"role":"user","content":prompt}],
-                temperature=0.15,
-            )
-            answer = resp.choices[0].message.content.strip()
-            # Ensure bullet formatting - if model returns paragraphs, try to transform
-            if not answer.startswith("-") and '\n' in answer:
-                lines = [l.strip() for l in answer.splitlines() if l.strip()]
-                if len(lines) <= max_bullets:
-                    answer = '\n'.join([f'- {l}' if not l.startswith('-') else l for l in lines[:max_bullets]])
-            return answer
-        except Exception:
-            pass
-    # Fallback: use simple extraction and add a sales-focused implication line
-    bullets = []
-    sents = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', text) if s.strip()]
-    for i, sent in enumerate(sents[:max_bullets]):
-        implication = ''
-        if 'efficacy' in sent.lower():
-            implication = ' (Sales tip: emphasise comparative efficacy data to address efficacy concerns.)'
-        elif 'safety' in sent.lower() or 'adverse' in sent.lower():
-            implication = ' (Sales tip: prepare concise safety takeaway and quick references.)'
-        bullets.append(f'- {sent}{implication}')
-    return '\n'.join(bullets)
+                temperature=0.2)
+            return resp.choices[0].message.content
+        except:
+            return simple_summary(text, bullets)
+    else:
+        return simple_summary(text, bullets)
+
+def generate_audio(text):
+    if not text: return ""
+    if ELEVENLABS_AVAILABLE:
+        try:
+            elevenlabs.api_key = st.secrets.get("ELEVENLABS_API_KEY","ELEVENLABS_API_KEY_HERE")
+            audio_stream = elevenlabs.generate(text=text, voice="alloy", model="eleven_multilingual_v1", stream=True)
+            tmp = tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
+            with open(tmp.name,"wb") as f:
+                for chunk in audio_stream:
+                    f.write(chunk)
+            with open(tmp.name,"rb") as fh: return base64.b64encode(fh.read()).decode()
+        except: pass
+    if gTTS:
+        try:
+            tmp = tempfile.NamedTemporaryFile(delete=False,suffix=".mp3")
+            gTTS(text=text, lang="en", slow=False).save(tmp.name)
+            with open(tmp.name,"rb") as fh: return base64.b64encode(fh.read()).decode()
+        except: pass
+    return ""
 
 # -------------------------
-# Prepare or refresh brand summaries (medical & sales) and show in white bubbles
+# Sidebar filters
 # -------------------------
-if not st.session_state.medical_summary:
-    ref_snippets = local_search('key facts', chunks, metas, top_n=6) if chunks else []
-    st.session_state.medical_summary = smart_summary_with_model(refs_text, label='Medical References Summary', max_bullets=6, context_snippets=ref_snippets)
+with st.sidebar.expander("Filters & Options", expanded=True):
+    brand_options = list(brand_data.keys())
+    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
+    st.session_state.selected_brand = sel_brand
+    bconf = brand_data[sel_brand]
+    segment = st.selectbox("Segment", bconf["segments"])
+    persona = st.selectbox("HCP Persona", bconf["personas"])
+    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
+    specialty = st.selectbox("Specialty", bconf["specialties"])
+    objective = st.selectbox("Objective", ["Awareness","Adoption","Retention"])
+    st.session_state.temperature = st.slider("Temperature",0.0,1.0,st.session_state.temperature,0.05)
+    st.session_state.search_mode = st.selectbox("Search mode", ["deep","shallow"])
+    st.session_state.language = st.radio("Language", ["English","Arabic"])
+    if st.button("🗑️ Clear Chat"): 
+        st.session_state.chat_history=[]
+        st.rerun()
 
-if not st.session_state.sales_summary:
-    sales_snips = local_search('sales', chunks, metas, top_n=6) if chunks else []
-    st.session_state.sales_summary = smart_summary_with_model(sales_text, label='Sales Module Summary', max_bullets=6, context_snippets=sales_snips)
+with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
+    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
 
-# Render title box
+with st.sidebar.expander("📄 Export Options", expanded=False):
+    export_format = st.radio("Choose Export Format", ["TXT","DOCX"], horizontal=True)
+
+# -------------------------
+# Title box
+# -------------------------
 st.markdown(f"""
 <div class="title-box">
-    <img src="{GSK_LOGO_RAW}" class="left-logo">
-    <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
-    <img src="{AI_LOGO_RAW}" class="right-logo">
+<img src="{GSK_LOGO_RAW}" class="left-logo">
+<h2>💡 AI Sales Call Assistant — {brand_data[sel_brand]['display']}</h2>
+<img src="{AI_LOGO_RAW}" class="right-logo">
 </div>
 """, unsafe_allow_html=True)
 
-# Show summaries inside white bubbles (styled via CSS)
+# -------------------------
+# Load references and sales summaries
+# -------------------------
+refs_folder = bconf["references_path"]
+sales_folder = bconf["sales_path"]
+combined_refs = ""
+if os.path.exists(refs_folder):
+    for f in sorted(os.listdir(refs_folder)):
+        if f.lower().endswith((".pdf",".txt")):
+            combined_refs += read_file_text(os.path.join(refs_folder,f)) + "\n"
+combined_sales = ""
+if os.path.exists(sales_folder):
+    for f in sorted(os.listdir(sales_folder)):
+        if f.lower().endswith((".pdf",".txt")):
+            combined_sales += read_file_text(os.path.join(sales_folder,f)) + "\n"
+if not st.session_state.medical_summary and combined_refs.strip():
+    st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
+if not st.session_state.sales_summary and combined_sales.strip():
+    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
+
 with st.expander("📚 Medical References Summary", expanded=False):
-    st.markdown(f"<div class=\"summary-bubble\">{escape(st.session_state.medical_summary).replace('\n','<br>')}</div>", unsafe_allow_html=True)
+    st.markdown(st.session_state.medical_summary or "No medical summary available.")
 with st.expander("💼 Sales Module Summary", expanded=False):
-    st.markdown(f"<div class=\"summary-bubble\">{escape(st.session_state.sales_summary).replace('\n','<br>')}</div>", unsafe_allow_html=True)
+    st.markdown(st.session_state.sales_summary or "No sales summary available.")
 
 # -------------------------
-# PDF Upload and summarize with the same smart routine
+# PDF Upload and summarize
 # -------------------------
-uploaded_file = st.file_uploader("Upload PDF for summary", type=["pdf"] )
+uploaded_file = st.file_uploader("Upload PDF for summary", type=["pdf"])
 if uploaded_file and PdfReader:
-    try:
-        reader = PdfReader(uploaded_file)
-        pdf_text = '\n'.join([p.extract_text() or '' for p in reader.pages])
-        st.session_state.uploaded_pdf_text = pdf_text
-        st.session_state.pdf_summary = smart_summary_with_model(pdf_text, label='Uploaded PDF Summary', max_bullets=6)
-        st.success("PDF summarized successfully!")
-    except Exception:
-        st.error("Failed to parse the uploaded PDF.")
-
+    reader = PdfReader(uploaded_file)
+    pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
+    st.session_state.uploaded_pdf_text = pdf_text
+    st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
+    st.success("PDF summarized successfully!")
 if st.session_state.pdf_summary:
     with st.expander("📄 Uploaded PDF Summary", expanded=False):
-        st.markdown(f"<div class=\"summary-bubble\">{escape(st.session_state.pdf_summary).replace('\n','<br>')}</div>", unsafe_allow_html=True)
+        st.markdown(st.session_state.pdf_summary)
 
 # -------------------------
-# Prompt suggestions for quick inputs
+# Build corpus
 # -------------------------
-
-def make_suggestions_display():
-    seg = st.selectbox("Segment", ["Awareness","Adoption","Retention"])  # simple UI to choose segment
-    persona = st.text_input("HCP Persona", "Committed Vaccinator")
-    obj = st.selectbox("Objective", ["Awareness","Adoption","Retention"], index=0)
-    s = []
-    s.append(f"Generate call flow for {persona} focused on {obj}.")
-    s.append(f"Key talking points for {bconf['display']} in {seg}.")
-    s.append(f"Handle objection: cost or efficacy for {persona}.")
-    cols = st.columns(3)
-    for i,txt in enumerate(s):
-        if cols[i%3].button(txt, key=f'sugg_{i}'):
-            st.session_state.main_input = txt
-
-with st.expander("💡 Prompt Suggestions (Click to expand)", expanded=False):
-    make_suggestions_display()
+corpus_folders = [refs_folder, sales_folder]
+chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# Core: produce a more intelligent AI answer using GROQ (when available)
+# Prompt suggestions
 # -------------------------
-
-def compose_grounded_prompt(user_query, brand_key, snippets):
-    """Compose a prompt that provides grounding from local files and instructs the model to be concise, helpful and sales-focused."""
-    instruction = (
-        "You are a concise, practical sales enablement assistant. Produce an answer tailored for a field sales representative. "
-        "Use the provided local document snippets as grounding. Return output as bullet points where appropriate, include explicit 'Sales Tips' lines and a one-line suggested call-opening. "
-    )
-    grounding_text = ''
-    if snippets:
-        grounding_text = '\n\n'.join([f"SNIPPET (score={s.get('score',0):.2f}): {s['text'][:1000]}" for s in snippets[:6]])
-    # Include small instructions about which folders were used
-    folders_info = f"References folder: {brand_data[brand_key]['references_path']}\nSales module folder: {brand_data[brand_key]['sales_path']}"
-    prompt = instruction + "\n\n" + folders_info + "\n\nGROUNDING_SNIPPETS:\n" + grounding_text + "\n\nUSER_QUERY:\n" + user_query
-    return prompt
-
-
-def generate_model_response(user_query, brand_key, temperature=0.15):
-    # Find local snippets to ground the model
-    snippets = local_search(user_query, chunks, metas, top_n=6)
-    prompt = compose_grounded_prompt(user_query, brand_key, snippets)
-
-    if client:
-        try:
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role":"user","content":prompt}],
-                temperature=temperature,
-            )
-            return resp.choices[0].message.content.strip(), snippets
-        except Exception:
-            pass
-    # Fallback: build a heuristic answer using snippets
-    lines = ["- Acknowledge: Thanks for the question. Here are focused points:"]
-    for s in snippets[:5]:
-        short = (s['text'][:280] + '...') if len(s['text']) > 300 else s['text']
-        lines.append(f"- {short} (source snippet)")
-    lines.append("\nSales Tip: Summarise efficacy in one sentence and offer to send the key reference PDF.")
-    lines.append("Call Opening Suggestion: 'Hi Dr X, I wanted to quickly share the most relevant evidence on...'")
-    return '\n'.join(lines), snippets
-
-# Function that drives AI reply and stores chat history
-
-def add_ai_response(user_prompt):
-    # Produce a grounded model answer
-    ai_text, snippets = generate_model_response(user_prompt, st.session_state.selected_brand, temperature=st.session_state.temperature)
-    # Build citation list for UI (files found in local snippets)
-    citation_files = []
-    for s in snippets:
-        # We don't have exact filenames in this simple chunking approach; attempt to find filename by searching folders
-        # (If more precise meta is needed, build chunker that stores filename earlier.)
-        citation_files.append(f"local_snippet (score={s.get('score',0):.2f})")
-    citation = ', '.join(list(dict.fromkeys(citation_files)))
-    st.session_state.chat_history.append({
-        'role':'assistant',
-        'content':ai_text,
-        'citation': citation,
-        'timestamp': datetime.utcnow().isoformat()
-    })
+def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
+    s=[]
+    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
+    if barriers_list: s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
+    else: s.append(f"Identify common objections for {persona_val}.")
+    s.append(f"Summarize HCP persona insights for {persona_val}.")
+    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
+    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
+    return s
 
 # -------------------------
-# Chat input form and sending
+# AI Response with APACT + humanized + multi-turn feedback
 # -------------------------
-with st.form('main_input_form', clear_on_submit=True):
-    user_input = st.text_area('Ask something:', value=st.session_state.main_input, height=90)
-    submitted = st.form_submit_button('Send')
-    if submitted and user_input.strip():
-        st.session_state.chat_history.append({'role':'user','content':user_input.strip(),'timestamp':datetime.utcnow().isoformat()})
-        add_ai_response(user_input.strip())
-        st.session_state.main_input = ''
+def add_ai_response(prompt, follow_up=False, dislike_choice=None):
+    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
+    citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
+    response_lines = []
+
+    if not follow_up:
+        # --- APACT ---
+        response_lines.append(f"**Acknowledge:** Thank you for raising this concern. I understand your perspective.")
+        response_lines.append("**Probing:** Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
+        response_lines.append("**Actions:** Based on your input, here are recommended steps:")
+        for step in bconf["call_flow"]:
+            step_snippets = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+            if step_snippets:
+                response_lines.append(f"**{step}:**")
+                for sn in step_snippets:
+                    response_lines.append(f"- {sn}")
+            else:
+                response_lines.append(f"**{step}:** - Refer to the sales module and uploaded references for guidance.")
+        response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
+        response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
+        response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+        st.session_state.dislike_state = None
+    else:
+        # Multi-turn dislike feedback
+        if st.session_state.dislike_state is None:
+            response_lines.append("I noticed you disliked the previous answer. Could you tell me why?")
+            st.session_state.dislike_state = "waiting_reason"
+        elif st.session_state.dislike_state == "waiting_reason" and dislike_choice:
+            if dislike_choice=="Unclear":
+                response_lines.append("Thanks! Let's clarify the points. Here is a refined answer focusing on clarity...")
+            elif dislike_choice=="Too long":
+                response_lines.append("Thanks! I'll shorten the response for easier reading...")
+            elif dislike_choice=="Not relevant":
+                response_lines.append("Thanks! Let's focus on the points most relevant to your needs...")
+            st.session_state.dislike_state = None  # End of multi-turn for now
+
+    ai_text = "\n".join(response_lines)
+    st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
 
 # -------------------------
-# Display chat history (white bubble for AI)
+# Chat container and input
 # -------------------------
 chat_container = st.container()
+
+with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
+    suggs = make_suggestions(sel_brand, persona, barrier, segment, specialty, objective)
+    sugg_cols = st.columns(3)
+    for i, s in enumerate(suggs):
+        col = sugg_cols[i % 3]
+        if col.button(s, key=f"sugg_{i}"):
+            st.session_state.main_input = s
+
+with st.form("main_input_form", clear_on_submit=True):
+    user_input = st.text_area("Ask something:", st.session_state.main_input, height=72)
+    submitted = st.form_submit_button("Send")
+    if submitted and user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
+        add_ai_response(user_input.strip())
+        st.session_state.main_input = ""
+
+# -------------------------
+# Display chat with audio and interactive feedback
+# -------------------------
 with chat_container:
     for idx,entry in enumerate(st.session_state.chat_history):
-        if entry['role'] == 'user':
-            st.markdown(f"<div class=\"chat-bubble-user\">{escape(entry['content'])}</div>", unsafe_allow_html=True)
+        if entry["role"]=="user":
+            st.markdown(f'<div class="chat-bubble-user">{escape(entry["content"])}</div>',unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class=\"chat-bubble-ai\">{escape(entry['content']).replace('\n','<br>')}</div>", unsafe_allow_html=True)
-            if entry.get('citation'):
-                st.markdown(f"<div class=\"citation-box\">Sources: {escape(entry['citation'])}</div>", unsafe_allow_html=True)
+            st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
+            if "citation" in entry and entry["citation"]:
+                st.markdown(f'<div class="citation-box">{escape(entry["citation"])}</div>',unsafe_allow_html=True)
+            audio_b64 = generate_audio(entry["content"])
+            if audio_b64:
+                st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
 
             # Feedback buttons
             fb_cols = st.columns(3)
-            if entry['content'] not in st.session_state.feedback:
-                if fb_cols[0].button('👍 Like', key=f'like_{idx}'):
-                    st.session_state.feedback[entry['content']] = 'like'
-                if fb_cols[1].button('👎 Dislike', key=f'dislike_{idx}'):
-                    st.session_state.feedback[entry['content']] = 'dislike'
-                    # on dislike we add a clarifying follow-up answer (shorter / clearer)
-                    followup_prompt = 'Refine and shorten previous assistant reply focusing on clarity.'
-                    add_ai_response(followup_prompt)
-                if fb_cols[2].button('ℹ️ Need More', key=f'needmore_{idx}'):
-                    st.session_state.feedback[entry['content']] = 'need_more'
-                    add_ai_response('Expand the previous answer with more actionable bullets and exact references.')
+            if entry["content"] not in st.session_state.feedback:
+                if fb_cols[0].button("👍 Like", key=f"like_{idx}"): st.session_state.feedback[entry["content"]]="like"
+                if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"):
+                    st.session_state.feedback[entry["content"]]="dislike"
+                    # show multi-turn buttons
+                    choices = ["Unclear","Too long","Not relevant"]
+                    choice_cols = st.columns(len(choices))
+                    for i,ch in enumerate(choices):
+                        if choice_cols[i].button(ch,key=f"dislike_choice_{idx}_{i}"):
+                            add_ai_response("Follow-up based on user dislike", follow_up=True, dislike_choice=ch)
+                if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
+                    st.session_state.feedback[entry["content"]]="need_more"
+                    add_ai_response("The user requested more information; expand the previous answer.", follow_up=True)
 
 # -------------------------
 # Footer disclaimer
 # -------------------------
 st.markdown("""
 <div class="fixed-disclaimer">
-💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources.
+💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
 </div>
-""", unsafe_allow_html=True)
+""",unsafe_allow_html=True)
