@@ -158,16 +158,15 @@ brand_data = {
 }
 
 # -------------------------
-# GROQ client init (safe: read from secrets / env)
+# Initialize GROQ client
 # -------------------------
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", None))
-groq_client = None
+GROQ_API_KEY = "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"  # <--- safe placeholder
+client = None
 if Groq and GROQ_API_KEY:
     try:
-        groq_client = Groq(api_key=GROQ_API_KEY)
-    except Exception:
-        groq_client = None
-
+        client = Groq(api_key=GROQ_API_KEY)
+    except:
+        client = None
 # -------------------------
 # File read helpers
 # -------------------------
