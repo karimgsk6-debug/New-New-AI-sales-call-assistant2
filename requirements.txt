@@ -7,3 +7,4 @@ groq
 python-docx
 scikit-learn
 elevenlabs
+matplotlib
