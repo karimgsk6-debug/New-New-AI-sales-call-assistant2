@@ -1,4 +1,12 @@
-# app_fixed.py - Fixed AI Sales Call Assistant (Streamlit)
+# app_final.py - Full AI Sales Call Assistant (Merged, Final)
+# Features merged:
+# - APACT call-flow logic enhanced & formatted with bold titles and examples
+# - GROQ LLM integration with system instruction
+# - PDF upload, local corpus search, summaries
+# - Audio generation (ElevenLabs/gTTS fallback)
+# - Feedback (like/dislike/need more) with multi-turn handling
+# - White AI bubbles and UI chrome
+
 import streamlit as st
 import os
 import re
@@ -98,7 +106,7 @@ st.markdown(
     .chat-bubble-user{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 
     /* White bubble for AI responses */
-    .chat-bubble-ai{ background: #ffffff; color:#000; padding:12px 16px; border-radius:12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin:8px 0; max-width:90%; }
+    .chat-bubble-ai{ background: #ffffff; color:#000; padding:12px 16px; border-radius:12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin:8px 0; max-width:90%; white-space:pre-wrap; }
 
     .citation-box{ font-size:12px; color:#666; margin-left:6px; margin-bottom:6px; }
 
@@ -127,6 +135,7 @@ def set_dynamic_background(image_path):
                 background-position: right top;
                 background-size: cover;
             }}
+            </style>
             """,
             unsafe_allow_html=True,
         )
@@ -160,7 +169,26 @@ brand_data = {
         "sales_path": ".devcontainer/SalesModule/shingrix/",
         "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Post-call Analysis"],
     },
-    # other brands omitted for brevity (keep original structure in your app)
+    "jemperli": {
+        "display": "Jemperli",
+        "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
+        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
+        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited eligibility", "Access/reimbursement issues"],
+        "specialties": ["Oncologist", "Medical Oncologist"],
+        "references_path": ".devcontainer/references/jemperli/",
+        "sales_path": ".devcontainer/SalesModule/jemperli/",
+        "call_flow": ["COCO", "Anchor", "Engage", "Close"],
+    },
+    "trelegy": {
+        "display": "Trelegy",
+        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
+        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
+        "barriers": ["Formulary access", "Inhaler technique", "Side effect concerns", "Cost/coverage"],
+        "specialties": ["GP", "Pulmonologist", "Respiratory Specialist"],
+        "references_path": ".devcontainer/references/trelegy/",
+        "sales_path": ".devcontainer/SalesModule/trelegy/",
+        "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"],
+    }
 }
 
 # Ensure selected brand exists
@@ -171,7 +199,6 @@ if st.session_state.selected_brand not in brand_keys:
 # -------------------------
 # Helper functions
 # -------------------------
-
 def read_file_text(path):
     if not os.path.exists(path):
         return ""
@@ -184,7 +211,6 @@ def read_file_text(path):
                 return fh.read()
     except Exception:
         return ""
-
 
 def build_corpus_for_folders(folders, chunk_size_sentences=3):
     chunks, metas = [], []
@@ -204,7 +230,6 @@ def build_corpus_for_folders(folders, chunk_size_sentences=3):
                     chunks.append(chunk)
                     metas.append({"filename": fname, "folder": folder, "start": i})
     return chunks, metas
-
 
 def local_search_snippets(query, chunks, metas, top_n=3):
     if not chunks:
@@ -233,7 +258,6 @@ def local_search_snippets(query, chunks, metas, top_n=3):
                 break
     return out
 
-
 def simple_summary(text, bullets=6):
     if not text:
         return ""
@@ -241,18 +265,15 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- " + s for s in selected])
 
-
 def model_summarize(text, bullets=6):
     if not text:
         return ""
     if client:
         try:
             prompt = f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            # NOTE: Groq SDK usage may differ; this is a best-effort placeholder.
             resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
                                                  messages=[{"role": "user", "content": prompt}],
                                                  temperature=0.2)
-            # Fallbacks if structure differs
             content = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
             return content
         except Exception:
@@ -260,11 +281,9 @@ def model_summarize(text, bullets=6):
     else:
         return simple_summary(text, bullets)
 
-
 def generate_audio(text):
     if not text:
         return ""
-    # Try ElevenLabs -> gTTS -> pyttsx3
     if ELEVENLABS_AVAILABLE:
         try:
             elevenlabs.api_key = st.secrets.get("ELEVENLABS_API_KEY", "")
@@ -378,7 +397,6 @@ chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentenc
 # -------------------------
 # Prompt suggestions
 # -------------------------
-
 def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
     s = []
     s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
@@ -392,48 +410,60 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # -------------------------
-# AI Response (APACT + multi-turn feedback)
+# AI Response (APACT + structured formatting)
 # -------------------------
-
 def add_ai_response(prompt, follow_up=False, dislike_choice=None):
     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
-    response_lines = []
 
+    # Build a structured response combining APACT and bold headings + examples
+    lines = []
+
+    # Acknowledge
+    lines.append("**Acknowledge**")
+    lines.append("Thank you for raising this. I understand the concern.")
+    lines.append("**Example:** 'I hear you — you're worried about vaccine efficacy in older patients.'")
+
+    # Probing
+    lines.append("**Probe**")
+    lines.append("Could you confirm whether the main issue is efficacy, safety, eligibility, or logistics?")
+    lines.append("**Example:** 'Are you asking about side effects or coverage?'")
+
+    # Actions (map to call flow)
+    lines.append("**Actions (Call Flow aligned)**")
     bconf_local = brand_data.get(st.session_state.selected_brand, {})
+    for step in bconf_local.get("call_flow", []):
+        # gather relevant snippets
+        step_snips = [s['text'] for s in snippets if step.lower() in s['text'].lower()]
+        if step_snips:
+            lines.append(f"**{step}:**")
+            # show up to 2 snippets as examples
+            for sn in step_snips[:2]:
+                short = (sn[:240] + '...') if len(sn) > 240 else sn
+                lines.append(f"- {short}")
+            lines.append(f"**Example:** How to address {step.lower()} in a 20s pitch.")
+        else:
+            lines.append(f"**{step}:** - Refer to sales module and uploaded references.")
 
-    if not follow_up:
-        # --- APACT ---
-        response_lines.append("Acknowledge: Thank you for raising this concern. I understand your perspective.")
-        response_lines.append("Probing: Could you clarify if your main concern is about efficacy, safety, or patient eligibility?")
-        response_lines.append("Actions: Based on your input, here are recommended steps:")
-        for step in bconf_local.get("call_flow", []):
-            step_snippets = [s["text"] for s in snippets if step.lower() in s["text"].lower()]
-            if step_snippets:
-                response_lines.append(f"{step}:")
-                for sn in step_snippets:
-                    response_lines.append(f"- {sn}")
-            else:
-                response_lines.append(f"{step}: - Refer to the sales module and uploaded references for guidance.")
-        response_lines.append("Confirm: Does this approach address your concern sufficiently?")
-        response_lines.append("Transition: If yes, we can move on to the next discussion point or objective.")
-        response_lines.append("\nNote: Tailored using sales module and uploaded references.")
-        st.session_state.dislike_state = None
-    else:
-        # Multi-turn dislike feedback
+    # Confirm & Transition
+    lines.append("**Confirm**")
+    lines.append("Does this address the concern? If yes, I'll provide a 30s script for the call.")
+
+    if follow_up:
+        # handle dislike multi-turn
         if st.session_state.dislike_state is None:
-            response_lines.append("I noticed you disliked the previous answer. Could you tell me why?")
+            lines = ["**Feedback**", "I noticed you disliked the previous answer. Could you tell me why? (Unclear / Too long / Not relevant)"]
             st.session_state.dislike_state = "waiting_reason"
         elif st.session_state.dislike_state == "waiting_reason" and dislike_choice:
             if dislike_choice == "Unclear":
-                response_lines.append("Thanks! Let's clarify the points. Here is a refined answer focusing on clarity...")
+                lines = ["**Refined — Clarity Focus**", "Short bullet points with key facts and one example."]
             elif dislike_choice == "Too long":
-                response_lines.append("Thanks! I'll shorten the response for easier reading...")
+                lines = ["**Refined — Short Version**", "3-line answer + 1 example."]
             elif dislike_choice == "Not relevant":
-                response_lines.append("Thanks! Let's focus on the points most relevant to your needs...")
+                lines = ["**Refined — Focused**", "Targeting most relevant points to your persona."]
             st.session_state.dislike_state = None
 
-    ai_text = "\n".join(response_lines)
+    ai_text = "\n".join(lines)
     st.session_state.chat_history.append({"role": "assistant", "content": ai_text, "citation": citation})
 
 # -------------------------
