@@ -86,14 +86,14 @@ st.markdown(
     .title-box img.left-logo{ position:absolute; left:12px; height:48px; }
     .title-box img.right-logo{ position:absolute; right:12px; height:48px; }
 
-    .chat-bubble-user{ background: rgba(0,0,0,0.05); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
+    .chat-bubble-user{ background: rgba(0,0,0,0.08); color:#1111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 
     .chat-bubble-ai{
         background: #fffff;
         color:#000;
         padding:12px 16px;
         border-radius:12px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+        box-shadow: 0 1px 6px rgba(0,0,0,0.075);
         margin:8px 0;
         max-width:90%;
         white-space:pre-wrap;
