@@ -1,6 +1,4 @@
-# app_final.py - AI Sales Call Assistant
-# Final merged: Expanded personas + objection handling per product + storytelling + tone variants
-
+# app_final_merged.py - Fully merged AI Sales Call Assistant (Hologram avatar, personas, tones, objections)
 import streamlit as st
 import os
 import re
@@ -10,7 +8,7 @@ import io
 from datetime import datetime
 from html import escape
 
-# Soft imports
+# Soft imports (optional)
 try:
     from groq import Groq
 except Exception:
@@ -45,13 +43,16 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # -------------------------
-# Resources
+# Resources & Avatar
 # -------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
+
+# Futuristic hologram avatar URL (replace with your asset if desired)
+AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.png"
 
 # -------------------------
 # Session defaults
@@ -70,6 +71,9 @@ def _init_session():
         "feedback": {},
         "dislike_state": None,
         "language": "English",
+        "hcp_persona": "Friendly",
+        "hcp_personality": "Friendly",
+        "tone": "executive",
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -77,34 +81,31 @@ def _init_session():
 _init_session()
 
 # -------------------------
-# CSS
+# CSS for hologram avatar + chat bubbles
 # -------------------------
 st.markdown(
     """
     <style>
-    .title-box{ background: rgba(255,255,255,0.75); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
+    .title-box{ background: rgba(255,255,255,0.85); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
     .title-box img.left-logo{ position:absolute; left:12px; height:48px; }
     .title-box img.right-logo{ position:absolute; right:12px; height:48px; }
 
-    .chat-bubble-user{ background: rgba(0,0,0,0.08); color:#1111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
+    /* User bubble */
+    .chat-bubble-user{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 
-    .chat-bubble-ai{
-        background: #ffffff;
-        color:#000;
-        padding:12px 16px;
-        border-radius:12px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.085);
-        margin:8px 0;
-        max-width:90%;
-        white-space:pre-wrap;
-    }
+    /* AI bubble with avatar on left */
+    .ai-message { display:flex; align-items:flex-start; gap:12px; margin:10px 0; }
+    .ai-avatar { width:52px; height:52px; border-radius:50%; box-shadow: 0 0 12px rgba(0,255,255,0.6); flex-shrink:0; animation:holoPulse 2.5s infinite ease-in-out; }
+    @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
+    .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
 
-    .citation-box{ font-size:12px; color:#666; margin-left:6px; margin-bottom:6px; }
-    .fixed-disclaimer{ font-size:12px; color:#444; margin-top:16px; opacity:0.9; }
-    .step-title{ font-weight:700; margin-top:8px; }
-    .story{ font-style:italic; margin:6px 0 10px 0; }
-    ul.assist-list{ margin:6px 0 6px 18px; padding:0; }
-    .objection{ background:#fff8f0; padding:8px; border-radius:8px; margin:6px 0; border:1px solid #ffe0c6;}
+    .citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px; }
+    .fixed-disclaimer{ font-size:12px; color:#aac; margin-top:16px; opacity:0.9; }
+    .step-title{ font-weight:700; margin-top:8px; color:#BFF; }
+    .story{ font-style:italic; margin:6px 0 10px 0; color:#DFF; }
+    ul.assist-list{ margin:6px 0 6px 18px; padding:0; color:#DDF; }
+    .objection{ background:rgba(255,248,240,0.06); padding:8px; border-radius:8px; margin:6px 0; border:1px solid rgba(255,224,198,0.08); color:#FFD; }
+    .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -123,7 +124,7 @@ def set_dynamic_background(image_path):
             f"""
             <style>
             [data-testid="stAppViewContainer"] {{
-                background: linear-gradient(90deg, rgba(255,140,0,0.08), rgba(255,165,0,0.03)),
+                background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
                             url("data:image/png;base64,{encoded}");
                 background-repeat: no-repeat;
                 background-position: right top;
@@ -139,7 +140,7 @@ def set_dynamic_background(image_path):
 set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
-# GROQ client (optional)
+# GROQ client loader
 # -------------------------
 def load_groq_client():
     api_key = os.getenv("GROQ_API_KEY", "") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
@@ -201,18 +202,15 @@ brand_data = {
     }
 }
 
-# -------------------------
-# Expanded persona palette (adds requested types)
-# -------------------------
+# Extended persona set
 EXTRA_PERSONAS = ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
-# combine and deduplicate with brand personas for selection
 def get_persona_options(brand_key):
     base = brand_data.get(brand_key, {}).get("personas", [])
     combined = base + [p for p in EXTRA_PERSONAS if p not in base]
     return combined
 
 # -------------------------
-# Helper: read files, build corpus, local search, summarise
+# Helpers: file reading, corpus building, local search, summarise
 # -------------------------
 def read_file_text(path):
     if not os.path.exists(path):
@@ -280,9 +278,6 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- " + s for s in selected])
 
-# -------------------------
-# Model summariser wrapper (GROQ optional)
-# -------------------------
 def model_summarize(text, bullets=6):
     if not text:
         return ""
@@ -329,130 +324,31 @@ def generate_audio(text):
     return ""
 
 # -------------------------
-# Sidebar: filters + persona + tone
-# -------------------------
-with st.sidebar.expander("Filters & Options", expanded=True):
-    brand_options = list(brand_data.keys())
-    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
-    st.session_state.selected_brand = sel_brand
-    bconf = brand_data[sel_brand]
-
-    segment = st.selectbox("Segment", bconf["segments"])
-    persona_options = get_persona_options(sel_brand)
-    persona = st.selectbox("HCP Persona", persona_options)
-    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
-    specialty = st.selectbox("Specialty", bconf["specialties"])
-    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
-    st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05)
-    st.session_state.search_mode = st.selectbox("Search mode", ["deep", "shallow"])
-    st.session_state.language = st.radio("Language", ["English", "Arabic"])
-    tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=0)
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
-        st.experimental_rerun()
-
-with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
-    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
-
-with st.sidebar.expander("📄 Export Options", expanded=False):
-    export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
-
-# -------------------------
-# Title box
-# -------------------------
-st.markdown(f"""
-<div class="title-box">
-    <img src="{GSK_LOGO_RAW}" class="left-logo">
-    <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
-    <img src="{AI_LOGO_RAW}" class="right-logo">
-</div>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# Load references and sales summaries (if present)
-# -------------------------
-refs_folder = bconf.get("references_path", "")
-sales_folder = bconf.get("sales_path", "")
-
-combined_refs = ""
-if os.path.exists(refs_folder):
-    for f in sorted(os.listdir(refs_folder)):
-        if f.lower().endswith((".pdf", ".txt")):
-            combined_refs += read_file_text(os.path.join(refs_folder, f)) + "\n"
-
-combined_sales = ""
-if os.path.exists(sales_folder):
-    for f in sorted(os.listdir(sales_folder)):
-        if f.lower().endswith((".pdf", ".txt")):
-            combined_sales += read_file_text(os.path.join(sales_folder, f)) + "\n"
-
-if not st.session_state.medical_summary and combined_refs.strip():
-    st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
-if not st.session_state.sales_summary and combined_sales.strip():
-    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
-
-with st.expander("📚 Medical References Summary", expanded=False):
-    st.markdown(st.session_state.medical_summary or "No medical summary available.")
-with st.expander("💼 Sales Module Summary", expanded=False):
-    st.markdown(st.session_state.sales_summary or "No sales summary available.")
-
-# -------------------------
-# PDF upload
-# -------------------------
-uploaded_file = st.file_uploader("Upload PDF for summary", type=["pdf"])
-if uploaded_file is not None and PdfReader:
-    try:
-        reader = PdfReader(uploaded_file)
-        pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = pdf_text
-        st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
-        st.success("PDF summarized successfully!")
-    except Exception:
-        st.error("Failed to read the uploaded PDF.")
-
-if st.session_state.pdf_summary:
-    with st.expander("📄 Uploaded PDF Summary", expanded=False):
-        st.markdown(st.session_state.pdf_summary)
-
-# -------------------------
-# Build local corpus from selected brand folders
-# -------------------------
-corpus_folders = [refs_folder, sales_folder]
-chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
-
-# -------------------------
-# Persona profiles (expanded)
+# Persona profiles
 # -------------------------
 def persona_profile(persona_name):
-    """Return dict describing priorities, language style, quick wins for the persona."""
     p = persona_name.lower()
     profile = {"priority":"", "style":"", "quick_win":""}
-
-    if "evidence" in p or "evidence-led" in p:
+    if "evidence" in p:
         profile["priority"] = "data & outcomes"
         profile["style"] = "precise, cite trial outcomes and comparative results"
-        profile["quick_win"] = "show a 1-slide summary of key outcomes"
+        profile["quick_win"] = "share 1-slide summary of key outcomes"
         return profile
-
-    if "time" in p or "time-pressured" in p:
+    if "time" in p:
         profile["priority"] = "speed & simplicity"
         profile["style"] = "concise, action-oriented, minimal detail"
-        profile["quick_win"] = "offer a nurse-ready script or checklist"
+        profile["quick_win"] = "provide nurse-ready checklist or script"
         return profile
-
     if "skeptical" in p:
         profile["priority"] = "safety & credibility"
         profile["style"] = "address objections first, use trusted sources"
         profile["quick_win"] = "provide safety data and monitoring plan"
         return profile
-
-    if "early" in p or "early-adopter" in p:
+    if "early" in p:
         profile["priority"] = "innovation & differentiation"
         profile["style"] = "enthusiastic, highlight first-mover benefits"
         profile["quick_win"] = "offer pilot/benchmark opportunity"
         return profile
-
-    # fallback for original personas
     if "uncommitted" in p:
         profile["priority"] = "ease & persuasion"
         profile["style"] = "relatable, low-friction"
@@ -473,16 +369,16 @@ def persona_profile(persona_name):
         profile["style"] = "build on success with scaling ideas"
         profile["quick_win"] = "co-create local guideline prompts"
         return profile
-
     profile["priority"] = "clinician-focused"
     profile["style"] = "clear and helpful"
     profile["quick_win"] = "short actionable commitment"
     return profile
 
 # -------------------------
-# Tone helpers
+# Tone helper
 # -------------------------
 def tone_prefix(t):
+    t = (t or "").lower()
     if t == "executive":
         return "(Executive)"
     if t == "coaching":
@@ -492,7 +388,7 @@ def tone_prefix(t):
     return "(Clinical)"
 
 # -------------------------
-# Story + step builder (uses persona + tone; does not dump module text)
+# Story + step builder
 # -------------------------
 def make_story_for_step(step, brand_key, persona_name, tone, snippet=None):
     safe_snip = escape(snippet) if snippet else ""
@@ -500,7 +396,6 @@ def make_story_for_step(step, brand_key, persona_name, tone, snippet=None):
     prof = persona_profile(persona_name)
     t_pref = tone_prefix(tone)
 
-    # Smart, non-robotic phrasing: short hook + example + micro action
     if step.lower().startswith("prepare"):
         return (
             f"<div class='step-title'>Prepare {t_pref}</div>"
@@ -567,21 +462,17 @@ def make_story_for_step(step, brand_key, persona_name, tone, snippet=None):
             f"<div>Micro-action: Schedule the follow-up before leaving the clinic.</div>"
         )
 
-    # fallback
     return f"<div class='step-title'>{escape(step)}</div><div class='story'>Practical, persona-aware example for {escape(persona_name)} ({escape(tone)}).</div>"
 
 # -------------------------
 # Objection handling per product & persona
 # -------------------------
 def objection_response(product_key, objection_key, persona):
-    """Return a short, persona-aware objection handling snippet for the product."""
     product = brand_data.get(product_key, {})
     base = product.get("objections", {})
-    # Base reply (concise)
     reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
     prof = persona_profile(persona)
 
-    # Tailor by persona
     if "evidence" in persona.lower():
         return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer to share a 1-page evidence summary."
     if "time" in persona.lower():
@@ -590,30 +481,28 @@ def objection_response(product_key, objection_key, persona):
         return f"Answer (Skeptical): {reply} Start by acknowledging, then show safety data and a monitoring plan; propose a conservative pilot."
     if "early" in persona.lower():
         return f"Answer (Early-adopter): {reply} Highlight differentiation and offer to co-design a small pilot with outcome monitoring."
-    # default
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # -------------------------
-# Sales flow generators (use small local snippets but NOT copy module text)
+# Sales flow generation
 # -------------------------
 def generate_sales_flow(prompt: str, persona_name: str, tone: str):
-    p = prompt.lower()
-    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6)
+    p = (prompt or "").lower()
+    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6) if chunks else []
 
-    # choose flow per product keywords
+    # Shingrix flow
     if "shingrix" in p or "hzv" in p or "herpes zoster" in p:
         flow = brand_data["shingrix"]["call_flow"]
         parts = [f"<div><strong>Context:</strong> Shingrix — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
         for i, step in enumerate(flow):
             sn = snippets[i]["text"] if i < len(snippets) else ""
             parts.append(make_story_for_step(step, "shingrix", persona_name, tone, snippet=sn))
-        # add objection handling section
         parts.append("<div class='step-title'>Objection Handling</div>")
-        # sample common objections
         for obj in ["efficacy", "safety", "cost"]:
             parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('shingrix', obj, persona_name))}</div>")
         return "\n".join(parts)
 
+    # Jemperli flow
     if "jemperli" in p or "dmmr" in p or "msi-h" in p:
         flow = brand_data["jemperli"]["call_flow"]
         parts = [f"<div><strong>Context:</strong> Jemperli — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
@@ -625,6 +514,7 @@ def generate_sales_flow(prompt: str, persona_name: str, tone: str):
             parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('jemperli', obj, persona_name))}</div>")
         return "\n".join(parts)
 
+    # Trelegy flow
     if "trelegy" in p or "copd" in p:
         flow = brand_data["trelegy"]["call_flow"]
         parts = [f"<div><strong>Context:</strong> Trelegy — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
@@ -636,44 +526,160 @@ def generate_sales_flow(prompt: str, persona_name: str, tone: str):
             parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('trelegy', obj, persona_name))}</div>")
         return "\n".join(parts)
 
-    # default flow
+    # Default generic flow
     default_steps = ["Prepare", "Engage", "Create Opportunities", "Influence", "Close"]
     parts = [f"<div><strong>Context:</strong> General sales call — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
     for i, step in enumerate(default_steps):
         sn = snippets[i]["text"] if i < len(snippets) else ""
         parts.append(make_story_for_step(step, st.session_state.selected_brand, persona_name, tone, snippet=sn))
-    # generic objection handling suggestion
     parts.append("<div class='step-title'>Objection Handling</div>")
     parts.append(f"<div class='objection'><strong>Common —</strong> Acknowledge concern, present one concise evidence point, propose a low-effort pilot.</div>")
     return "\n".join(parts)
 
 # -------------------------
-# Build the AI response and append to chat history
+# AI response builder + chat history
 # -------------------------
 def add_ai_response(prompt_text, follow_up=False, dislike_choice=None):
-    # create persona & tone context
-    persona_choice = persona
-    tone_choice = tone
+    persona_choice = st.session_state.hcp_persona if st.session_state.get("hcp_persona") else persona
+    tone_choice = st.session_state.tone if st.session_state.get("tone") else tone
 
-    # small acknowledge + tailored flow
     header = f"<div class='step-title'>Acknowledge</div><div>Thanks — I'll give a concise, action-oriented call plan tailored to a {escape(persona_choice)} ({escape(tone_choice)} tone).</div>"
     flow_html = generate_sales_flow(prompt_text, persona_choice, tone_choice)
-
     confirm = "<div class='step-title'>Next step</div><div>If this fits, reply 'Yes' and I'll draft a 30s call script and one-page leave-behind you can use today.</div>"
 
-    # store and return
     ai_html = "\n".join([header, flow_html, confirm])
     st.session_state.chat_history.append({"role": "assistant", "content": ai_html, "citation": ""})
 
 # -------------------------
-# UI: prompt suggestions + input + chat display
+# Avatar & message renderers
+# -------------------------
+HOLO_AVATAR = AI_AVATAR
+
+def render_ai_message(message_html):
+    """Render AI HTML content with avatar on the left."""
+    st.markdown(
+        f"""
+        <div class="ai-message">
+            <img src="{HOLO_AVATAR}" class="ai-avatar" />
+            <div class="ai-bubble">{message_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_user_message(msg):
+    st.markdown(f'<div class="user-bubble">{escape(msg)}</div>', unsafe_allow_html=True)
+
+# -------------------------
+# Sidebar filters & controls
+# -------------------------
+with st.sidebar.expander("Filters & Options", expanded=True):
+    brand_options = list(brand_data.keys())
+    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
+    st.session_state.selected_brand = sel_brand
+    bconf = brand_data[sel_brand]
+
+    segment = st.selectbox("Segment", bconf["segments"])
+    persona_options = get_persona_options(sel_brand)
+    persona_sel = st.selectbox("HCP Persona", persona_options, index=0)
+    st.session_state.hcp_persona = persona_sel
+
+    # HCP personality (assertive, masked, friendly, details-oriented, skeptic)
+    hcp_personality = st.selectbox("HCP Personality", ["Assertive", "Masked", "Friendly", "Details-oriented", "Skeptic"])
+    st.session_state.hcp_personality = hcp_personality
+
+    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
+    specialty = st.selectbox("Specialty", bconf["specialties"])
+    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
+    st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05)
+    st.session_state.search_mode = st.selectbox("Search mode", ["deep", "shallow"])
+    st.session_state.language = st.radio("Language", ["English", "Arabic"])
+    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=0)
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.chat_history = []
+        st.experimental_rerun()
+
+with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
+    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
+
+with st.sidebar.expander("📄 Export Options", expanded=False):
+    export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
+
+# -------------------------
+# Title box
+# -------------------------
+st.markdown(
+    f"""
+    <div class="title-box">
+        <img src="{GSK_LOGO_RAW}" class="left-logo">
+        <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
+        <img src="{AI_LOGO_RAW}" class="right-logo">
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -------------------------
+# Load references and summarize
+# -------------------------
+refs_folder = bconf.get("references_path", "")
+sales_folder = bconf.get("sales_path", "")
+
+combined_refs = ""
+if os.path.exists(refs_folder):
+    for f in sorted(os.listdir(refs_folder)):
+        if f.lower().endswith((".pdf", ".txt")):
+            combined_refs += read_file_text(os.path.join(refs_folder, f)) + "\n"
+
+combined_sales = ""
+if os.path.exists(sales_folder):
+    for f in sorted(os.listdir(sales_folder)):
+        if f.lower().endswith((".pdf", ".txt")):
+            combined_sales += read_file_text(os.path.join(sales_folder, f)) + "\n"
+
+if not st.session_state.medical_summary and combined_refs.strip():
+    st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
+if not st.session_state.sales_summary and combined_sales.strip():
+    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
+
+with st.expander("📚 Medical References Summary", expanded=False):
+    st.markdown(st.session_state.medical_summary or "No medical summary available.")
+with st.expander("💼 Sales Module Summary", expanded=False):
+    st.markdown(st.session_state.sales_summary or "No sales summary available.")
+
+# -------------------------
+# PDF upload (per brand)
+# -------------------------
+uploaded_file = st.file_uploader("Upload PDF for summary (brand-specific)", type=["pdf"])
+if uploaded_file and PdfReader:
+    try:
+        reader = PdfReader(uploaded_file)
+        pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
+        st.session_state.uploaded_pdf_text = pdf_text
+        st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
+        st.success("PDF summarized successfully!")
+    except Exception:
+        st.error("Failed to read the uploaded PDF.")
+
+if st.session_state.pdf_summary:
+    with st.expander("📄 Uploaded PDF Summary", expanded=False):
+        st.markdown(st.session_state.pdf_summary)
+
+# -------------------------
+# Build corpus for selected brand (used for local_search_snippets)
+# -------------------------
+corpus_folders = [refs_folder, sales_folder]
+chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
+
+# -------------------------
+# Prompt suggestions & main input form
 # -------------------------
 chat_container = st.container()
 
 with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
     suggs = [
-        f"Generate a {bconf['display']} sales call for {persona} in {tone} tone",
-        "How to handle an efficacy objection for Shingrix?",
+        f"Generate a {bconf['display']} sales call for {st.session_state.hcp_persona} in {st.session_state.tone} tone",
+        f"How to handle an efficacy objection for {bconf['display']}?",
         "Short 30s script for the next call",
         "Pilot offer for 10 patients — example script"
     ]
@@ -691,22 +697,26 @@ with st.form("main_input_form", clear_on_submit=True):
         add_ai_response(user_input.strip())
         st.session_state.main_input = ""
 
+# -------------------------
+# Display chat (with avatar for AI)
+# -------------------------
 with chat_container:
     for idx, entry in enumerate(st.session_state.chat_history):
         if entry.get("role") == "user":
-            st.markdown(f'<div class="chat-bubble-user">{escape(entry.get("content",""))}</div>', unsafe_allow_html=True)
+            render_user_message(entry.get("content", ""))
         else:
-            # assistant content is HTML
-            st.markdown(f'<div class="chat-bubble-ai">{entry.get("content","")}</div>', unsafe_allow_html=True)
+            # assistant content contains HTML fragments already
+            render_ai_message(entry.get("content", ""))
             if entry.get("citation"):
                 st.markdown(f'<div class="citation-box">{escape(entry.get("citation"))}</div>', unsafe_allow_html=True)
-            # audio (first 1500 chars without html tags)
-            plain = re.sub(r"<[^>]+>", "", entry.get("content",""))[:1500]
+
+            # audio: strip HTML tags
+            plain = re.sub(r"<[^>]+>", "", entry.get("content", ""))[:1500]
             audio_b64 = generate_audio(plain)
             if audio_b64:
                 st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
 
-            # feedback buttons
+            # Feedback
             fb_cols = st.columns(3)
             key_content = entry.get("content", "")
             if key_content not in st.session_state.feedback:
@@ -714,7 +724,6 @@ with chat_container:
                     st.session_state.feedback[key_content] = "like"
                 if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"):
                     st.session_state.feedback[key_content] = "dislike"
-                    # provide immediate refinement choices
                     choices = ["Unclear", "Too long", "Not relevant"]
                     choice_cols = st.columns(len(choices))
                     for i, ch in enumerate(choices):
