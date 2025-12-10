@@ -1,4 +1,4 @@
-# app_full_with_prompts.py - AI Sales Call Assistant with Prompt Suggestions
+# app_full_ai_summaries.py - AI Sales Call Assistant with Auto Summaries
 import streamlit as st
 import os, re, base64
 from datetime import datetime
@@ -9,11 +9,6 @@ try:
     from groq import Groq
 except:
     Groq = None
-
-try:
-    from PyPDF2 import PdfReader
-except:
-    PdfReader = None
 
 # -------------------------
 # Page config
@@ -29,7 +24,6 @@ def _init_session():
         "main_input": "",
         "selected_brand": "shingrix",
         "temperature": 0.95,
-        "search_mode": "deep",
         "medical_summary": "",
         "sales_summary": "",
         "prompt_suggestions": [
@@ -57,6 +51,8 @@ st.markdown("""
 .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; max-width:90%; white-space:pre-wrap; }
 .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 .prompt-button{ margin:2px; }
+.med-bullet{ color:#1E90FF; }
+.sales-bullet{ color:#32CD32; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -73,11 +69,27 @@ def get_groq_client():
         return None
 
 # -------------------------
-# Summarization helper
+# AI Summarization helper
 # -------------------------
-def summarize_text(text, bullets=6):
-    sents = re.split(r'(?<=[.!?])\s+', text)
-    return "\n".join(["- "+s for s in sents[:bullets]])
+def generate_summary(text, module="medical", bullets=5):
+    client = get_groq_client()
+    if client:
+        prompt = f"Extract the {module} points from the following text and give {bullets} concise bullet points:\n{text[:12000]}"
+        try:
+            resp = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[{"role":"user","content":prompt}],
+                temperature=0.7
+            )
+            ai_text = getattr(getattr(resp.choices[0],"message",{}),"content","") or getattr(resp.choices[0],"text","")
+            # Add color formatting
+            color_class = "med-bullet" if module=="medical" else "sales-bullet"
+            bullets_list = re.split(r'[\n•\-]+', ai_text)
+            formatted = "\n".join([f'<div class="{color_class}">• {b.strip()}</div>' for b in bullets_list if b.strip()])
+            return formatted
+        except:
+            return f"<div class='{color_class}'>Failed to generate {module} summary</div>"
+    return f"<div class='{color_class}'>Groq API not configured</div>"
 
 # -------------------------
 # Sidebar
@@ -87,9 +99,19 @@ with st.sidebar:
     brands = ["shingrix","jemperli","trelegy"]
     st.session_state.selected_brand = st.selectbox("Brand", brands, index=brands.index(st.session_state.selected_brand), key="brand_sel")
     st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05, key="temp_sel")
+    
     if st.button("🗑️ Clear Chat", key="clear_chat"):
         st.session_state.chat_history = []
+        st.session_state.medical_summary = ""
+        st.session_state.sales_summary = ""
         st.experimental_rerun()
+
+    # Medical & Sales Summaries
+    with st.expander("🩺 Medical Module Summary", expanded=True):
+        st.markdown(st.session_state.medical_summary or "No summary yet. Chat with AI to generate it.", unsafe_allow_html=True)
+
+    with st.expander("💼 Sales Module Summary", expanded=True):
+        st.markdown(st.session_state.sales_summary or "No summary yet. Chat with AI to generate it.", unsafe_allow_html=True)
 
 # -------------------------
 # Title
@@ -101,7 +123,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Prompt Suggestions (Collapsible)
+# Prompt Suggestions
 # -------------------------
 with st.expander("💡 Prompt Suggestions", expanded=True):
     for i, s in enumerate(st.session_state.prompt_suggestions):
@@ -109,23 +131,21 @@ with st.expander("💡 Prompt Suggestions", expanded=True):
             st.session_state.main_input = s
 
 # -------------------------
-# Chat input & AI response
+# Chat input
 # -------------------------
 user_input = st.text_area("Ask the AI assistant...", value=st.session_state.main_input, key="main_input", height=80)
 
 if st.button("Send", key="send_button") and user_input.strip():
     st.session_state.chat_history.append({"role":"user","content":user_input})
-    # AI response
+    # AI Response
     client = get_groq_client()
     ai_text = ""
     if client:
         try:
             resp = client.chat.completions.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[
-                    {"role":"system","content":"You are a helpful assistant."},
-                    {"role":"user","content":user_input[:12000]}
-                ],
+                messages=[{"role":"system","content":"You are a helpful AI assistant."},
+                          {"role":"user","content":user_input[:12000]}],
                 temperature=st.session_state.temperature
             )
             ai_text = getattr(getattr(resp.choices[0],"message",{}),"content","") or getattr(resp.choices[0],"text","")
@@ -136,6 +156,11 @@ if st.button("Send", key="send_button") and user_input.strip():
 
     st.session_state.chat_history.append({"role":"ai","content":ai_text})
     st.session_state.main_input = ""
+
+    # Generate module summaries automatically
+    full_text = "\n".join([msg["content"] for msg in st.session_state.chat_history if msg["role"]=="ai"])
+    st.session_state.medical_summary = generate_summary(full_text, module="medical", bullets=5)
+    st.session_state.sales_summary = generate_summary(full_text, module="sales", bullets=5)
 
 # -------------------------
 # Render chat
