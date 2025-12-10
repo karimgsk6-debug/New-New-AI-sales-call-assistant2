@@ -123,7 +123,7 @@ set_dynamic_background(BACKGROUND_PATH)
 # GROQ client loader
 # -------------------------
 def load_groq_client():
-    api_key = os.getenv("GROQ_API_KEY","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") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
+    api_key = os.getenv("GROQ_API_KEY","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") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
     if not api_key or Groq is None: return None
     try: return Groq(api_key=api_key)
     except: return None
