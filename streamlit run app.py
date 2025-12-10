@@ -1,4 +1,4 @@
-# app_final_merged.py - Fully merged AI Sales Call Assistant
+# app_final_merged_ready.py - Fully merged AI Sales Call Assistant with RAG references
 # Features:
 # - Multi-brand support: Shingrix, Jemperli, Trelegy
 # - Persona + HCP personality + EXTRA_PERSONAS
@@ -18,7 +18,7 @@ import io
 from datetime import datetime
 from html import escape
 
-# Soft imports
+# Optional imports
 try:
     from PyPDF2 import PdfReader
 except Exception:
@@ -55,8 +55,6 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-
-# Futuristic hologram avatar URL (replace if you have another)
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
 # -------------------------
@@ -79,6 +77,8 @@ def _init_session():
         "hcp_persona": "Uncommitted Vaccinator",
         "hcp_personality": "Friendly",
         "tone": "executive",
+        "specialty": "",
+        "objective": "Awareness"
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -272,11 +272,7 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- " + s for s in selected])
 
-# -------------------------
-# Summarizer (local fallback)
-# -------------------------
 def model_summarize(text, bullets=6):
-    # Using local simple summarizer; optional Groq could be used here if configured
     return simple_summary(text, bullets)
 
 # -------------------------
@@ -347,8 +343,7 @@ def objection_response(product_key, objection_key, persona):
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # -------------------------
-# NEW: Enhanced generate_sales_flow (no external LLM dependency)
-# Produces long, structured, persona-aware HTML response with CTAs
+# RAG-based Sales Flow Generator
 # -------------------------
 def generate_sales_flow(prompt: str, persona_name: str, tone: str, specialty: str = None, objective: str = None):
     p = (prompt or "").lower()
@@ -358,35 +353,27 @@ def generate_sales_flow(prompt: str, persona_name: str, tone: str, specialty: st
     objective = objective or ""
     prof = persona_profile(persona)
 
-    # local snippets (small RAG)
-    snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6) if chunks else []
-    snippet_texts = [s["text"] for s in snippets]
-
-    # Helper: produce a short evidence block if snippets available
-    def evidence_block():
-        if not snippet_texts:
-            return ""
-        out = "<div><strong>Relevant snippets from your references:</strong></div>"
-        for s in snippet_texts[:3]:
-            out += f"<div class='story'>• {escape(s[:300].strip())}...</div>"
-        return out
-
-    # Determine product/flow
+    # Determine product
     if "shingrix" in p or "hzv" in p or "herpes zoster" in p:
         product_key = "shingrix"
-        steps = brand_data[product_key]["call_flow"]
     elif "jemperli" in p or "dmmr" in p or "msi-h" in p:
         product_key = "jemperli"
-        steps = brand_data[product_key]["call_flow"]
     elif "trelegy" in p or "copd" in p:
         product_key = "trelegy"
-        steps = brand_data[product_key]["call_flow"]
     else:
-        # fallback to selected brand
         product_key = st.session_state.selected_brand
-        steps = brand_data.get(product_key, {}).get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])
 
-    # Build HTML response
+    steps = brand_data.get(product_key, {}).get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])
+    refs_folder = brand_data.get(product_key, {}).get("references_path", "")
+    sales_folder = brand_data.get(product_key, {}).get("sales_path", "")
+    corpus_folders = [refs_folder, sales_folder]
+    chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
+
+    def retrieve_snippets(step_name, top_n=3):
+        query = f"{product_key} {step_name} sales call"
+        results = local_search_snippets(query, chunks, chunk_meta, top_n=top_n)
+        return [r["text"] for r in results]
+
     parts = []
     header = f"<div class='step-title'>Tailored sales call plan — {escape(brand_data.get(product_key, {}).get('display', product_key))}</div>"
     header += f"<div>Target: <strong>{escape(persona)}</strong>"
@@ -398,93 +385,27 @@ def generate_sales_flow(prompt: str, persona_name: str, tone: str, specialty: st
     header += f"<div class='story'>Insight: Focus on <strong>{escape(prof['priority'])}</strong> — communicate in a {escape(prof['style'])} style.</div>"
     parts.append(header)
 
-    # Detailed step-by-step
     for step in steps:
-        s_html = ""
-        step_key = step.lower()
-        if "prepare" in step_key:
-            s_html += f"<div class='step-title'>Prepare</div>"
-            s_html += f"<div>• Identify the persona: <strong>{escape(persona)}</strong>"
-            if specialty:
-                s_html += f", specialty: <strong>{escape(specialty)}</strong>"
-            s_html += f"</div>"
-            s_html += f"<div>• Objectives: <strong>{escape(objective or 'Awareness')}</strong></div>"
-            s_html += f"<div>• Patient types: <strong>Adults 50+</strong> (adjust per specialty)</div>"
-            s_html += f"<div class='story'>Key insight: Shingles risk increases with age; prevention reduces severe pain & complications.</div>"
-            s_html += f"<div><strong>Prep checklist:</strong><ul class='assist-list'><li>One-sentence clinic insight</li><li>Top 2 trial endpoints to cite</li><li>One-line pilot proposal</li></ul></div>"
-            s_html += evidence_block()
-            s_html += f"<div><strong>CTA (Prep):</strong> Email a single-slide summary and request 5 minutes to review it at start of call.</div>"
-
-        elif "engage" in step_key:
-            open_line = f'Hello, Dr. [LastName]. I am [YourName] from GSK. Quick question: how are you currently approaching shingles prevention for patients 50+?'
-            if tone_choice == "executive":
-                open_line = 'Hello, Dr. [LastName]. Quick question: what is the highest-leverage change we could make this quarter to protect your 50+ patients?'
-            if tone_choice == "coaching":
-                open_line = 'Hi Dr. [LastName], can you walk me through how you typically introduce shingles prevention in a 60s consult?'
-            s_html += f"<div class='step-title'>Engage</div>"
-            s_html += f"<div>• Start conversation (example): \"{escape(open_line)}\"</div>"
-            s_html += f"<div>• Capture attention: \"Did you know most adults 50+ are at risk and shingles can cause long-term neuralgia?\"</div>"
-            s_html += f"<div class='story'>Goal: Make the issue locally relevant; tie to the clinician's caseload or clinic KPI.</div>"
-            s_html += f"<div><strong>CTA (Engage):</strong> Get agreement to explore one eligible patient cohort (e.g., next 10 patients 50+).</div>"
-
-        elif "create" in step_key or "opportun" in step_key:
-            s_html += f"<div class='step-title'>Create Opportunities</div>"
-            s_html += f"<div>• Identify gaps: Ask direct diagnostic questions: 'Are there barriers in delivery, documentation, or patient acceptance?'</div>"
-            s_html += f"<div>• Solution framing: Present practical solutions — nurse checklist, standing order, dedicated clinic slot.</div>"
-            s_html += f"<div class='story'>Example: \"Let's pilot with 8 eligible patients using a nurse checklist and measure uptake in 4 weeks.\"</div>"
-            s_html += f"<div><strong>CTA (Create):</strong> Secure agreement for a small pilot and define one metric (e.g., vaccination rate change over 4 weeks).</div>"
-
-        elif "influence" in step_key:
-            s_html += f"<div class='step-title'>Influence</div>"
-            s_html += f"<div>• Present evidence: cite trial outcomes, real-world benefit, and safety profile.</div>"
-            s_html += f"<div class='story'>Example pitch: 'In trial X, this vaccine reduced shingles incidence by Y% at Z months — it cuts PHN risk substantially.'</div>"
-            # persona-specific objection handling sample
-            s_html += f"<div><strong>Handle objections:</strong> {escape(objection_response(product_key, 'efficacy', persona))}</div>"
-            s_html += f"<div><strong>CTA (Influence):</strong> Ask: 'Which of your patients is most like this vignette — can we try with one today?'</div>"
-
-        elif "impact" in step_key or "gso" in step_key or "impact gso" in step_key:
-            s_html += f"<div class='step-title'>Impact GSO</div>"
-            s_html += f"<div>• Link to clinic-level outcomes: throughput, fewer follow-ups for complications, patient satisfaction.</div>"
-            s_html += f"<div class='story'>Example ask: 'Would you be open to starting with your next 10 eligible patients and reviewing outcomes in 4 weeks?'</div>"
-            s_html += f"<div><strong>CTA (Impact):</strong> Agree on success criteria and a 2-week check-in date; offer send-one-slide plan.</div>"
-
-        elif "post" in step_key or "analy" in step_key or "post-call" in step_key:
-            s_html += f"<div class='step-title'>Post-Call Analysis</div>"
-            s_html += f"<div>• Record insights: objections, commitments, staff readiness.</div>"
-            s_html += f"<div>• CRM update: Add outcomes, next steps, proposed pilot metrics.</div>"
-            s_html += f"<div class='story'>Example: 'We'll email a 1-page summary with the agreed metric and schedule a 2-week check-in.'</div>"
-            s_html += f"<div><strong>CTA (Post-Call):</strong> Schedule follow-up and attach leave-behind material to the calendar invite.</div>"
-        else:
-            s_html += f"<div class='step-title'>{escape(step)}</div>"
-            s_html += f"<div class='story'>Practical example for {escape(persona)} ({escape(tone_choice)}).</div>"
-
+        s_html = f"<div class='step-title'>{escape(step)}</div>"
+        snippets = retrieve_snippets(step, top_n=3)
+        for snip in snippets:
+            s_html += f"<div class='story'>• {escape(snip)}</div>"
+        for obj in brand_data.get(product_key, {}).get("objections", {}):
+            s_html += f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response(product_key, obj, persona))}</div>"
+        s_html += f"<div><strong>CTA ({escape(step)}):</strong> Define clear next step for HCP.</div>"
         parts.append(s_html)
 
-    # Add generic objection handling block (persona tailored)
-    parts.append("<div class='step-title'>Objection Handling — Quick Wins</div>")
-    common_objs = list(brand_data.get(product_key, {}).get("objections", {}).keys())[:3]
-    for obj in common_objs:
-        parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response(product_key, obj, persona))}</div>")
-
-    # Final CTA summary
-    final_cta = (
+    parts.append(
         "<div class='step-title'>Action Plan (Next Steps)</div>"
         "<ol class='assist-list'>"
-        "<li>Send 1-slide evidence summary by email (today).</li>"
-        "<li>Agree pilot: start with 8–10 eligible patients, measure uptake in 4 weeks.</li>"
-        "<li>Schedule a short follow-up (2-week check-in) and propose measurement metric.</li>"
+        "<li>Send concise slide/evidence summary</li>"
+        "<li>Agree pilot with defined metric</li>"
+        "<li>Schedule follow-up & review outcomes</li>"
         "</ol>"
-        "<div><strong>Ask the HCP now:</strong> 'If I send a concise slide and the nurse checklist, can we start the pilot next week?'</div>"
     )
-    parts.append(final_cta)
-
     return "\n".join(parts)
 
-# -------------------------
-# Chat: add_ai_response and renderers
-# -------------------------
 def add_ai_response_from_prompt(prompt_text):
-    # Build persona, tone, specialty, objective from session or sidebar
     persona_choice = st.session_state.get("hcp_persona", "")
     tone_choice = st.session_state.get("tone", "executive")
     specialty = st.session_state.get("specialty", "")
@@ -492,198 +413,37 @@ def add_ai_response_from_prompt(prompt_text):
     ai_html = generate_sales_flow(prompt_text, persona_choice, tone_choice, specialty=specialty, objective=objective)
     st.session_state.chat_history.append({"role":"assistant","content":ai_html,"citation":""})
 
-HOLO_AVATAR = AI_AVATAR
-
-def render_ai_message(message_html):
-    st.markdown(
-        f"""
-        <div class="ai-message">
-            <img src="{HOLO_AVATAR}" class="ai-avatar" />
-            <div class="ai-bubble">{message_html}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def render_user_message(msg):
-    st.markdown(f'<div class="user-bubble">{escape(msg)}</div>', unsafe_allow_html=True)
+# -------------------------
+# Sidebar
+# -------------------------
+with st.sidebar:
+    st.title("🧠 AI Sales Assistant")
+    st.selectbox("Select Brand", list(brand_data.keys()), key="selected_brand")
+    st.selectbox("Select HCP Persona", get_persona_options(st.session_state.selected_brand), key="hcp_persona")
+    st.selectbox("Select Tone", ["executive","coaching","persuasive","clinical"], key="tone")
+    st.text_input("Specialty / Focus", key="specialty")
+    st.text_input("Objective", key="objective")
+    st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, key="temperature")
+    st.radio("Search Mode", ["deep","quick"], key="search_mode")
 
 # -------------------------
-# Sidebar: controls & selections
+# Main Input
 # -------------------------
-with st.sidebar.expander("Filters & Options", expanded=True):
-    brand_options = list(brand_data.keys())
-    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
-    st.session_state.selected_brand = sel_brand
-    bconf = brand_data[sel_brand]
-
-    segment = st.selectbox("Segment", bconf["segments"])
-    persona_options = get_persona_options(sel_brand)
-    persona_sel = st.selectbox("HCP Persona", persona_options, index=persona_options.index(st.session_state.hcp_persona) if st.session_state.hcp_persona in persona_options else 0)
-    st.session_state.hcp_persona = persona_sel
-
-    # HCP personality (assertive, masked, friendly, details-oriented, skeptic)
-    hcp_personality = st.selectbox("HCP Personality", ["Assertive", "Masked", "Friendly", "Details-oriented", "Skeptic"], index=0)
-    st.session_state.hcp_personality = hcp_personality
-
-    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
-    specialty = st.selectbox("Specialty", bconf["specialties"])
-    st.session_state.specialty = specialty
-
-    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
-    st.session_state.objective = objective
-
-    st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05)
-    st.session_state.search_mode = st.selectbox("Search mode", ["deep", "shallow"])
-    st.session_state.language = st.radio("Language", ["English", "Arabic"])
-    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=["executive","coaching","persuasive","clinical"].index(st.session_state.tone) if st.session_state.tone in ["executive","coaching","persuasive","clinical"] else 0)
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
-        st.experimental_rerun()
-
-with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
-    external_urls = st.text_area("Enter URLs (one per line)").splitlines()
-
-with st.sidebar.expander("📄 Export Options", expanded=False):
-    export_format = st.radio("Choose Export Format", ["TXT", "DOCX"], horizontal=True)
+st.text_area("Type your sales prompt here:", value=st.session_state.main_input, key="main_input", height=120)
+if st.button("Generate AI Sales Call"):
+    if st.session_state.main_input.strip():
+        add_ai_response_from_prompt(st.session_state.main_input.strip())
 
 # -------------------------
-# Title box
+# Display chat
 # -------------------------
-st.markdown(
-    f"""
-    <div class="title-box">
-        <img src="{GSK_LOGO_RAW}" class="left-logo">
-        <h2>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h2>
-        <img src="{AI_LOGO_RAW}" class="right-logo">
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+for msg in st.session_state.chat_history:
+    if msg["role"] == "user":
+        st.markdown(f"<div class='user-bubble'>{escape(msg['content'])}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(
+            f"<div class='ai-message'><img class='ai-avatar' src='{AI_AVATAR}'/><div class='ai-bubble'>{msg['content']}</div></div>",
+            unsafe_allow_html=True
+        )
 
-# -------------------------
-# Load and summarize references (brand-specific)
-# -------------------------
-bconf = brand_data[st.session_state.selected_brand]
-refs_folder = bconf.get("references_path", "")
-sales_folder = bconf.get("sales_path", "")
-
-combined_refs = ""
-if os.path.exists(refs_folder):
-    for f in sorted(os.listdir(refs_folder)):
-        if f.lower().endswith((".pdf", ".txt")):
-            combined_refs += read_file_text(os.path.join(refs_folder, f)) + "\n"
-
-combined_sales = ""
-if os.path.exists(sales_folder):
-    for f in sorted(os.listdir(sales_folder)):
-        if f.lower().endswith((".pdf", ".txt")):
-            combined_sales += read_file_text(os.path.join(sales_folder, f)) + "\n"
-
-if not st.session_state.medical_summary and combined_refs.strip():
-    st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
-if not st.session_state.sales_summary and combined_sales.strip():
-    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
-
-with st.expander("📚 Medical References Summary", expanded=False):
-    st.markdown(st.session_state.medical_summary or "No medical summary available.")
-with st.expander("💼 Sales Module Summary", expanded=False):
-    st.markdown(st.session_state.sales_summary or "No sales summary available.")
-
-# -------------------------
-# PDF upload (brand-specific)
-# -------------------------
-uploaded_file = st.file_uploader("Upload PDF for summary (brand-specific)", type=["pdf"])
-if uploaded_file is not None and PdfReader:
-    try:
-        reader = PdfReader(uploaded_file)
-        pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
-        st.session_state.uploaded_pdf_text = pdf_text
-        st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
-        st.success("PDF summarized successfully!")
-    except Exception:
-        st.error("Failed to read the uploaded PDF.")
-
-if st.session_state.pdf_summary:
-    with st.expander("📄 Uploaded PDF Summary", expanded=False):
-        st.markdown(st.session_state.pdf_summary)
-
-# -------------------------
-# Build corpus for local search (brand-specific folders)
-# -------------------------
-corpus_folders = [refs_folder, sales_folder]
-chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
-
-# -------------------------
-# Prompt suggestions and input form
-# -------------------------
-chat_container = st.container()
-
-with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
-    suggs = [
-        f"Generate a {brand_data[st.session_state.selected_brand]['display']} sales call for {st.session_state.hcp_persona} in {st.session_state.tone} tone",
-        f"How to handle an efficacy objection for {brand_data[st.session_state.selected_brand]['display']}?",
-        "Short 30s script for the next call",
-        "Pilot offer for 10 patients — example script"
-    ]
-    sugg_cols = st.columns(2)
-    for i, s in enumerate(suggs):
-        col = sugg_cols[i % 2]
-        if col.button(s, key=f"sugg_{i}"):
-            st.session_state.main_input = s
-
-with st.form("main_input_form", clear_on_submit=True):
-    user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
-    submitted = st.form_submit_button("Send")
-    if submitted and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        add_ai_response_from_prompt(user_input.strip())
-        st.session_state.main_input = ""
-
-# -------------------------
-# Display chat history (AI avatar on left)
-# -------------------------
-with chat_container:
-    for idx, entry in enumerate(st.session_state.chat_history):
-        if entry.get("role") == "user":
-            render_user_message(entry.get("content",""))
-        else:
-            render_ai_message(entry.get("content",""))
-            if entry.get("citation"):
-                st.markdown(f'<div class="citation-box">{escape(entry.get("citation"))}</div>', unsafe_allow_html=True)
-
-            # audio (plain text)
-            plain = re.sub(r"<[^>]+>", "", entry.get("content",""))[:1500]
-            audio_b64 = generate_audio(plain)
-            if audio_b64:
-                st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
-
-            # feedback
-            fb_cols = st.columns(3)
-            key_content = entry.get("content","")
-            if key_content not in st.session_state.feedback:
-                if fb_cols[0].button("👍 Like", key=f"like_{idx}"):
-                    st.session_state.feedback[key_content] = "like"
-                if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"):
-                    st.session_state.feedback[key_content] = "dislike"
-                    choices = ["Unclear", "Too long", "Not relevant"]
-                    choice_cols = st.columns(len(choices))
-                    for i, ch in enumerate(choices):
-                        if choice_cols[i].button(ch, key=f"dislike_choice_{idx}_{i}"):
-                            # quick follow-up refine
-                            st.session_state.chat_history.append({"role":"assistant","content":f"<div class='step-title'>Refinement</div><div>Refining based on feedback: {escape(ch)}</div>","citation":""})
-                if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
-                    st.session_state.feedback[key_content] = "need_more"
-                    st.session_state.chat_history.append({"role":"assistant","content":"<div class='step-title'>Expand</div><div>Expanding the previous answer with additional detail.</div>","citation":""})
-
-# -------------------------
-# Footer disclaimer
-# -------------------------
-st.markdown(
-    """
-    <div class="fixed-disclaimer">
-    💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources.
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("<div class='fixed-disclaimer'>© AI Sales Assistant — Internal use only. Not for external distribution.</div>", unsafe_allow_html=True)
