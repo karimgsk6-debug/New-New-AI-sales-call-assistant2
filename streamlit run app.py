@@ -52,7 +52,7 @@ AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # Futuristic hologram avatar URL (replace with your asset if desired)
-AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.png"
+AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
 # -------------------------
 # Session defaults
