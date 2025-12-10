@@ -1,4 +1,14 @@
-# app_final_merged.py - Fully merged AI Sales Call Assistant (Hologram avatar, personas, tones, objections)
+# app_final_merged.py - Fully merged AI Sales Call Assistant
+# Features:
+# - Multi-brand support: Shingrix, Jemperli, Trelegy
+# - Persona + HCP personality + EXTRA_PERSONAS
+# - Tone variants (executive, coaching, persuasive, clinical)
+# - Persona-aware, explanatory storytelling call flows with CTAs
+# - Local RAG from brand references + PDF upload
+# - Audio: ElevenLabs -> gTTS fallback
+# - Futuristic hologram avatar on left of every AI message
+# - Feedback buttons, prompt suggestions, export options
+
 import streamlit as st
 import os
 import re
@@ -8,12 +18,7 @@ import io
 from datetime import datetime
 from html import escape
 
-# Soft imports (optional)
-try:
-    from groq import Groq
-except Exception:
-    Groq = None
-
+# Soft imports
 try:
     from PyPDF2 import PdfReader
 except Exception:
@@ -51,7 +56,7 @@ GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
-# Futuristic hologram avatar URL (replace with your asset if desired)
+# Futuristic hologram avatar URL (replace if you have another)
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
 # -------------------------
@@ -62,7 +67,7 @@ def _init_session():
         "chat_history": [],
         "main_input": "",
         "selected_brand": "shingrix",
-        "temperature": 0.95,
+        "temperature": 0.35,
         "search_mode": "deep",
         "medical_summary": "",
         "sales_summary": "",
@@ -71,7 +76,7 @@ def _init_session():
         "feedback": {},
         "dislike_state": None,
         "language": "English",
-        "hcp_persona": "Friendly",
+        "hcp_persona": "Uncommitted Vaccinator",
         "hcp_personality": "Friendly",
         "tone": "executive",
     }
@@ -140,18 +145,6 @@ def set_dynamic_background(image_path):
 set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
-# GROQ client loader
-# -------------------------
-def load_groq_client():
-    api_key = os.getenv("GROQ_API_KEY", "") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
-    if not api_key or Groq is None:
-        return None
-    try:
-        return Groq(api_key=api_key)
-    except Exception:
-        return None
-
-# -------------------------
 # Brand data
 # -------------------------
 brand_data = {
@@ -163,7 +156,7 @@ brand_data = {
         "specialties": ["GP", "Dermatologist", "Cardiology", "Endocrinology", "Immunology", "Internal Medicine", "Rheumatology"],
         "references_path": ".devcontainer/references/shingrix/",
         "sales_path": ".devcontainer/SalesModule/shingrix/",
-        "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Analyze"],
+        "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Post-Call Analysis"],
         "objections": {
             "efficacy": "Focus on durable protection and age-agnostic efficacy evidence.",
             "safety": "Acknowledge common AEs, then contrast with risk of complications from shingles.",
@@ -202,15 +195,16 @@ brand_data = {
     }
 }
 
-# Extended persona set
+# -------------------------
+# Extended personas
+# -------------------------
 EXTRA_PERSONAS = ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
 def get_persona_options(brand_key):
     base = brand_data.get(brand_key, {}).get("personas", [])
-    combined = base + [p for p in EXTRA_PERSONAS if p not in base]
-    return combined
+    return base + [p for p in EXTRA_PERSONAS if p not in base]
 
 # -------------------------
-# Helpers: file reading, corpus building, local search, summarise
+# Helpers: file read, corpus, search
 # -------------------------
 def read_file_text(path):
     if not os.path.exists(path):
@@ -263,9 +257,9 @@ def local_search_snippets(query, chunks, metas, top_n=3):
         except Exception:
             pass
     out = []
-    q = query.lower()
+    q = (query or "").lower()
     for i, c in enumerate(chunks):
-        if q in c.lower():
+        if q and q in c.lower():
             out.append({"score": 1.0, "text": c, "meta": metas[i]})
             if len(out) >= top_n:
                 break
@@ -278,25 +272,15 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- " + s for s in selected])
 
+# -------------------------
+# Summarizer (local fallback)
+# -------------------------
 def model_summarize(text, bullets=6):
-    if not text:
-        return ""
-    client = load_groq_client()
-    if client:
-        try:
-            prompt = f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                                                 messages=[{"role":"user","content":prompt}],
-                                                 temperature=0.2)
-            content = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
-            return content
-        except Exception:
-            return simple_summary(text, bullets)
-    else:
-        return simple_summary(text, bullets)
+    # Using local simple summarizer; optional Groq could be used here if configured
+    return simple_summary(text, bullets)
 
 # -------------------------
-# Audio generation (ElevenLabs > gTTS fallback)
+# Audio generation
 # -------------------------
 def generate_audio(text):
     if not text:
@@ -324,239 +308,193 @@ def generate_audio(text):
     return ""
 
 # -------------------------
-# Persona profiles
+# Persona profile & objection helpers
 # -------------------------
 def persona_profile(persona_name):
-    p = persona_name.lower()
-    profile = {"priority":"", "style":"", "quick_win":""}
+    p = (persona_name or "").lower()
+    profile = {"priority":"clinician-focused", "style":"clear and helpful", "quick_win":"short actionable commitment"}
     if "evidence" in p:
-        profile["priority"] = "data & outcomes"
-        profile["style"] = "precise, cite trial outcomes and comparative results"
-        profile["quick_win"] = "share 1-slide summary of key outcomes"
-        return profile
-    if "time" in p:
-        profile["priority"] = "speed & simplicity"
-        profile["style"] = "concise, action-oriented, minimal detail"
-        profile["quick_win"] = "provide nurse-ready checklist or script"
-        return profile
-    if "skeptical" in p:
-        profile["priority"] = "safety & credibility"
-        profile["style"] = "address objections first, use trusted sources"
-        profile["quick_win"] = "provide safety data and monitoring plan"
-        return profile
-    if "early" in p:
-        profile["priority"] = "innovation & differentiation"
-        profile["style"] = "enthusiastic, highlight first-mover benefits"
-        profile["quick_win"] = "offer pilot/benchmark opportunity"
-        return profile
-    if "uncommitted" in p:
-        profile["priority"] = "ease & persuasion"
-        profile["style"] = "relatable, low-friction"
-        profile["quick_win"] = "leave-behind patient education"
-        return profile
-    if "reluctant" in p:
-        profile["priority"] = "efficiency & risk reduction"
-        profile["style"] = "evidence-lite + workflow support"
-        profile["quick_win"] = "nurse script and time-saving tip"
-        return profile
-    if "patient" in p:
-        profile["priority"] = "patient experience"
-        profile["style"] = "storytelling and adherence focus"
-        profile["quick_win"] = "patient leaflet and story-based hook"
-        return profile
-    if "committed" in p:
-        profile["priority"] = "scale & advocacy"
-        profile["style"] = "build on success with scaling ideas"
-        profile["quick_win"] = "co-create local guideline prompts"
-        return profile
-    profile["priority"] = "clinician-focused"
-    profile["style"] = "clear and helpful"
-    profile["quick_win"] = "short actionable commitment"
+        profile.update({"priority":"data & outcomes", "style":"precise, cite trial outcomes and comparative results", "quick_win":"1-slide summary of key outcomes"})
+    elif "time" in p:
+        profile.update({"priority":"speed & simplicity", "style":"concise, action-oriented, minimal detail", "quick_win":"nurse-ready checklist"})
+    elif "skeptical" in p:
+        profile.update({"priority":"safety & credibility", "style":"address objections first, use trusted sources", "quick_win":"safety data & monitoring plan"})
+    elif "early" in p:
+        profile.update({"priority":"innovation & differentiation", "style":"enthusiastic, highlight first-mover benefits", "quick_win":"pilot/benchmark opportunity"})
+    elif "uncommitted" in p:
+        profile.update({"priority":"ease & persuasion", "style":"relatable, low-friction", "quick_win":"leave-behind patient education"})
+    elif "reluctant" in p:
+        profile.update({"priority":"efficiency & risk reduction", "style":"evidence-lite + workflow support", "quick_win":"nurse script and time-saving tip"})
+    elif "patient" in p:
+        profile.update({"priority":"patient experience", "style":"storytelling and adherence focus", "quick_win":"patient leaflet and story-based hook"})
+    elif "committed" in p:
+        profile.update({"priority":"scale & advocacy", "style":"build on success with scaling ideas", "quick_win":"co-create local guideline prompts"})
     return profile
 
-# -------------------------
-# Tone helper
-# -------------------------
-def tone_prefix(t):
-    t = (t or "").lower()
-    if t == "executive":
-        return "(Executive)"
-    if t == "coaching":
-        return "(Coaching)"
-    if t == "persuasive":
-        return "(Persuasive)"
-    return "(Clinical)"
-
-# -------------------------
-# Story + step builder
-# -------------------------
-def make_story_for_step(step, brand_key, persona_name, tone, snippet=None):
-    safe_snip = escape(snippet) if snippet else ""
-    brand = brand_data.get(brand_key, {}).get("display", brand_key)
-    prof = persona_profile(persona_name)
-    t_pref = tone_prefix(tone)
-
-    if step.lower().startswith("prepare"):
-        return (
-            f"<div class='step-title'>Prepare {t_pref}</div>"
-            f"<div>Hook: Lead with one sharp insight relevant to this clinic—{prof['priority']}.</div>"
-            f"<div class='story'>Example: \"Doctor, I reviewed your clinic mix — there's an easy way to reach more of your 60+ patients without adding admin time.\"</div>"
-            f"<div>Micro-action: Offer a one-line opener the rep can use now: \"Can I share a 30s change that helps your at-risk patients?\"</div>"
-        )
-
-    if step.lower().startswith("engage"):
-        sample = "How are you handling eligible patients today?"
-        if tone == "executive":
-            sample = "What's the single highest-leverage change for your patients this quarter?"
-        if tone == "coaching":
-            sample = "Walk me through how you'd introduce this option in a 60s visit."
-        if tone == "persuasive":
-            sample = "A simple phrasing that lifted uptake in similar clinics is: 'This reduces your patients' risk of painful complications.' Want the line?"
-        return (
-            f"<div class='step-title'>Engage {t_pref}</div>"
-            f"<div>Hook: Open with focused discovery tied to the persona ({prof['style']}).</div>"
-            f"<div class='story'>Example: \"{sample}\"</div>"
-            f"<div>Micro-action: Ask for a commitment to try a quick workflow change with one patient cohort.</div>"
-        )
-
-    if "create" in step.lower() or "opportun" in step.lower():
-        action = "offer a nurse-ready checklist"
-        if tone == "executive":
-            action = "suggest a 4-week pilot with predefined KPIs"
-        if tone == "coaching":
-            action = "offer a role-play to prepare the team"
-        return (
-            f"<div class='step-title'>Create Opportunities {t_pref}</div>"
-            f"<div>Hook: Convert interest into a concrete next step that fits the persona's quick wins ({prof['quick_win']}).</div>"
-            f"<div class='story'>Example action: \"Let's pilot with 8 eligible patients and review results in 4 weeks.\"</div>"
-            f"<div>Micro-action: Agree on the single metric you'll measure.</div>"
-        )
-
-    if step.lower().startswith("influence"):
-        pitch = f"A patient 72yo avoided complications after receiving {brand}."
-        if tone == "clinical":
-            pitch = "Key trial outcomes show durable protection in the target group — highlight the most relevant endpoint."
-        return (
-            f"<div class='step-title'>Influence {t_pref}</div>"
-            f"<div>Hook: Use one tight patient vignette + one fact the persona values.</div>"
-            f"<div class='story'>Example: \"{pitch}\"</div>"
-            f"<div>Micro-action: Ask the HCP which of their patients is most like the vignette.</div>"
-        )
-
-    if "impact" in step.lower() or "gso" in step.lower():
-        offer = "Propose a short pilot and agree success metrics."
-        if tone == "persuasive":
-            offer = "Secure an immediate opt-in by emphasizing quick wins and low effort."
-        return (
-            f"<div class='step-title'>Impact GSO {t_pref}</div>"
-            f"<div>Hook: Frame the ask by clinic-level benefit (throughput, fewer follow-ups for complications).</div>"
-            f"<div class='story'>Example: \"Would you be open to starting with your next 10 eligible patients and reviewing outcomes?\"</div>"
-            f"<div>Micro-action: Offer to send a single-slide plan that makes it effortless to say yes.</div>"
-        )
-
-    if step.lower().startswith("analy") or step.lower().startswith("post"):
-        return (
-            f"<div class='step-title'>Analyze {t_pref}</div>"
-            f"<div>Hook: Reinforce partnership — summarize outcomes and give a clear next meeting request.</div>"
-            f"<div class='story'>Example: \"I'll email a 1-page summary with the agreed metric and propose a 2-week check-in.\"</div>"
-            f"<div>Micro-action: Schedule the follow-up before leaving the clinic.</div>"
-        )
-
-    return f"<div class='step-title'>{escape(step)}</div><div class='story'>Practical, persona-aware example for {escape(persona_name)} ({escape(tone)}).</div>"
-
-# -------------------------
-# Objection handling per product & persona
-# -------------------------
 def objection_response(product_key, objection_key, persona):
     product = brand_data.get(product_key, {})
     base = product.get("objections", {})
     reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
     prof = persona_profile(persona)
-
-    if "evidence" in persona.lower():
+    if "evidence" in (persona or "").lower():
         return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer to share a 1-page evidence summary."
-    if "time" in persona.lower():
+    if "time" in (persona or "").lower():
         return f"Answer (Time-pressured): {reply} Then offer a single-sentence script and a nurse checklist to make adoption painless."
-    if "skeptical" in persona.lower():
+    if "skeptical" in (persona or "").lower():
         return f"Answer (Skeptical): {reply} Start by acknowledging, then show safety data and a monitoring plan; propose a conservative pilot."
-    if "early" in persona.lower():
+    if "early" in (persona or "").lower():
         return f"Answer (Early-adopter): {reply} Highlight differentiation and offer to co-design a small pilot with outcome monitoring."
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # -------------------------
-# Sales flow generation
+# NEW: Enhanced generate_sales_flow (no external LLM dependency)
+# Produces long, structured, persona-aware HTML response with CTAs
 # -------------------------
-def generate_sales_flow(prompt: str, persona_name: str, tone: str):
+def generate_sales_flow(prompt: str, persona_name: str, tone: str, specialty: str = None, objective: str = None):
     p = (prompt or "").lower()
+    persona = persona_name or st.session_state.hcp_persona
+    tone_choice = (tone or st.session_state.tone).lower()
+    specialty = specialty or ""
+    objective = objective or ""
+    prof = persona_profile(persona)
+
+    # local snippets (small RAG)
     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=6) if chunks else []
+    snippet_texts = [s["text"] for s in snippets]
 
-    # Shingrix flow
+    # Helper: produce a short evidence block if snippets available
+    def evidence_block():
+        if not snippet_texts:
+            return ""
+        out = "<div><strong>Relevant snippets from your references:</strong></div>"
+        for s in snippet_texts[:3]:
+            out += f"<div class='story'>• {escape(s[:300].strip())}...</div>"
+        return out
+
+    # Determine product/flow
     if "shingrix" in p or "hzv" in p or "herpes zoster" in p:
-        flow = brand_data["shingrix"]["call_flow"]
-        parts = [f"<div><strong>Context:</strong> Shingrix — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
-        for i, step in enumerate(flow):
-            sn = snippets[i]["text"] if i < len(snippets) else ""
-            parts.append(make_story_for_step(step, "shingrix", persona_name, tone, snippet=sn))
-        parts.append("<div class='step-title'>Objection Handling</div>")
-        for obj in ["efficacy", "safety", "cost"]:
-            parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('shingrix', obj, persona_name))}</div>")
-        return "\n".join(parts)
+        product_key = "shingrix"
+        steps = brand_data[product_key]["call_flow"]
+    elif "jemperli" in p or "dmmr" in p or "msi-h" in p:
+        product_key = "jemperli"
+        steps = brand_data[product_key]["call_flow"]
+    elif "trelegy" in p or "copd" in p:
+        product_key = "trelegy"
+        steps = brand_data[product_key]["call_flow"]
+    else:
+        # fallback to selected brand
+        product_key = st.session_state.selected_brand
+        steps = brand_data.get(product_key, {}).get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])
 
-    # Jemperli flow
-    if "jemperli" in p or "dmmr" in p or "msi-h" in p:
-        flow = brand_data["jemperli"]["call_flow"]
-        parts = [f"<div><strong>Context:</strong> Jemperli — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
-        for i, step in enumerate(flow):
-            sn = snippets[i]["text"] if i < len(snippets) else ""
-            parts.append(make_story_for_step(step, "jemperli", persona_name, tone, snippet=sn))
-        parts.append("<div class='step-title'>Objection Handling</div>")
-        for obj in ["efficacy", "safety", "access"]:
-            parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('jemperli', obj, persona_name))}</div>")
-        return "\n".join(parts)
+    # Build HTML response
+    parts = []
+    header = f"<div class='step-title'>Tailored sales call plan — {escape(brand_data.get(product_key, {}).get('display', product_key))}</div>"
+    header += f"<div>Target: <strong>{escape(persona)}</strong>"
+    if specialty:
+        header += f" • Specialty: <strong>{escape(specialty)}</strong>"
+    if objective:
+        header += f" • Objective: <strong>{escape(objective)}</strong>"
+    header += f"</div>"
+    header += f"<div class='story'>Insight: Focus on <strong>{escape(prof['priority'])}</strong> — communicate in a {escape(prof['style'])} style.</div>"
+    parts.append(header)
 
-    # Trelegy flow
-    if "trelegy" in p or "copd" in p:
-        flow = brand_data["trelegy"]["call_flow"]
-        parts = [f"<div><strong>Context:</strong> Trelegy — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
-        for i, step in enumerate(flow):
-            sn = snippets[i]["text"] if i < len(snippets) else ""
-            parts.append(make_story_for_step(step, "trelegy", persona_name, tone, snippet=sn))
-        parts.append("<div class='step-title'>Objection Handling</div>")
-        for obj in ["device", "coverage", "effectiveness"]:
-            parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response('trelegy', obj, persona_name))}</div>")
-        return "\n".join(parts)
+    # Detailed step-by-step
+    for step in steps:
+        s_html = ""
+        step_key = step.lower()
+        if "prepare" in step_key:
+            s_html += f"<div class='step-title'>Prepare</div>"
+            s_html += f"<div>• Identify the persona: <strong>{escape(persona)}</strong>"
+            if specialty:
+                s_html += f", specialty: <strong>{escape(specialty)}</strong>"
+            s_html += f"</div>"
+            s_html += f"<div>• Objectives: <strong>{escape(objective or 'Awareness')}</strong></div>"
+            s_html += f"<div>• Patient types: <strong>Adults 50+</strong> (adjust per specialty)</div>"
+            s_html += f"<div class='story'>Key insight: Shingles risk increases with age; prevention reduces severe pain & complications.</div>"
+            s_html += f"<div><strong>Prep checklist:</strong><ul class='assist-list'><li>One-sentence clinic insight</li><li>Top 2 trial endpoints to cite</li><li>One-line pilot proposal</li></ul></div>"
+            s_html += evidence_block()
+            s_html += f"<div><strong>CTA (Prep):</strong> Email a single-slide summary and request 5 minutes to review it at start of call.</div>"
 
-    # Default generic flow
-    default_steps = ["Prepare", "Engage", "Create Opportunities", "Influence", "Close"]
-    parts = [f"<div><strong>Context:</strong> General sales call — tailored to {escape(persona_name)} ({escape(tone)})</div>"]
-    for i, step in enumerate(default_steps):
-        sn = snippets[i]["text"] if i < len(snippets) else ""
-        parts.append(make_story_for_step(step, st.session_state.selected_brand, persona_name, tone, snippet=sn))
-    parts.append("<div class='step-title'>Objection Handling</div>")
-    parts.append(f"<div class='objection'><strong>Common —</strong> Acknowledge concern, present one concise evidence point, propose a low-effort pilot.</div>")
+        elif "engage" in step_key:
+            open_line = f'Hello, Dr. [LastName]. I am [YourName] from GSK. Quick question: how are you currently approaching shingles prevention for patients 50+?'
+            if tone_choice == "executive":
+                open_line = 'Hello, Dr. [LastName]. Quick question: what is the highest-leverage change we could make this quarter to protect your 50+ patients?'
+            if tone_choice == "coaching":
+                open_line = 'Hi Dr. [LastName], can you walk me through how you typically introduce shingles prevention in a 60s consult?'
+            s_html += f"<div class='step-title'>Engage</div>"
+            s_html += f"<div>• Start conversation (example): \"{escape(open_line)}\"</div>"
+            s_html += f"<div>• Capture attention: \"Did you know most adults 50+ are at risk and shingles can cause long-term neuralgia?\"</div>"
+            s_html += f"<div class='story'>Goal: Make the issue locally relevant; tie to the clinician's caseload or clinic KPI.</div>"
+            s_html += f"<div><strong>CTA (Engage):</strong> Get agreement to explore one eligible patient cohort (e.g., next 10 patients 50+).</div>"
+
+        elif "create" in step_key or "opportun" in step_key:
+            s_html += f"<div class='step-title'>Create Opportunities</div>"
+            s_html += f"<div>• Identify gaps: Ask direct diagnostic questions: 'Are there barriers in delivery, documentation, or patient acceptance?'</div>"
+            s_html += f"<div>• Solution framing: Present practical solutions — nurse checklist, standing order, dedicated clinic slot.</div>"
+            s_html += f"<div class='story'>Example: \"Let's pilot with 8 eligible patients using a nurse checklist and measure uptake in 4 weeks.\"</div>"
+            s_html += f"<div><strong>CTA (Create):</strong> Secure agreement for a small pilot and define one metric (e.g., vaccination rate change over 4 weeks).</div>"
+
+        elif "influence" in step_key:
+            s_html += f"<div class='step-title'>Influence</div>"
+            s_html += f"<div>• Present evidence: cite trial outcomes, real-world benefit, and safety profile.</div>"
+            s_html += f"<div class='story'>Example pitch: 'In trial X, this vaccine reduced shingles incidence by Y% at Z months — it cuts PHN risk substantially.'</div>"
+            # persona-specific objection handling sample
+            s_html += f"<div><strong>Handle objections:</strong> {escape(objection_response(product_key, 'efficacy', persona))}</div>"
+            s_html += f"<div><strong>CTA (Influence):</strong> Ask: 'Which of your patients is most like this vignette — can we try with one today?'</div>"
+
+        elif "impact" in step_key or "gso" in step_key or "impact gso" in step_key:
+            s_html += f"<div class='step-title'>Impact GSO</div>"
+            s_html += f"<div>• Link to clinic-level outcomes: throughput, fewer follow-ups for complications, patient satisfaction.</div>"
+            s_html += f"<div class='story'>Example ask: 'Would you be open to starting with your next 10 eligible patients and reviewing outcomes in 4 weeks?'</div>"
+            s_html += f"<div><strong>CTA (Impact):</strong> Agree on success criteria and a 2-week check-in date; offer send-one-slide plan.</div>"
+
+        elif "post" in step_key or "analy" in step_key or "post-call" in step_key:
+            s_html += f"<div class='step-title'>Post-Call Analysis</div>"
+            s_html += f"<div>• Record insights: objections, commitments, staff readiness.</div>"
+            s_html += f"<div>• CRM update: Add outcomes, next steps, proposed pilot metrics.</div>"
+            s_html += f"<div class='story'>Example: 'We'll email a 1-page summary with the agreed metric and schedule a 2-week check-in.'</div>"
+            s_html += f"<div><strong>CTA (Post-Call):</strong> Schedule follow-up and attach leave-behind material to the calendar invite.</div>"
+        else:
+            s_html += f"<div class='step-title'>{escape(step)}</div>"
+            s_html += f"<div class='story'>Practical example for {escape(persona)} ({escape(tone_choice)}).</div>"
+
+        parts.append(s_html)
+
+    # Add generic objection handling block (persona tailored)
+    parts.append("<div class='step-title'>Objection Handling — Quick Wins</div>")
+    common_objs = list(brand_data.get(product_key, {}).get("objections", {}).keys())[:3]
+    for obj in common_objs:
+        parts.append(f"<div class='objection'><strong>{obj.title()} —</strong> {escape(objection_response(product_key, obj, persona))}</div>")
+
+    # Final CTA summary
+    final_cta = (
+        "<div class='step-title'>Action Plan (Next Steps)</div>"
+        "<ol class='assist-list'>"
+        "<li>Send 1-slide evidence summary by email (today).</li>"
+        "<li>Agree pilot: start with 8–10 eligible patients, measure uptake in 4 weeks.</li>"
+        "<li>Schedule a short follow-up (2-week check-in) and propose measurement metric.</li>"
+        "</ol>"
+        "<div><strong>Ask the HCP now:</strong> 'If I send a concise slide and the nurse checklist, can we start the pilot next week?'</div>"
+    )
+    parts.append(final_cta)
+
     return "\n".join(parts)
 
 # -------------------------
-# AI response builder + chat history
+# Chat: add_ai_response and renderers
 # -------------------------
-def add_ai_response(prompt_text, follow_up=False, dislike_choice=None):
-    persona_choice = st.session_state.hcp_persona if st.session_state.get("hcp_persona") else persona
-    tone_choice = st.session_state.tone if st.session_state.get("tone") else tone
+def add_ai_response_from_prompt(prompt_text):
+    # Build persona, tone, specialty, objective from session or sidebar
+    persona_choice = st.session_state.get("hcp_persona", "")
+    tone_choice = st.session_state.get("tone", "executive")
+    specialty = st.session_state.get("specialty", "")
+    objective = st.session_state.get("objective", "Awareness")
+    ai_html = generate_sales_flow(prompt_text, persona_choice, tone_choice, specialty=specialty, objective=objective)
+    st.session_state.chat_history.append({"role":"assistant","content":ai_html,"citation":""})
 
-    header = f"<div class='step-title'>Acknowledge</div><div>Thanks — I'll give a concise, action-oriented call plan tailored to a {escape(persona_choice)} ({escape(tone_choice)} tone).</div>"
-    flow_html = generate_sales_flow(prompt_text, persona_choice, tone_choice)
-    confirm = "<div class='step-title'>Next step</div><div>If this fits, reply 'Yes' and I'll draft a 30s call script and one-page leave-behind you can use today.</div>"
-
-    ai_html = "\n".join([header, flow_html, confirm])
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_html, "citation": ""})
-
-# -------------------------
-# Avatar & message renderers
-# -------------------------
 HOLO_AVATAR = AI_AVATAR
 
 def render_ai_message(message_html):
-    """Render AI HTML content with avatar on the left."""
     st.markdown(
         f"""
         <div class="ai-message">
@@ -571,7 +509,7 @@ def render_user_message(msg):
     st.markdown(f'<div class="user-bubble">{escape(msg)}</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Sidebar filters & controls
+# Sidebar: controls & selections
 # -------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
     brand_options = list(brand_data.keys())
@@ -581,20 +519,24 @@ with st.sidebar.expander("Filters & Options", expanded=True):
 
     segment = st.selectbox("Segment", bconf["segments"])
     persona_options = get_persona_options(sel_brand)
-    persona_sel = st.selectbox("HCP Persona", persona_options, index=0)
+    persona_sel = st.selectbox("HCP Persona", persona_options, index=persona_options.index(st.session_state.hcp_persona) if st.session_state.hcp_persona in persona_options else 0)
     st.session_state.hcp_persona = persona_sel
 
     # HCP personality (assertive, masked, friendly, details-oriented, skeptic)
-    hcp_personality = st.selectbox("HCP Personality", ["Assertive", "Masked", "Friendly", "Details-oriented", "Skeptic"])
+    hcp_personality = st.selectbox("HCP Personality", ["Assertive", "Masked", "Friendly", "Details-oriented", "Skeptic"], index=0)
     st.session_state.hcp_personality = hcp_personality
 
     barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
     specialty = st.selectbox("Specialty", bconf["specialties"])
+    st.session_state.specialty = specialty
+
     objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
+    st.session_state.objective = objective
+
     st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05)
     st.session_state.search_mode = st.selectbox("Search mode", ["deep", "shallow"])
     st.session_state.language = st.radio("Language", ["English", "Arabic"])
-    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=0)
+    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=["executive","coaching","persuasive","clinical"].index(st.session_state.tone) if st.session_state.tone in ["executive","coaching","persuasive","clinical"] else 0)
     if st.button("🗑️ Clear Chat"):
         st.session_state.chat_history = []
         st.experimental_rerun()
@@ -612,7 +554,7 @@ st.markdown(
     f"""
     <div class="title-box">
         <img src="{GSK_LOGO_RAW}" class="left-logo">
-        <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
+        <h2>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h2>
         <img src="{AI_LOGO_RAW}" class="right-logo">
     </div>
     """,
@@ -620,8 +562,9 @@ st.markdown(
 )
 
 # -------------------------
-# Load references and summarize
+# Load and summarize references (brand-specific)
 # -------------------------
+bconf = brand_data[st.session_state.selected_brand]
 refs_folder = bconf.get("references_path", "")
 sales_folder = bconf.get("sales_path", "")
 
@@ -648,10 +591,10 @@ with st.expander("💼 Sales Module Summary", expanded=False):
     st.markdown(st.session_state.sales_summary or "No sales summary available.")
 
 # -------------------------
-# PDF upload (per brand)
+# PDF upload (brand-specific)
 # -------------------------
 uploaded_file = st.file_uploader("Upload PDF for summary (brand-specific)", type=["pdf"])
-if uploaded_file and PdfReader:
+if uploaded_file is not None and PdfReader:
     try:
         reader = PdfReader(uploaded_file)
         pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
@@ -666,20 +609,20 @@ if st.session_state.pdf_summary:
         st.markdown(st.session_state.pdf_summary)
 
 # -------------------------
-# Build corpus for selected brand (used for local_search_snippets)
+# Build corpus for local search (brand-specific folders)
 # -------------------------
 corpus_folders = [refs_folder, sales_folder]
 chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# Prompt suggestions & main input form
+# Prompt suggestions and input form
 # -------------------------
 chat_container = st.container()
 
 with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
     suggs = [
-        f"Generate a {bconf['display']} sales call for {st.session_state.hcp_persona} in {st.session_state.tone} tone",
-        f"How to handle an efficacy objection for {bconf['display']}?",
+        f"Generate a {brand_data[st.session_state.selected_brand]['display']} sales call for {st.session_state.hcp_persona} in {st.session_state.tone} tone",
+        f"How to handle an efficacy objection for {brand_data[st.session_state.selected_brand]['display']}?",
         "Short 30s script for the next call",
         "Pilot offer for 10 patients — example script"
     ]
@@ -693,32 +636,31 @@ with st.form("main_input_form", clear_on_submit=True):
     user_input = st.text_area("Ask something:", st.session_state.main_input, height=96)
     submitted = st.form_submit_button("Send")
     if submitted and user_input.strip():
-        st.session_state.chat_history.append({"role": "user", "content": user_input.strip()})
-        add_ai_response(user_input.strip())
+        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
+        add_ai_response_from_prompt(user_input.strip())
         st.session_state.main_input = ""
 
 # -------------------------
-# Display chat (with avatar for AI)
+# Display chat history (AI avatar on left)
 # -------------------------
 with chat_container:
     for idx, entry in enumerate(st.session_state.chat_history):
         if entry.get("role") == "user":
-            render_user_message(entry.get("content", ""))
+            render_user_message(entry.get("content",""))
         else:
-            # assistant content contains HTML fragments already
-            render_ai_message(entry.get("content", ""))
+            render_ai_message(entry.get("content",""))
             if entry.get("citation"):
                 st.markdown(f'<div class="citation-box">{escape(entry.get("citation"))}</div>', unsafe_allow_html=True)
 
-            # audio: strip HTML tags
-            plain = re.sub(r"<[^>]+>", "", entry.get("content", ""))[:1500]
+            # audio (plain text)
+            plain = re.sub(r"<[^>]+>", "", entry.get("content",""))[:1500]
             audio_b64 = generate_audio(plain)
             if audio_b64:
                 st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
 
-            # Feedback
+            # feedback
             fb_cols = st.columns(3)
-            key_content = entry.get("content", "")
+            key_content = entry.get("content","")
             if key_content not in st.session_state.feedback:
                 if fb_cols[0].button("👍 Like", key=f"like_{idx}"):
                     st.session_state.feedback[key_content] = "like"
@@ -728,10 +670,11 @@ with chat_container:
                     choice_cols = st.columns(len(choices))
                     for i, ch in enumerate(choices):
                         if choice_cols[i].button(ch, key=f"dislike_choice_{idx}_{i}"):
-                            add_ai_response("Follow-up based on user dislike", follow_up=True, dislike_choice=ch)
+                            # quick follow-up refine
+                            st.session_state.chat_history.append({"role":"assistant","content":f"<div class='step-title'>Refinement</div><div>Refining based on feedback: {escape(ch)}</div>","citation":""})
                 if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
                     st.session_state.feedback[key_content] = "need_more"
-                    add_ai_response("User requested more details; expand the previous answer.", follow_up=True)
+                    st.session_state.chat_history.append({"role":"assistant","content":"<div class='step-title'>Expand</div><div>Expanding the previous answer with additional detail.</div>","citation":""})
 
 # -------------------------
 # Footer disclaimer
