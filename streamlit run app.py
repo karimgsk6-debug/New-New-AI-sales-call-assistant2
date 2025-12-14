@@ -8,7 +8,7 @@
 # - File uploader + live indexing cache
 # - Safer secrets (no hard-coded API key)
 # - Medical References & Sales Module summaries moved to MAIN INTERFACE
-# - Fixed Streamlit session_state usage (no mixing value= with key=)
+# - Streamlit-safe input handling via st.form(clear_on_submit=True)
 # ------------------------------------------------------------------------------
 
 import streamlit as st
@@ -62,7 +62,7 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+AI_AVATAR_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
 # -------------------------
 # Initialize session_state safely
@@ -70,19 +70,14 @@ AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-
 def _init_session():
     defaults = {
         "chat_history": [],
-        "main_input": "",
         "selected_brand": "shingrix",
         "temperature": 0.8,
         "search_mode": "deep",
         "medical_summary": "",
         "sales_summary": "",
-        "uploaded_pdf_text": "",
-        "pdf_summary": "",
         "feedback": {},
-        "dislike_state": None,
         "language": "English",
         "hcp_persona": "Friendly",
-        "hcp_personality": "Friendly",
         "tone": "executive",
         "segment": "R",
         "rag_corpus": [],         # list of dicts: {text, filename, folder, page, chunk_id}
@@ -210,7 +205,7 @@ def chunk_text(text: str, max_chars: int = 900, overlap: int = 140) -> List[str]
     if not text:
         return []
     sents = re.split(r'(?<=[\.\?\!])\s+', text)
-    chunks = []
+    chunks: List[str] = []
     buf = ""
     for s in sents:
         if len(buf) + len(s) + 1 <= max_chars:
@@ -229,7 +224,7 @@ def chunk_text(text: str, max_chars: int = 900, overlap: int = 140) -> List[str]
     return [c for c in chunks if c.strip()]
 
 def read_pdf_chunks(path: str) -> List[Tuple[str,int]]:
-    out = []
+    out: List[Tuple[str,int]] = []
     if not PdfReader:
         return out
     try:
@@ -255,7 +250,7 @@ def read_txt_chunks(path: str) -> List[Tuple[str,int]]:
         return []
 
 def ingest_folder(folder: str) -> List[Dict[str, Any]]:
-    docs = []
+    docs: List[Dict[str,Any]] = []
     if not folder or not os.path.exists(folder):
         return docs
     for root, _, files in os.walk(folder):
@@ -533,7 +528,7 @@ with st.sidebar.expander("Options", expanded=True):
     segment = st.selectbox("Segment", bconf["segments"])
     st.session_state.segment = segment
 
-    persona_sel = st.selectbox("HCP Persona", bconf["personas"], index=min(0, len(bconf["personas"])-1))
+    persona_sel = st.selectbox("HCP Persona", bconf["personas"], index=0)
     st.session_state.hcp_persona = persona_sel
 
     st.session_state.tone = st.selectbox("Tone", ["executive","coaching","persuasive","clinical"], index=0)
@@ -642,95 +637,88 @@ with st.sidebar.expander("🔎 Indexed Sources"):
 st.markdown(f'<h2>💡 AI Sales Call Assistant — {bconf["display"]}</h2>', unsafe_allow_html=True)
 
 # Quick actions
-quick_cols = st.columns(3)
-with quick_cols[0]:
+qc1, qc2, qc3 = st.columns(3)
+with qc1:
     if st.button("✨ Generate Sales Call Flow"):
-        st.session_state["main_input"] = "Generate a full sales call flow"
-with quick_cols[1]:
+        st.session_state["preset_input"] = "Generate a full sales call flow"
+with qc2:
     if st.button("🎭 Role-play"):
-        st.session_state["main_input"] = "Role play for this product"
-with quick_cols[2]:
+        st.session_state["preset_input"] = "Role play for this product"
+with qc3:
     if st.button("🛡️ Handle Objection"):
-        st.session_state["main_input"] = "Objection: cost concerns from the HCP"
+        st.session_state["preset_input"] = "Objection: cost concerns from the HCP"
 
-# Ensure default exists and bind text_area only via session_state
-st.session_state.setdefault("main_input", "")
-user_input = st.text_area("Ask the AI assistant...", key="main_input", height=80)
+# Chat form (SAFE: clear_on_submit handles input reset)
+with st.form("chat_form", clear_on_submit=True):
+    default_text = st.session_state.get("preset_input", "")
+    user_input = st.text_area("Ask the AI assistant...", value=default_text, height=80)
+    submitted = st.form_submit_button("Send")
+    if submitted and user_input.strip():
+        # clear preset to avoid re-populating on next run
+        st.session_state["preset_input"] = ""
+        # Run AI now
+        # Build context & intent
+        def build_context_and_intent(uq: str):
+            brand_keywords = " ".join(bconf.get("keywords", []))
+            expanded_query = f"{uq} {bconf['display']} {brand_keywords}"
+            retrieved = retrieve(expanded_query, st.session_state.rag_index, top_k=st.session_state.top_k)
+            context_block, cite_list = build_context_block(retrieved)
+            intent = detect_intent(uq)
+            return context_block, cite_list, intent
 
-# -------------------------
-# RAG-driven Response
-# -------------------------
-def build_context_and_intent(user_query: str):
-    brand_keywords = " ".join(bconf.get("keywords", []))
-    expanded_query = f"{user_query} {bconf['display']} {brand_keywords}"
-    retrieved = retrieve(expanded_query, st.session_state.rag_index, top_k=st.session_state.top_k)
-    context_block, cite_list = build_context_block(retrieved)
-    intent = detect_intent(user_query)
-    return context_block, cite_list, intent
+        st.session_state.chat_history.append({"role":"user","content":user_input})
+        ctx_block, cite_list, intent = build_context_and_intent(user_input)
 
-def run_ai(user_query: str):
-    st.session_state.chat_history.append({"role":"user","content":user_query})
+        if intent == "sales_call_flow":
+            msgs = build_sales_call_flow_prompt(
+                brand_cfg=bconf,
+                persona=st.session_state.hcp_persona,
+                segment=st.session_state.segment,
+                tone=st.session_state.tone,
+                query=user_input,
+                context_block=ctx_block,
+                examples_density=st.session_state.examples_density,
+                strict_grounding=st.session_state.strict_grounding
+            )
+        elif intent == "role_play":
+            turns = 8 + max(0, st.session_state.examples_density - 3) * 2
+            msgs = build_role_play_prompt(
+                brand_cfg=bconf,
+                persona=st.session_state.hcp_persona,
+                segment=st.session_state.segment,
+                tone=st.session_state.tone,
+                query=user_input,
+                context_block=ctx_block,
+                turns=turns,
+                strict_grounding=st.session_state.strict_grounding
+            )
+        elif intent == "objection_handling":
+            msgs = build_objection_prompt(
+                brand_cfg=bconf,
+                persona=st.session_state.hcp_persona,
+                segment=st.session_state.segment,
+                tone=st.session_state.tone,
+                query=user_input,
+                context_block=ctx_block,
+                strict_grounding=st.session_state.strict_grounding
+            )
+        else:
+            msgs = build_qna_prompt(
+                brand_cfg=bconf,
+                persona=st.session_state.hcp_persona,
+                segment=st.session_state.segment,
+                tone=st.session_state.tone,
+                query=user_input,
+                context_block=ctx_block,
+                strict_grounding=st.session_state.strict_grounding
+            )
 
-    context_block, cite_list, intent = build_context_and_intent(user_query)
+        answer = call_llm(msgs, temperature=st.session_state.temperature)
 
-    if intent == "sales_call_flow":
-        msgs = build_sales_call_flow_prompt(
-            brand_cfg=bconf,
-            persona=st.session_state.hcp_persona,
-            segment=st.session_state.segment,
-            tone=st.session_state.tone,
-            query=user_query,
-            context_block=context_block,
-            examples_density=st.session_state.examples_density,
-            strict_grounding=st.session_state.strict_grounding
-        )
-    elif intent == "role_play":
-        turns = 8 + max(0, st.session_state.examples_density - 3) * 2
-        msgs = build_role_play_prompt(
-            brand_cfg=bconf,
-            persona=st.session_state.hcp_persona,
-            segment=st.session_state.segment,
-            tone=st.session_state.tone,
-            query=user_query,
-            context_block=context_block,
-            turns=turns,
-            strict_grounding=st.session_state.strict_grounding
-        )
-    elif intent == "objection_handling":
-        msgs = build_objection_prompt(
-            brand_cfg=bconf,
-            persona=st.session_state.hcp_persona,
-            segment=st.session_state.segment,
-            tone=st.session_state.tone,
-            query=user_query,
-            context_block=context_block,
-            strict_grounding=st.session_state.strict_grounding
-        )
-    else:
-        msgs = build_qna_prompt(
-            brand_cfg=bconf,
-            persona=st.session_state.hcp_persona,
-            segment=st.session_state.segment,
-            tone=st.session_state.tone,
-            query=user_query,
-            context_block=context_block,
-            strict_grounding=st.session_state.strict_grounding
-        )
+        if cite_list:
+            answer += "\n\n---\n**Citations**\n" + attach_citations_markdown(cite_list)
 
-    answer = call_llm(msgs, temperature=st.session_state.temperature)
-
-    if cite_list:
-        answer += "\n\n---\n**Citations**\n" + attach_citations_markdown(cite_list)
-
-    st.session_state.chat_history.append({"role":"ai","content":answer})
-
-# -------------------------
-# Send button
-# -------------------------
-if st.button("Send", key="send_button") and st.session_state["main_input"].strip():
-    run_ai(st.session_state["main_input"].strip())
-    st.session_state["main_input"] = ""  # clear safely
-    # st.rerun()  # optional if you want instant UI refresh to empty input
+        st.session_state.chat_history.append({"role":"ai","content":answer})
 
 # -------------------------
 # Display chat
@@ -741,7 +729,7 @@ for entry in st.session_state.chat_history:
     else:
         st.markdown(f"""
         <div class="ai-message">
-            <img src="{AI_AVATAR}" class="ai-avatar" />
+            <img src="{AI_AVATAR_URL}" class="ai-avatar" />
             <div class="ai-bubble">{entry['content']}</div>
         </div>
         """, unsafe_allow_html=True)
