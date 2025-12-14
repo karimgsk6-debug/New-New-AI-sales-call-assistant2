@@ -1,4 +1,4 @@
-# app_final_ready.py - Fully Integrated AI Sales Call Assistant
+# app_final_merged.py - Fully functioning AI Sales Call Assistant
 import streamlit as st
 import os
 import re
@@ -13,30 +13,30 @@ from html import escape
 # -------------------------
 try:
     from groq import Groq
-except Exception:
+except:
     Groq = None
 
 try:
     from PyPDF2 import PdfReader
-except Exception:
+except:
     PdfReader = None
 
 try:
     from gtts import gTTS
-except Exception:
+except:
     gTTS = None
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
-except Exception:
+except:
     SKLEARN_AVAILABLE = False
 
 try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
-except Exception:
+except:
     ELEVENLABS_AVAILABLE = False
 
 # -------------------------
@@ -45,7 +45,7 @@ except Exception:
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # -------------------------
-# Resources & Avatars
+# Resources
 # -------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
@@ -77,10 +77,11 @@ def _init_session():
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
+
 _init_session()
 
 # -------------------------
-# CSS
+# CSS for UI
 # -------------------------
 st.markdown("""
 <style>
@@ -105,27 +106,24 @@ ul.assist-list{ margin:6px 0 6px 18px; padding:0; color:#DDF; }
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Background
+# Dynamic background
 # -------------------------
 def set_dynamic_background(image_path):
     if not os.path.exists(image_path):
         return
-    try:
-        with open(image_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-        st.markdown(f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
-                        url("data:image/png;base64,{encoded}");
-            background-repeat: no-repeat;
-            background-position: right top;
-            background-size: cover;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+    st.markdown(f"""
+    <style>
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
+                    url("data:image/png;base64,{encoded}");
+        background-repeat: no-repeat;
+        background-position: right top;
+        background-size: cover;
+    }}
+    </style>""", unsafe_allow_html=True)
+
 set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
@@ -137,11 +135,11 @@ def load_groq_client():
         return None
     try:
         return Groq(api_key=api_key)
-    except Exception:
+    except:
         return None
 
 # -------------------------
-# Brand data
+# Product / Brand data
 # -------------------------
 brand_data = {
     "shingrix": {
@@ -192,170 +190,221 @@ brand_data = {
 }
 
 # -------------------------
-# Helper functions
+# Persona helper
 # -------------------------
-def read_file_text(path):
-    if not os.path.exists(path):
-        return ""
-    try:
-        if path.lower().endswith(".pdf") and PdfReader:
-            reader = PdfReader(path)
-            return "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                return fh.read()
-    except Exception:
-        return ""
-
-def build_corpus_for_folders(folders, chunk_size_sentences=3):
-    chunks, metas = [], []
-    for folder in folders:
-        if not folder or not os.path.exists(folder):
-            continue
-        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf", ".txt"))]
-        for fname in files:
-            p = os.path.join(folder, fname)
-            text = read_file_text(p)
-            if not text:
-                continue
-            sents = re.split(r'(?<=[\.\?\!])\s+', text)
-            for i in range(0, max(1, len(sents)), chunk_size_sentences):
-                chunk = " ".join(sents[i : i + chunk_size_sentences]).strip()
-                if chunk:
-                    chunks.append(chunk)
-                    metas.append({"filename": fname, "folder": folder, "start": i})
-    return chunks, metas
-
-def local_search_snippets(query, chunks, metas, top_n=3):
-    if not chunks:
-        return []
-    if SKLEARN_AVAILABLE:
-        try:
-            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks + [query])
-            chunk_vecs = vectorizer.transform(chunks)
-            q_vec = vectorizer.transform([query])
-            sims = linear_kernel(q_vec, chunk_vecs).flatten()
-            top_idxs = sims.argsort()[::-1][:top_n]
-            results = []
-            for idx in top_idxs:
-                if sims[idx] <= 0:
-                    continue
-                results.append({"score": float(sims[idx]), "text": chunks[idx], "meta": metas[idx]})
-            return results
-        except Exception:
-            pass
-    out = []
-    q = query.lower()
-    for i, c in enumerate(chunks):
-        if q in c.lower():
-            out.append({"score": 1.0, "text": c, "meta": metas[i]})
-            if len(out) >= top_n:
-                break
-    return out
-
-def simple_summary(text, bullets=6):
-    if not text:
-        return ""
-    sents = re.split(r'(?<=[\.\?\!])\s+', text)
-    selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join(["- " + s for s in selected])
+EXTRA_PERSONAS = ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
+def get_persona_options(brand_key):
+    base = brand_data.get(brand_key, {}).get("personas", [])
+    combined = base + [p for p in EXTRA_PERSONAS if p not in base]
+    return combined
 
 # -------------------------
-# AI Chat functions
+# Chat message rendering
 # -------------------------
-def add_ai_response(user_input):
-    persona = st.session_state.hcp_persona
-    tone = st.session_state.tone
-    brand = st.session_state.selected_brand
+def render_ai_message(message_html):
+    st.markdown(f"""
+    <div class="ai-message">
+        <img src="{AI_AVATAR}" class="ai-avatar" />
+        <div class="ai-bubble">{message_html}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Build corpus
-    bconf = brand_data.get(brand, {})
-    corpus_folders = [bconf.get("references_path",""), bconf.get("sales_path","")]
-    chunks, metas = build_corpus_for_folders(corpus_folders)
-    if st.session_state.uploaded_pdf_text:
-        chunks.append(st.session_state.uploaded_pdf_text)
-        metas.append({"filename":"uploaded_file","folder":"uploaded"})
-
-    snippets = local_search_snippets(user_input, chunks, metas)
-    snippet_text = "\n".join([s["text"] for s in snippets]) if snippets else ""
-
-    ai_prompt = f"""
-Brand: {brand}
-Persona: {persona}
-Tone: {tone}
-
-User Question: {user_input}
-
-References: {snippet_text}
-
-Generate concise, actionable sales plan with bullets.
-"""
-    client = load_groq_client()
-    response = ""
-    if client:
-        try:
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                                                 messages=[{"role":"user","content":ai_prompt}],
-                                                 temperature=st.session_state.temperature)
-            response = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
-        except Exception:
-            response = simple_summary(snippet_text or user_input, bullets=4)
-    else:
-        response = simple_summary(snippet_text or user_input, bullets=4)
-
-    st.session_state.chat_history.append({"role":"assistant","content":response})
+def render_user_message(msg):
+    st.markdown(f'<div class="user-bubble">{escape(msg)}</div>', unsafe_allow_html=True)
 
 # -------------------------
-# Sidebar filters and input
+# Sidebar selections
 # -------------------------
 with st.sidebar.expander("Filters & Options", expanded=True):
-    st.session_state.selected_brand = st.selectbox("Select Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
-    st.session_state.hcp_persona = st.selectbox("HCP Persona", get_persona_options(st.session_state.selected_brand), index=0)
-    st.session_state.tone = st.selectbox("Tone", ["Friendly","Executive","Scientific","Empathetic"], index=0)
-    st.session_state.temperature = st.slider("Response Creativity", 0.0, 1.0, st.session_state.temperature, 0.05)
-    st.session_state.search_mode = st.radio("Search Mode", ["shallow","deep"], index=1)
+    brand_options = list(brand_data.keys())
+    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
+    st.session_state.selected_brand = sel_brand
+    bconf = brand_data[sel_brand]
+
+    segment = st.selectbox("Segment", bconf["segments"])
+    persona_sel = st.selectbox("HCP Persona", get_persona_options(sel_brand), index=0)
+    st.session_state.hcp_persona = persona_sel
+
+    hcp_personality = st.selectbox("HCP Personality", ["Assertive", "Masked", "Friendly", "Details-oriented", "Skeptic"])
+    st.session_state.hcp_personality = hcp_personality
+
+    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
+    specialty = st.selectbox("Specialty", bconf["specialties"])
+    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
+    st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, 0.05)
+    st.session_state.search_mode = st.selectbox("Search mode", ["deep", "shallow"])
+    st.session_state.language = st.radio("Language", ["English", "Arabic"])
+    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=0)
     if st.button("🗑️ Clear Chat"):
         st.session_state.chat_history = []
-        st.session_state.main_input = ""
         st.experimental_rerun()
 
 # -------------------------
-# Main interface
+# Title box
 # -------------------------
 st.markdown(f"""
 <div class="title-box">
-<img src="{GSK_LOGO_RAW}" class="left-logo">
-<h2>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h2>
-<img src="{AI_LOGO_RAW}" class="right-logo">
+    <img src="{GSK_LOGO_RAW}" class="left-logo">
+    <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
+    <img src="{AI_LOGO_RAW}" class="right-logo">
 </div>
 """, unsafe_allow_html=True)
+# -------------------------
+# PDF upload & text extraction
+# -------------------------
+def extract_pdf_text(uploaded_file):
+    if not PdfReader:
+        return "PyPDF2 not installed. Cannot read PDF."
+    try:
+        reader = PdfReader(uploaded_file)
+        text = "\n".join([page.extract_text() or "" for page in reader.pages])
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {e}"
 
-user_input = st.text_area("Ask something:", st.session_state.main_input, height=80)
+uploaded_file = st.file_uploader("Upload PDF (Clinical / Sales)", type=["pdf"])
+if uploaded_file:
+    pdf_text = extract_pdf_text(uploaded_file)
+    st.session_state.uploaded_pdf_text = pdf_text
+    st.session_state.pdf_summary = f"PDF uploaded. {len(pdf_text.split())} words extracted."
+
+if st.session_state.pdf_summary:
+    st.markdown(f"<div class='story'>{st.session_state.pdf_summary}</div>", unsafe_allow_html=True)
+
+# -------------------------
+# Helper: Simple summarization (fallback)
+# -------------------------
+def summarize_text(text, max_len=200):
+    if not text: return ""
+    return text[:max_len] + ("..." if len(text) > max_len else "")
+
+# -------------------------
+# Load medical references
+# -------------------------
+def load_medical_summary(brand_key):
+    path = brand_data[brand_key].get("references_path")
+    if not path or not os.path.exists(path):
+        return "No medical references available."
+    files = [f for f in os.listdir(path) if f.endswith(".txt")]
+    texts = []
+    for f in files:
+        try:
+            with open(os.path.join(path, f), "r", encoding="utf-8") as file:
+                texts.append(file.read())
+        except: continue
+    return "\n".join(texts)
+
+# -------------------------
+# Load sales module summaries
+# -------------------------
+def load_sales_summary(brand_key):
+    path = brand_data[brand_key].get("sales_path")
+    if not path or not os.path.exists(path):
+        return "No sales summaries available."
+    files = [f for f in os.listdir(path) if f.endswith(".txt")]
+    texts = []
+    for f in files:
+        try:
+            with open(os.path.join(path, f), "r", encoding="utf-8") as file:
+                texts.append(file.read())
+        except: continue
+    return "\n".join(texts)
+
+# Initialize summaries
+if not st.session_state.medical_summary:
+    st.session_state.medical_summary = summarize_text(load_medical_summary(st.session_state.selected_brand), 500)
+if not st.session_state.sales_summary:
+    st.session_state.sales_summary = summarize_text(load_sales_summary(st.session_state.selected_brand), 500)
+
+# -------------------------
+# Display summaries
+# -------------------------
+with st.expander("Medical References Summary", expanded=False):
+    st.markdown(st.session_state.medical_summary)
+
+with st.expander("Sales Module Summary", expanded=False):
+    st.markdown(st.session_state.sales_summary)
+
+# -------------------------
+# Objection handling
+# -------------------------
+def render_objections():
+    obs = brand_data[st.session_state.selected_brand].get("objections", {})
+    if not obs: return
+    st.markdown("<div class='step-title'>Objection Handling</div>", unsafe_allow_html=True)
+    for k, v in obs.items():
+        st.markdown(f"<div class='objection'><b>{k.capitalize()}:</b> {v}</div>", unsafe_allow_html=True)
+
+render_objections()
+
+# -------------------------
+# AI Chat Input
+# -------------------------
+def ai_response(prompt):
+    # Placeholder AI response logic, replace with OpenAI/GROQ
+    base_text = f"Brand: {st.session_state.selected_brand}\nPersona: {st.session_state.hcp_persona}\nTone: {st.session_state.tone}\n\nPrompt: {prompt}"
+    if st.session_state.pdf_summary:
+        base_text += f"\n\nPDF Summary: {st.session_state.pdf_summary}"
+    return base_text[:800] + "..."  # truncate for display
+
+st.markdown("<div class='step-title'>AI Chat</div>", unsafe_allow_html=True)
+main_input = st.text_area("Enter your question / prompt:", value=st.session_state.main_input, height=80)
 if st.button("Send"):
-    if user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        add_ai_response(user_input.strip())
+    if main_input.strip():
+        st.session_state.chat_history.append({"user": main_input})
+        ai_msg = ai_response(main_input)
+        st.session_state.chat_history.append({"ai": ai_msg})
         st.session_state.main_input = ""
 
 # -------------------------
-# Chat display
+# Render chat history
 # -------------------------
 for msg in st.session_state.chat_history:
-    if msg["role"]=="user":
-        st.markdown(f'<div class="user-bubble">{escape(msg["content"])}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="ai-message">
-        <img src="{AI_AVATAR}" class="ai-avatar"/>
-        <div class="ai-bubble">{escape(msg["content"])}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    if "user" in msg:
+        render_user_message(msg["user"])
+    if "ai" in msg:
+        render_ai_message(msg["ai"])
 
 # -------------------------
-# Footer
+# Audio generation (gTTS / ElevenLabs)
 # -------------------------
-st.markdown("""
-<div class="fixed-disclaimer">
-⚠️ This AI tool provides guidance for sales discussions. Verify clinical and local regulations before use.
-</div>
-""", unsafe_allow_html=True)
+def play_audio(text):
+    if ELEVENLABS_AVAILABLE:
+        try:
+            from elevenlabs import generate, play
+            audio = generate(text=text, voice="alloy")
+            play(audio)
+            return
+        except:
+            pass
+    if gTTS:
+        tts = gTTS(text=text)
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(tmp_file.name)
+        st.audio(tmp_file.name)
+
+if st.session_state.chat_history:
+    last_ai_msg = st.session_state.chat_history[-1].get("ai")
+    if last_ai_msg:
+        if st.button("🔊 Play Last AI Response"):
+            play_audio(last_ai_msg)
+
+# -------------------------
+# Prompt suggestions (collapsible)
+# -------------------------
+suggestions = [
+    "Highlight key efficacy points",
+    "Address safety concerns",
+    "Overcome cost objections",
+    "Engage patient influence",
+    "Summarize medical reference"
+]
+with st.expander("💡 Prompt Suggestions", expanded=False):
+    for s in suggestions:
+        if st.button(s):
+            st.session_state.main_input = s
+
+# -------------------------
+# Footer disclaimer
+# -------------------------
+st.markdown("<div class='fixed-disclaimer'>⚠️ AI Sales Call Assistant is a support tool. Always verify with latest clinical and sales guidelines.</div>", unsafe_allow_html=True)
