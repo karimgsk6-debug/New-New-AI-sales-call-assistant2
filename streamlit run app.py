@@ -222,7 +222,7 @@ if st.button("Send") and user_input.strip():
     if client:
         prompt = build_sales_prompt(user_input, brand)
         response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-3.1-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a high-performing pharma sales strategist."},
                 {"role": "user", "content": prompt}
