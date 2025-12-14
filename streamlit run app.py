@@ -1,16 +1,18 @@
 
 # app_final_ready.py — AI Sales Call Assistant (RAG + Product-Specific Call Flow)
 # ------------------------------------------------------------------------------
-# Key enhancements:
+# Enhancements:
 # - RAG over references + sales module + uploaded files (PDF/TXT) with citations
 # - Intent router: sales_call_flow | role_play | objection_handling | qna
 # - Product-specific prompts with brand_data scaffolding
 # - File uploader + live indexing cache
-# - Safer key handling (no hard-coded API key)
+# - Safer secrets (no hard-coded API key)
+# - Medical References & Sales Module summaries moved to MAIN INTERFACE
+# - Fixed Streamlit session_state usage (no mixing value= with key=)
 # ------------------------------------------------------------------------------
 
 import streamlit as st
-import os, re, tempfile, base64, io, uuid, math
+import os, re, tempfile, base64, io, uuid
 from datetime import datetime
 from html import escape
 from typing import List, Dict, Tuple, Any
@@ -82,13 +84,11 @@ def _init_session():
         "hcp_persona": "Friendly",
         "hcp_personality": "Friendly",
         "tone": "executive",
+        "segment": "R",
         "rag_corpus": [],         # list of dicts: {text, filename, folder, page, chunk_id}
         "rag_index_ready": False,
-        "vector_backend": "tfidf",# tfidf | sbert
-        "tfidf_vectorizer": None,
-        "tfidf_matrix": None,
-        "sbert_model_name": "",
-        "sbert_embeddings": None,
+        "vector_backend": "tfidf",# tfidf | sbert | none
+        "rag_index": None,
         "uploaded_dir": "",
         "strict_grounding": True,
         "examples_density": 3,    # number of dialog turns per stage
@@ -209,7 +209,6 @@ brand_data = {
 def chunk_text(text: str, max_chars: int = 900, overlap: int = 140) -> List[str]:
     if not text:
         return []
-    # sentence-aware chunking
     sents = re.split(r'(?<=[\.\?\!])\s+', text)
     chunks = []
     buf = ""
@@ -282,14 +281,12 @@ def build_index(docs: List[Dict[str,Any]], backend: str = "tfidf"):
     meta = [{"filename": d["filename"], "folder": d["folder"], "page": d["page"], "chunk_id": d["chunk_id"]} for d in docs]
 
     if backend == "sbert" and SBERT_AVAILABLE:
-        # lightweight general model; replace with a local model name if desired
         model_name = "all-MiniLM-L6-v2"
         model = SentenceTransformer(model_name)
         embeddings = model.encode(texts, show_progress_bar=False, convert_to_numpy=True, normalize_embeddings=True)
         return {"backend": "sbert", "meta": meta, "model_name": model_name, "vectorizer": None, "matrix": embeddings}
     else:
         if not SKLEARN_AVAILABLE:
-            # Minimal fallback: keep texts only.
             return {"backend": "none", "meta": meta, "model_name": "", "vectorizer": None, "matrix": texts}
         vec = TfidfVectorizer(ngram_range=(1,2), max_df=0.9, min_df=1)
         mat = vec.fit_transform(texts)
@@ -307,7 +304,7 @@ def retrieve(query: str, index: Dict[str,Any], top_k: int = 8) -> List[Dict[str,
         sims = np.dot(index["matrix"], q_emb.T).ravel()
         order = sims.argsort()[::-1][:top_k]
         return [{
-            "text": None,  # avoid duplicating large memory; will pull from st.session_state.rag_corpus
+            "text": None,
             "score": float(sims[i]),
             **meta[i]
         } for i in order]
@@ -340,7 +337,6 @@ def retrieve(query: str, index: Dict[str,Any], top_k: int = 8) -> List[Dict[str,
         } for i in order]
 
 def materialize_text(snippet: Dict[str,Any]) -> str:
-    # look up the text by chunk_id in rag_corpus
     for d in st.session_state.rag_corpus:
         if d["chunk_id"] == snippet["chunk_id"]:
             return d["text"]
@@ -358,7 +354,6 @@ def call_llm(messages: List[Dict[str,str]], temperature: float = 0.8, max_in_tok
     if not client:
         return "⚠️ Model not available: configure GROQ_API_KEY in environment or Streamlit secrets."
     try:
-        # Truncate long user content defensively
         trimmed_msgs = []
         for m in messages:
             c = m.get("content","")
@@ -496,14 +491,13 @@ def detect_intent(text: str) -> str:
 def attach_citations_markdown(cites: List[str]) -> str:
     if not cites:
         return "_No citations available from indexed sources._"
-    # unique list already
     md = []
     for i, c in enumerate(cites, 1):
         md.append(f"[{i}] {c}")
     return "\n".join(md)
 
 # -------------------------
-# Summaries (unchanged, reusing your existing groq summarizer)
+# Summaries (reuse groq summarizer)
 # -------------------------
 def simple_summary(text, bullets=6):
     sents = re.split(r'(?<=[\.\?\!])\s+', text)
@@ -537,8 +531,11 @@ with st.sidebar.expander("Options", expanded=True):
     bconf = brand_data[sel_brand]
 
     segment = st.selectbox("Segment", bconf["segments"])
+    st.session_state.segment = segment
+
     persona_sel = st.selectbox("HCP Persona", bconf["personas"], index=min(0, len(bconf["personas"])-1))
     st.session_state.hcp_persona = persona_sel
+
     st.session_state.tone = st.selectbox("Tone", ["executive","coaching","persuasive","clinical"], index=0)
     st.session_state.temperature = st.slider("Creativity (Temperature)", 0.0, 1.2, st.session_state.temperature, 0.05)
     st.session_state.strict_grounding = st.checkbox("Strict to citations (no unstated facts)", value=True)
@@ -558,7 +555,6 @@ if os.path.exists(refs_folder):
         if f.lower().endswith((".pdf",".txt")):
             try:
                 if f.lower().endswith(".pdf") and PdfReader:
-                    # basic page concatenation
                     for ck,_ in read_pdf_chunks(os.path.join(refs_folder,f)):
                         combined_refs += ck + "\n"
                 else:
@@ -581,15 +577,15 @@ if os.path.exists(sales_folder):
             except Exception:
                 pass
 
-if not st.session_state.medical_summary and combined_refs.strip():
+if combined_refs.strip():
     st.session_state.medical_summary = model_summarize(combined_refs, bullets=6)
-if not st.session_state.sales_summary and combined_sales.strip():
-    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
+else:
+    st.session_state.medical_summary = st.session_state.medical_summary or ""
 
-with st.sidebar.expander("📚 Medical References Summary"):
-    st.markdown(st.session_state.medical_summary or "_No references indexed yet._")
-with st.sidebar.expander("💼 Sales Module Summary"):
-    st.markdown(st.session_state.sales_summary or "_No sales module indexed yet._")
+if combined_sales.strip():
+    st.session_state.sales_summary = model_summarize(combined_sales, bullets=6)
+else:
+    st.session_state.sales_summary = st.session_state.sales_summary or ""
 
 # File uploader
 st.sidebar.markdown("---")
@@ -599,7 +595,6 @@ if uploads:
     if not st.session_state.uploaded_dir:
         st.session_state.uploaded_dir = tempfile.mkdtemp(prefix="rag_uploads_")
     for up in uploads:
-        # save uploaded file
         up_path = os.path.join(st.session_state.uploaded_dir, up.name)
         with open(up_path, "wb") as out:
             out.write(up.read())
@@ -614,7 +609,7 @@ def rebuild_rag():
         corpus += ingest_folder(st.session_state.uploaded_dir)
     st.session_state.rag_corpus = corpus
     backend = "sbert" if SBERT_AVAILABLE else "tfidf"
-    st.session_state.vector_backend = backend if SKLEARN_AVAILABLE or SBERT_AVAILABLE else "none"
+    st.session_state.vector_backend = backend if (SKLEARN_AVAILABLE or SBERT_AVAILABLE) else "none"
     st.session_state.rag_index = build_index(corpus, backend=st.session_state.vector_backend)
     st.session_state.rag_index_ready = True
 
@@ -631,7 +626,7 @@ with colC:
 if not st.session_state.rag_index_ready:
     rebuild_rag()
 
-# Sources panel
+# Sources panel (in sidebar)
 with st.sidebar.expander("🔎 Indexed Sources"):
     if not st.session_state.rag_corpus:
         st.markdown("_No content found in references/sales/uploads._")
@@ -642,43 +637,47 @@ with st.sidebar.expander("🔎 Indexed Sources"):
         st.markdown("\n".join([f"- {k}: {v} chunks" for k,v in sorted(counts.items())]))
 
 # -------------------------
-# Main Input & Quick Actions
+# Main Interface
 # -------------------------
 st.markdown(f'<h2>💡 AI Sales Call Assistant — {bconf["display"]}</h2>', unsafe_allow_html=True)
 
+# Quick actions
 quick_cols = st.columns(3)
 with quick_cols[0]:
     if st.button("✨ Generate Sales Call Flow"):
-        st.session_state.main_input = "Generate a full sales call flow"
+        st.session_state["main_input"] = "Generate a full sales call flow"
 with quick_cols[1]:
     if st.button("🎭 Role-play"):
-        st.session_state.main_input = "Role play for this product"
+        st.session_state["main_input"] = "Role play for this product"
 with quick_cols[2]:
     if st.button("🛡️ Handle Objection"):
-        st.session_state.main_input = "Objection: cost concerns from the HCP"
+        st.session_state["main_input"] = "Objection: cost concerns from the HCP"
 
-user_input = st.text_area("Ask the AI assistant...", value=st.session_state.main_input, key="main_input", height=80)
+# Ensure default exists and bind text_area only via session_state
+st.session_state.setdefault("main_input", "")
+user_input = st.text_area("Ask the AI assistant...", key="main_input", height=80)
 
 # -------------------------
 # RAG-driven Response
 # -------------------------
-def run_ai(user_query: str):
-    st.session_state.chat_history.append({"role":"user","content":user_query})
-
-    # Build RAG context with brand-aware query expansion
+def build_context_and_intent(user_query: str):
     brand_keywords = " ".join(bconf.get("keywords", []))
     expanded_query = f"{user_query} {bconf['display']} {brand_keywords}"
     retrieved = retrieve(expanded_query, st.session_state.rag_index, top_k=st.session_state.top_k)
     context_block, cite_list = build_context_block(retrieved)
-
-    # Route intent
     intent = detect_intent(user_query)
+    return context_block, cite_list, intent
+
+def run_ai(user_query: str):
+    st.session_state.chat_history.append({"role":"user","content":user_query})
+
+    context_block, cite_list, intent = build_context_and_intent(user_query)
 
     if intent == "sales_call_flow":
         msgs = build_sales_call_flow_prompt(
             brand_cfg=bconf,
             persona=st.session_state.hcp_persona,
-            segment=segment,
+            segment=st.session_state.segment,
             tone=st.session_state.tone,
             query=user_query,
             context_block=context_block,
@@ -686,21 +685,22 @@ def run_ai(user_query: str):
             strict_grounding=st.session_state.strict_grounding
         )
     elif intent == "role_play":
+        turns = 8 + max(0, st.session_state.examples_density - 3) * 2
         msgs = build_role_play_prompt(
             brand_cfg=bconf,
             persona=st.session_state.hcp_persona,
-            segment=segment,
+            segment=st.session_state.segment,
             tone=st.session_state.tone,
             query=user_query,
             context_block=context_block,
-            turns=8 + max(0, st.session_state.examples_density - 3)*2,
+            turns=turns,
             strict_grounding=st.session_state.strict_grounding
         )
     elif intent == "objection_handling":
         msgs = build_objection_prompt(
             brand_cfg=bconf,
             persona=st.session_state.hcp_persona,
-            segment=segment,
+            segment=st.session_state.segment,
             tone=st.session_state.tone,
             query=user_query,
             context_block=context_block,
@@ -710,17 +710,15 @@ def run_ai(user_query: str):
         msgs = build_qna_prompt(
             brand_cfg=bconf,
             persona=st.session_state.hcp_persona,
-            segment=segment,
+            segment=st.session_state.segment,
             tone=st.session_state.tone,
             query=user_query,
             context_block=context_block,
             strict_grounding=st.session_state.strict_grounding
         )
 
-    # Call LLM
     answer = call_llm(msgs, temperature=st.session_state.temperature)
 
-    # Append citations block
     if cite_list:
         answer += "\n\n---\n**Citations**\n" + attach_citations_markdown(cite_list)
 
@@ -729,9 +727,10 @@ def run_ai(user_query: str):
 # -------------------------
 # Send button
 # -------------------------
-if st.button("Send", key="send_button") and user_input.strip():
-    run_ai(user_input.strip())
-    st.session_state.main_input = ""
+if st.button("Send", key="send_button") and st.session_state["main_input"].strip():
+    run_ai(st.session_state["main_input"].strip())
+    st.session_state["main_input"] = ""  # clear safely
+    # st.rerun()  # optional if you want instant UI refresh to empty input
 
 # -------------------------
 # Display chat
@@ -746,6 +745,21 @@ for entry in st.session_state.chat_history:
             <div class="ai-bubble">{entry['content']}</div>
         </div>
         """, unsafe_allow_html=True)
+
+# -------------------------
+# MAIN INTERFACE: Summaries (moved from sidebar)
+# -------------------------
+st.markdown("---")
+st.markdown("## Reference Summaries")
+col_sum_1, col_sum_2 = st.columns(2)
+
+with col_sum_1:
+    st.markdown("### 📚 Medical References Summary")
+    st.markdown(st.session_state.medical_summary or "_No references indexed yet._")
+
+with col_sum_2:
+    st.markdown("### 💼 Sales Module Summary")
+    st.markdown(st.session_state.sales_summary or "_No sales module indexed yet._")
 
 # -------------------------
 # Footer disclaimer
