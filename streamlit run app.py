@@ -1,4 +1,4 @@
-# app_final_merged_fixed.py - Fully merged AI Sales Call Assistant (Hologram avatar, personas, tones, objections)
+# app_final_ready.py - Fully Integrated AI Sales Call Assistant
 import streamlit as st
 import os
 import re
@@ -8,7 +8,9 @@ import io
 from datetime import datetime
 from html import escape
 
-# Soft imports (optional)
+# -------------------------
+# Optional imports
+# -------------------------
 try:
     from groq import Groq
 except Exception:
@@ -38,9 +40,24 @@ except Exception:
     ELEVENLABS_AVAILABLE = False
 
 # -------------------------
-# Session state initialization (safe)
+# Page config
 # -------------------------
-def init_session_state():
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
+
+# -------------------------
+# Resources & Avatars
+# -------------------------
+REPO_USER = "karimgsk6-debug"
+REPO_NAME = "New-New-AI-sales-call-assistant2"
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
+AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+
+# -------------------------
+# Session defaults
+# -------------------------
+def _init_session():
     defaults = {
         "chat_history": [],
         "main_input": "",
@@ -58,52 +75,34 @@ def init_session_state():
         "hcp_personality": "Friendly",
         "tone": "executive",
     }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-init_session_state()
-
-# -------------------------
-# Page config
-# -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
-
-# -------------------------
-# Resources & Avatar
-# -------------------------
-REPO_USER = "karimgsk6-debug"
-REPO_NAME = "New-New-AI-sales-call-assistant2"
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
-BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+_init_session()
 
 # -------------------------
 # CSS
 # -------------------------
-st.markdown(
-    """
-    <style>
-    .title-box{ background: rgba(255,255,255,0.85); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
-    .title-box img.left-logo{ position:absolute; left:12px; height:48px; }
-    .title-box img.right-logo{ position:absolute; right:12px; height:48px; }
-    .chat-bubble-user{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
-    .ai-message { display:flex; align-items:flex-start; gap:12px; margin:10px 0; }
-    .ai-avatar { width:52px; height:52px; border-radius:50%; box-shadow: 0 0 12px rgba(0,255,255,0.6); flex-shrink:0; animation:holoPulse 2.5s infinite ease-in-out; }
-    @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
-    .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
-    .citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px; }
-    .fixed-disclaimer{ font-size:12px; color:#aac; margin-top:16px; opacity:0.9; }
-    .step-title{ font-weight:700; margin-top:8px; color:#BFF; }
-    .story{ font-style:italic; margin:6px 0 10px 0; color:#DFF; }
-    ul.assist-list{ margin:6px 0 6px 18px; padding:0; color:#DDF; }
-    .objection{ background:rgba(255,248,240,0.06); padding:8px; border-radius:8px; margin:6px 0; border:1px solid rgba(255,224,198,0.08); color:#FFD; }
-    .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+.title-box{ background: rgba(255,255,255,0.85); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
+.title-box img.left-logo{ position:absolute; left:12px; height:48px; }
+.title-box img.right-logo{ position:absolute; right:12px; height:48px; }
+
+.chat-bubble-user{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
+.ai-message { display:flex; align-items:flex-start; gap:12px; margin:10px 0; }
+.ai-avatar { width:52px; height:52px; border-radius:50%; box-shadow: 0 0 12px rgba(0,255,255,0.6); flex-shrink:0; animation:holoPulse 2.5s infinite ease-in-out; }
+@keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
+.ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
+
+.citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px; }
+.fixed-disclaimer{ font-size:12px; color:#aac; margin-top:16px; opacity:0.9; }
+.step-title{ font-weight:700; margin-top:8px; color:#BFF; }
+.story{ font-style:italic; margin:6px 0 10px 0; color:#DFF; }
+ul.assist-list{ margin:6px 0 6px 18px; padding:0; color:#DDF; }
+.objection{ background:rgba(255,248,240,0.06); padding:8px; border-radius:8px; margin:6px 0; border:1px solid rgba(255,224,198,0.08); color:#FFD; }
+.user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
+</style>
+""", unsafe_allow_html=True)
 
 # -------------------------
 # Background
@@ -114,27 +113,23 @@ def set_dynamic_background(image_path):
     try:
         with open(image_path, "rb") as img_file:
             encoded = base64.b64encode(img_file.read()).decode()
-        st.markdown(
-            f"""
-            <style>
-            [data-testid="stAppViewContainer"] {{
-                background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
-                            url("data:image/png;base64,{encoded}");
-                background-repeat: no-repeat;
-                background-position: right top;
-                background-size: cover;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+        <style>
+        [data-testid="stAppViewContainer"] {{
+            background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
+                        url("data:image/png;base64,{encoded}");
+            background-repeat: no-repeat;
+            background-position: right top;
+            background-size: cover;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
     except Exception:
         pass
-
 set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
-# GROQ loader
+# GROQ client
 # -------------------------
 def load_groq_client():
     api_key = os.getenv("GROQ_API_KEY", "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") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
@@ -196,14 +191,8 @@ brand_data = {
     }
 }
 
-EXTRA_PERSONAS = ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
-def get_persona_options(brand_key):
-    base = brand_data.get(brand_key, {}).get("personas", [])
-    combined = base + [p for p in EXTRA_PERSONAS if p not in base]
-    return combined
-
 # -------------------------
-# File reading, corpus, summarization helpers
+# Helper functions
 # -------------------------
 def read_file_text(path):
     if not os.path.exists(path):
@@ -271,171 +260,102 @@ def simple_summary(text, bullets=6):
     selected = [s.strip() for s in sents if s.strip()][:bullets]
     return "\n".join(["- " + s for s in selected])
 
-def model_summarize(text, bullets=6):
-    if not text:
-        return ""
-    client = load_groq_client()
-    if client:
-        try:
-            prompt = f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                                                 messages=[{"role":"user","content":prompt}],
-                                                 temperature=0.2)
-            content = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
-            return content
-        except Exception:
-            return simple_summary(text, bullets)
-    else:
-        return simple_summary(text, bullets)
 # -------------------------
-# PDF upload and summary
+# AI Chat functions
 # -------------------------
-st.sidebar.header("Upload Reference Material (PDF/TXT)")
-uploaded_file = st.sidebar.file_uploader("Upload a PDF or TXT", type=["pdf", "txt"])
-if uploaded_file:
-    try:
-        bytes_data = uploaded_file.read()
-        temp_path = os.path.join(tempfile.gettempdir(), uploaded_file.name)
-        with open(temp_path, "wb") as f:
-            f.write(bytes_data)
-        text = read_file_text(temp_path)
-        st.session_state.uploaded_pdf_text = text
-        st.session_state.pdf_summary = model_summarize(text)
-        st.sidebar.success(f"File '{uploaded_file.name}' uploaded and summarized.")
-    except Exception as e:
-        st.sidebar.error(f"Failed to process file: {e}")
+def add_ai_response(user_input):
+    persona = st.session_state.hcp_persona
+    tone = st.session_state.tone
+    brand = st.session_state.selected_brand
 
-# -------------------------
-# Sidebar controls
-# -------------------------
-st.sidebar.header("Settings / Persona / Tone")
-st.session_state.selected_brand = st.sidebar.selectbox(
-    "Select Brand",
-    list(brand_data.keys()),
-    index=list(brand_data.keys()).index(st.session_state.selected_brand)
-)
-st.session_state.hcp_persona = st.sidebar.selectbox(
-    "HCP Persona",
-    get_persona_options(st.session_state.selected_brand),
-    index=0
-)
-st.session_state.tone = st.sidebar.selectbox(
-    "Tone",
-    ["Friendly", "Executive", "Scientific", "Empathetic"],
-    index=0
-)
-st.session_state.temperature = st.sidebar.slider("Response Creativity", 0.0, 1.0, st.session_state.temperature, 0.05)
-st.session_state.search_mode = st.sidebar.radio("Search Mode", ["shallow", "deep"], index=1)
-
-# -------------------------
-# Chat input
-# -------------------------
-st.header("💬 AI Sales Call Assistant")
-main_input = st.text_input("Type your question or message here:", value=st.session_state.main_input, key="main_input")
-submit_pressed = st.button("Send")
-
-if submit_pressed and main_input.strip():
-    # Append user input to chat history
-    st.session_state.chat_history.append({"role": "user", "content": main_input.strip()})
-    st.session_state.main_input = ""  # Clear input
-
-    # -------------------------
-    # Prepare AI response
-    # -------------------------
-    user_query = main_input.strip()
-    brand_info = brand_data.get(st.session_state.selected_brand, {})
-    
-    # Get reference snippets
-    reference_folders = [brand_info.get("references_path", ""), brand_info.get("sales_path", "")]
-    chunks, metas = build_corpus_for_folders(reference_folders)
+    # Build corpus
+    bconf = brand_data.get(brand, {})
+    corpus_folders = [bconf.get("references_path",""), bconf.get("sales_path","")]
+    chunks, metas = build_corpus_for_folders(corpus_folders)
     if st.session_state.uploaded_pdf_text:
         chunks.append(st.session_state.uploaded_pdf_text)
-        metas.append({"filename": uploaded_file.name if uploaded_file else "uploaded_file", "folder": "uploaded"})
+        metas.append({"filename":"uploaded_file","folder":"uploaded"})
 
-    relevant_snippets = local_search_snippets(user_query, chunks, metas, top_n=3)
-    snippet_text = "\n\n".join([f"{s['text']}" for s in relevant_snippets]) if relevant_snippets else ""
+    snippets = local_search_snippets(user_input, chunks, metas)
+    snippet_text = "\n".join([s["text"] for s in snippets]) if snippets else ""
 
-    # Construct prompt for AI
     ai_prompt = f"""
-You are a pharmaceutical sales assistant AI.
-Brand: {st.session_state.selected_brand}
-HCP Persona: {st.session_state.hcp_persona}
-Tone: {st.session_state.tone}
-Temperature: {st.session_state.temperature}
+Brand: {brand}
+Persona: {persona}
+Tone: {tone}
 
-User Question:
-{user_query}
+User Question: {user_input}
 
-Relevant references:
-{snippet_text}
+References: {snippet_text}
 
-Provide a concise, actionable sales response. Format key points as bullets.
+Generate concise, actionable sales plan with bullets.
 """
-    # -------------------------
-    # Generate AI Response
-    # -------------------------
     client = load_groq_client()
-    ai_response = ""
-    try:
-        if client:
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role":"user","content":ai_prompt}],
-                temperature=st.session_state.temperature
-            )
-            ai_response = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
-        else:
-            ai_response = simple_summary(snippet_text or user_query, bullets=4)
-    except Exception:
-        ai_response = simple_summary(snippet_text or user_query, bullets=4)
+    response = ""
+    if client:
+        try:
+            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
+                                                 messages=[{"role":"user","content":ai_prompt}],
+                                                 temperature=st.session_state.temperature)
+            response = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "text", "")
+        except Exception:
+            response = simple_summary(snippet_text or user_input, bullets=4)
+    else:
+        response = simple_summary(snippet_text or user_input, bullets=4)
 
-    # Append AI response to history
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
+    st.session_state.chat_history.append({"role":"assistant","content":response})
 
 # -------------------------
-# Chat rendering
+# Sidebar filters and input
+# -------------------------
+with st.sidebar.expander("Filters & Options", expanded=True):
+    st.session_state.selected_brand = st.selectbox("Select Brand", list(brand_data.keys()), index=list(brand_data.keys()).index(st.session_state.selected_brand))
+    st.session_state.hcp_persona = st.selectbox("HCP Persona", get_persona_options(st.session_state.selected_brand), index=0)
+    st.session_state.tone = st.selectbox("Tone", ["Friendly","Executive","Scientific","Empathetic"], index=0)
+    st.session_state.temperature = st.slider("Response Creativity", 0.0, 1.0, st.session_state.temperature, 0.05)
+    st.session_state.search_mode = st.radio("Search Mode", ["shallow","deep"], index=1)
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.chat_history = []
+        st.session_state.main_input = ""
+        st.experimental_rerun()
+
+# -------------------------
+# Main interface
+# -------------------------
+st.markdown(f"""
+<div class="title-box">
+<img src="{GSK_LOGO_RAW}" class="left-logo">
+<h2>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h2>
+<img src="{AI_LOGO_RAW}" class="right-logo">
+</div>
+""", unsafe_allow_html=True)
+
+user_input = st.text_area("Ask something:", st.session_state.main_input, height=80)
+if st.button("Send"):
+    if user_input.strip():
+        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
+        add_ai_response(user_input.strip())
+        st.session_state.main_input = ""
+
+# -------------------------
+# Chat display
 # -------------------------
 for msg in st.session_state.chat_history:
-    if msg["role"] == "user":
+    if msg["role"]=="user":
         st.markdown(f'<div class="user-bubble">{escape(msg["content"])}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(
-            f"""
-            <div class="ai-message">
-                <img src="{AI_AVATAR}" class="ai-avatar"/>
-                <div class="ai-bubble">{escape(msg["content"])}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+        <div class="ai-message">
+        <img src="{AI_AVATAR}" class="ai-avatar"/>
+        <div class="ai-bubble">{escape(msg["content"])}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # -------------------------
-# Clear chat / reset
+# Footer
 # -------------------------
-if st.button("Clear Chat"):
-    st.session_state.chat_history = []
-    st.session_state.main_input = ""
-    st.experimental_rerun()
-
-# -------------------------
-# Optional: Feedback / Like / Dislike
-# -------------------------
-st.sidebar.header("Feedback")
-like = st.sidebar.button("👍 Like")
-dislike = st.sidebar.button("👎 Dislike")
-if like:
-    st.session_state.feedback[len(st.session_state.chat_history)-1] = "like"
-if dislike:
-    st.session_state.feedback[len(st.session_state.chat_history)-1] = "dislike"
-
-# -------------------------
-# Footer / Disclaimer
-# -------------------------
-st.markdown(
-    """
-    <div class="fixed-disclaimer">
-    ⚠️ This AI tool provides guidance for sales discussions. Verify clinical and local regulations before use.
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="fixed-disclaimer">
+⚠️ This AI tool provides guidance for sales discussions. Verify clinical and local regulations before use.
+</div>
+""", unsafe_allow_html=True)
