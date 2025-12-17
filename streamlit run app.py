@@ -99,4 +99,14 @@ st.markdown(
     @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
     .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
 
-    .citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px
+    .citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px; }
+    .fixed-disclaimer{ font-size:12px; color:#aac; margin-top:16px; opacity:0.9; }
+    .step-title{ font-weight:700; margin-top:8px; color:#BFF; }
+    .story{ font-style:italic; margin:6px 0 10px 0; color:#DFF; }
+    ul.assist-list{ margin:6px 0 6px 18px; padding:0; color:#DDF; }
+    .objection{ background:rgba(255,248,240,0.06); padding:8px; border-radius:8px; margin:6px 0; border:1px solid rgba(255,224,198,0.08); color:#FFD; }
+    .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
