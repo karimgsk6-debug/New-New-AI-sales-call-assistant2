@@ -57,7 +57,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# BRAND DATA (SOURCE OF TRUTH)
+# BRAND DATA
 # ============================================================
 brand_data = {
     "shingrix": {
@@ -180,6 +180,19 @@ def objection_response(product_key, objection_key, persona):
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # ============================================================
+# PROMPT SUGGESTIONS
+# ============================================================
+def make_suggestions(brand_key, persona_val, barriers_list, segment_val, specialty_val, objective_val):
+    s=[]
+    s.append(f"Generate call flow for {persona_val} focused on {objective_val}.")
+    if barriers_list: s.append(f"Handle objection: {', '.join(barriers_list[:2])} for {persona_val}.")
+    else: s.append(f"Identify common objections for {persona_val}.")
+    s.append(f"Summarize HCP persona insights for {persona_val}.")
+    s.append(f"Key talking points for {brand_data[brand_key]['display']} in {segment_val}.")
+    s.append(f"Draft a short adoption message for {brand_data[brand_key]['display']} to a {specialty_val}.")
+    return s
+
+# ============================================================
 # CORE GENERATION (BRAND-GOVERNED)
 # ============================================================
 def generate_sales_call(user_input):
@@ -297,6 +310,20 @@ with st.expander("📄 Sales Module Summary", expanded=False):
 
 with st.expander("📚 Medical References Summary", expanded=False):
     st.text_area("References Content", value=load_folder(bconf["references_path"])[:4000], height=250)
+
+# ============================================================
+# PROMPT SUGGESTIONS INTERFACE
+# ============================================================
+st.subheader("💡 Suggested Prompts")
+for s in make_suggestions(
+    st.session_state.selected_brand,
+    st.session_state.hcp_persona,
+    bconf["barriers"],
+    "Segment X",
+    "Specialty Y",
+    "Objective Z"
+):
+    st.info(s)
 
 # ============================================================
 # MAIN UI
