@@ -1,5 +1,5 @@
 # ============================================================
-# AI Sales Call Assistant - Collapsible Prompt & Styled Disclaimer
+# AI Sales Call Assistant - Fixed Sticky Footer + Response
 # ============================================================
 import streamlit as st
 import os, base64
@@ -117,7 +117,7 @@ brand_data = {
 }
 
 # ============================================================
-# GROQ CLIENT INITIALIZATION
+# GROQ CLIENT
 # ============================================================
 def get_client():
     if not GROQ_API_KEY or GROQ_API_KEY == "Add_GROQ_API_here":
@@ -149,39 +149,13 @@ def set_dynamic_background(image_path):
             """,
             unsafe_allow_html=True,
         )
-    except Exception:
+    except:
         pass
 
 set_dynamic_background(BACKGROUND_PATH)
 
 # ============================================================
-# CSS for avatar + chat + sticky input + collapsible prompts + disclaimer
-# ============================================================
-st.markdown(
-    """
-    <style>
-    .ai-message { display:flex; align-items:flex-start; gap:12px; margin:10px 0; }
-    .ai-avatar { width:52px; height:52px; border-radius:50%; box-shadow: 0 0 12px rgba(0,255,255,0.6); flex-shrink:0; animation:holoPulse 2.5s infinite ease-in-out; }
-    @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
-    .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
-    .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
-
-    .suggestions-container { background: rgba(20,20,40,0.5); padding:8px; border-radius:8px; margin-bottom:8px; color:#CFF; cursor:pointer; }
-    .suggestion-item { margin:4px 0; padding:4px 8px; background: rgba(0,0,0,0.2); border-radius:4px; cursor:pointer; }
-    .suggestion-item:hover { background: rgba(0,255,255,0.25); }
-
-    /* Sticky input */
-    .stTextInput>div>div>input {position: fixed !important; bottom: 80px; width:calc(100% - 40px); z-index:1000; }
-
-    /* White resizable disclaimer */
-    .disclaimer-box { background:white; color:#333; padding:8px; border-radius:8px; margin-top:12px; max-height:120px; overflow-y:auto; font-size:12px; border:1px solid #ccc; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ============================================================
-# Objection handling per product & persona
+# Persona / objection helpers
 # ============================================================
 def persona_profile(name):
     return {"quick_win": "Provide concise data highlight and 1-line adoption suggestion."}
@@ -191,16 +165,7 @@ def objection_response(product_key, objection_key, persona):
     base = product.get("objections", {})
     reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
     prof = persona_profile(persona)
-
-    if "evidence" in persona.lower():
-        return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer to share a 1-page evidence summary."
-    if "time" in persona.lower():
-        return f"Answer (Time-pressured): {reply} Then offer a single-sentence script and a nurse checklist to make adoption painless."
-    if "skeptical" in persona.lower():
-        return f"Answer (Skeptical): {reply} Start by acknowledging, then show safety data and a monitoring plan; propose a conservative pilot."
-    if "early" in persona.lower():
-        return f"Answer (Early-adopter): {reply} Highlight differentiation and offer to co-design a small pilot with outcome monitoring."
-    return f"{reply} (Tailored suggestion: {prof['quick_win']})"
+    return f"{reply} (Tailored: {prof['quick_win']})"
 
 # ============================================================
 # Prompt suggestions
@@ -216,7 +181,7 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # ============================================================
-# Load references and sales summaries
+# Load summaries
 # ============================================================
 def load_summary(folder_path):
     summary = ""
@@ -229,11 +194,15 @@ def load_summary(folder_path):
                 summary += f.read() + "\n"
     return summary
 
+# ============================================================
+# Generate sales call (fallback enabled)
+# ============================================================
 def generate_sales_call(scenario):
     client = get_client()
-    if not client:
-        return "⚠️ GROQ API unavailable - running in fallback mode."
-    # Placeholder: in real app, replace with actual GROQ/Llama call
+    if client is None:
+        # fallback response
+        return f"Generated sales call for **{scenario['persona']}** regarding **{scenario['brand']}**. (Fallback mode)"
+    # TODO: Replace with actual GROQ/Llama call
     return f"Generated sales call for {scenario['persona']} regarding {scenario['brand']}."
 
 # ============================================================
@@ -281,5 +250,22 @@ for msg in st.session_state.chat_history:
         </div>
         """, unsafe_allow_html=True)
 
-# Disclaimer in resizable white box
-st.markdown('<div class="disclaimer-box">⚠️ This tool is for internal training purposes only.</div>', unsafe_allow_html=True)
+# ============================================================
+# Sticky disclaimer at bottom
+# ============================================================
+st.markdown(
+    """
+    <style>
+    .disclaimer-box { 
+        position: fixed; bottom: 0; left: 0; right: 0; 
+        background:white; color:#333; padding:12px; 
+        border-top:1px solid #ccc; z-index:9999; font-size:12px; 
+        max-height:140px; overflow-y:auto;
+    }
+    </style>
+    <div class="disclaimer-box">
+    ⚠️ This tool is for internal training purposes only.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
