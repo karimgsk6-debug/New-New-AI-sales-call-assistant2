@@ -10,7 +10,7 @@ from html import escape
 # ============================================================
 # 🔐 GROQ API KEY (REPLACE THIS)
 # ============================================================
-GROQ_API_KEY = "Add_GROQ_API_here"
+GROQ_API_KEY = "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"
 
 # -------------------------
 # Optional imports
@@ -67,7 +67,7 @@ init_session()
 # GROQ CLIENT
 # ============================================================
 def get_groq():
-    if not GROQ_API_KEY or GROQ_API_KEY == "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":
+    if not GROQ_API_KEY or GROQ_API_KEY == "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":
         return None
     if Groq is None:
         return None
