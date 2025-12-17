@@ -1,9 +1,8 @@
 # ============================================================
-# AI Sales Call Assistant - UI/UX Updated Version
+# AI Sales Call Assistant - Collapsible Prompt & Styled Disclaimer
 # ============================================================
 import streamlit as st
 import os, base64
-from datetime import datetime
 
 # -------------------------
 # Optional imports
@@ -156,7 +155,7 @@ def set_dynamic_background(image_path):
 set_dynamic_background(BACKGROUND_PATH)
 
 # ============================================================
-# CSS for avatar + chat bubbles + sticky input + footer
+# CSS for avatar + chat + sticky input + collapsible prompts + disclaimer
 # ============================================================
 st.markdown(
     """
@@ -165,14 +164,17 @@ st.markdown(
     .ai-avatar { width:52px; height:52px; border-radius:50%; box-shadow: 0 0 12px rgba(0,255,255,0.6); flex-shrink:0; animation:holoPulse 2.5s infinite ease-in-out; }
     @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
     .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
-
     .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 
-    .suggestions-box{ background: rgba(20,20,40,0.5); padding:10px; border-radius:8px; margin-bottom:6px; color:#CFF; cursor:pointer; }
+    .suggestions-container { background: rgba(20,20,40,0.5); padding:8px; border-radius:8px; margin-bottom:8px; color:#CFF; cursor:pointer; }
+    .suggestion-item { margin:4px 0; padding:4px 8px; background: rgba(0,0,0,0.2); border-radius:4px; cursor:pointer; }
+    .suggestion-item:hover { background: rgba(0,255,255,0.25); }
 
     /* Sticky input */
-    .stTextInput>div>div>input {position: fixed !important; bottom: 40px; width:calc(100% - 40px); z-index:1000; }
-    footer { position: fixed !important; bottom:0; width:100%; opacity:0.85; font-size:12px; text-align:center; color:#aac; background: rgba(0,0,0,0.02); }
+    .stTextInput>div>div>input {position: fixed !important; bottom: 80px; width:calc(100% - 40px); z-index:1000; }
+
+    /* White resizable disclaimer */
+    .disclaimer-box { background:white; color:#333; padding:8px; border-radius:8px; margin-top:12px; max-height:120px; overflow-y:auto; font-size:12px; border:1px solid #ccc; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -251,12 +253,12 @@ objective_val = st.sidebar.text_input("Objective for call", "Increase adoption")
 # ============================================================
 st.title("AI Sales Call Assistant")
 
-# Collapsible prompt suggestions (clickable as Copilot)
-prompts = make_suggestions(brand_key, persona_val, bconf["barriers"], segment_val, specialty_val, objective_val)
-st.markdown("### Prompt Suggestions (Click to insert in chat)")
-for p in prompts:
-    if st.button(p):
-        st.session_state.main_input = p
+# Collapsible prompt suggestions container
+with st.expander("Prompt Suggestions (Click to insert in chat)", expanded=True):
+    prompts = make_suggestions(brand_key, persona_val, bconf["barriers"], segment_val, specialty_val, objective_val)
+    for p in prompts:
+        if st.button(p, key=p):
+            st.session_state.main_input += (" " + p)
 
 # Input and Generate button
 scenario = {"brand": brand_key, "persona": persona_val, "segment": segment_val, "specialty": specialty_val, "objective": objective_val}
@@ -265,6 +267,7 @@ if st.button("Generate Sales Call"):
     st.session_state.chat_history.append({"role":"user","content":user_input})
     output = generate_sales_call(scenario)
     st.session_state.chat_history.append({"role":"ai","content":output})
+    st.session_state.main_input = ""  # reset input
 
 # Display chat history
 for msg in st.session_state.chat_history:
@@ -278,5 +281,5 @@ for msg in st.session_state.chat_history:
         </div>
         """, unsafe_allow_html=True)
 
-# Footer disclaimer
-st.markdown('<footer>⚠️ This tool is for internal training purposes only.</footer>', unsafe_allow_html=True)
+# Disclaimer in resizable white box
+st.markdown('<div class="disclaimer-box">⚠️ This tool is for internal training purposes only.</div>', unsafe_allow_html=True)
