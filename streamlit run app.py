@@ -69,7 +69,11 @@ brand_data = {
         "references_path": os.path.join(REFERENCE_PATH, "shingrix"),
         "sales_path": os.path.join(SALES_MODULE_PATH, "shingrix"),
         "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Analyze"],
-        "objections": ["efficacy", "safety", "cost"],
+        "objections": {
+            "efficacy": "Focus on durable protection and age-agnostic efficacy evidence.",
+            "safety": "Acknowledge common AEs, then contrast with risk of complications from shingles.",
+            "cost": "Frame cost as prevention of downstream complications and reduce clinic workload."
+        },
     },
     "jemperli": {
         "display": "Jemperli",
@@ -80,7 +84,11 @@ brand_data = {
         "references_path": os.path.join(REFERENCE_PATH, "jemperli"),
         "sales_path": os.path.join(SALES_MODULE_PATH, "jemperli"),
         "call_flow": ["COCO", "Anchor", "Engage", "Close"],
-        "objections": ["efficacy", "safety", "access"],
+        "objections": {
+            "efficacy": "Discuss durable responses in dMMR/MSI-H and appropriate patient selection.",
+            "safety": "Share safety profile and monitoring guidance to reduce perceived risk.",
+            "access": "Offer starter kits or initiation support and reimbursement pathways."
+        },
     },
     "trelegy": {
         "display": "Trelegy",
@@ -91,7 +99,11 @@ brand_data = {
         "references_path": os.path.join(REFERENCE_PATH, "trelegy"),
         "sales_path": os.path.join(SALES_MODULE_PATH, "trelegy"),
         "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"],
-        "objections": ["device", "coverage", "effectiveness"],
+        "objections": {
+            "device": "Offer quick practical coaching and demo materials.",
+            "coverage": "Explain access options and patient support programs.",
+            "effectiveness": "Share comparative outcomes framed for real-world practice."
+        },
     },
 }
 
@@ -143,17 +155,54 @@ def load_folder(folder):
     return "\n".join(content)
 
 # ============================================================
+# PERSONA PROFILE (for objections)
+# ============================================================
+def persona_profile(persona):
+    profiles = {
+        "Uncommitted Vaccinator": {"quick_win": "Focus on 1-step vaccination script."},
+        "Reluctant Efficiency": {"quick_win": "Offer concise adoption checklist."},
+        "Patient Influenced": {"quick_win": "Provide patient-facing summary."},
+        "Committed Vaccinator": {"quick_win": "Highlight long-term impact data."},
+        "Data-Driven Oncologist": {"quick_win": "Share key trial metrics."},
+        "Skeptical Specialist": {"quick_win": "Provide monitoring protocols."},
+        "Innovator Prescriber": {"quick_win": "Show new workflow pilots."},
+        "PCP Prescriber": {"quick_win": "Demonstrate simple inhaler use."},
+        "Pulmonologist": {"quick_win": "Share comparative outcomes."},
+        "Respiratory Nurse": {"quick_win": "Provide patient coaching sheets."},
+    }
+    return profiles.get(persona, {"quick_win": "Offer concise actionable next step."})
+
+# ============================================================
+# Objection handling per product & persona
+# ============================================================
+def objection_response(product_key, objection_key, persona):
+    product = brand_data.get(product_key, {})
+    base = product.get("objections", {})
+    reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
+    prof = persona_profile(persona)
+
+    if "evidence" in persona.lower():
+        return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer to share a 1-page evidence summary."
+    if "time" in persona.lower():
+        return f"Answer (Time-pressured): {reply} Then offer a single-sentence script and a nurse checklist to make adoption painless."
+    if "skeptical" in persona.lower():
+        return f"Answer (Skeptical): {reply} Start by acknowledging, then show safety data and a monitoring plan; propose a conservative pilot."
+    if "early" in persona.lower():
+        return f"Answer (Early-adopter): {reply} Highlight differentiation and offer to co-design a small pilot with outcome monitoring."
+    return f"{reply} (Tailored suggestion: {prof['quick_win']})"
+
+# ============================================================
 # CORE GENERATION (BRAND-GOVERNED)
 # ============================================================
 def generate_sales_call(user_input):
     brand = st.session_state.selected_brand
-    cfg = brand_data[brand]
+    bconf = brand_data[brand]
 
-    sales_module = load_folder(cfg["sales_path"])
-    references = load_folder(cfg["references_path"])
+    sales_module = load_folder(bconf["sales_path"])
+    references = load_folder(bconf["references_path"])
 
     if not sales_module or not references:
-        return f"❌ Missing approved materials for {cfg['display']}"
+        return f"❌ Missing approved materials for {bconf['display']}"
 
     client = get_client()
     if not client:
@@ -165,11 +214,11 @@ You are a pharmaceutical sales excellence coach.
 RULES (MANDATORY):
 - Use ONLY the provided Sales Module
 - Use ONLY the provided References
-- Follow this call flow exactly: {cfg['call_flow']}
+- Follow this call flow exactly: {bconf['call_flow']}
 - Do NOT introduce external knowledge
 - Do NOT cross-reference other brands
 
-Brand: {cfg['display']}
+Brand: {bconf['display']}
 HCP Persona: {st.session_state.hcp_persona}
 Tone: {st.session_state.tone}
 """
@@ -188,7 +237,7 @@ Scenario:
 
 Include:
 - Persona-adapted questions
-- 1–2 objections from: {cfg['objections']}
+- 1–2 objections from: {bconf['objections'].keys()}
 - Clear next-step close
 """
 
@@ -221,15 +270,15 @@ with st.sidebar:
 
     brand = st.selectbox("Brand", list(brand_data.keys()))
     st.session_state.selected_brand = brand
-    cfg = brand_data[brand]
+    bconf = brand_data[brand]
 
     st.session_state.hcp_persona = st.selectbox(
         "HCP Persona",
-        cfg["personas"]
+        bconf["personas"]
     )
 
-    st.selectbox("Specialty", cfg["specialties"])
-    st.selectbox("Segment", cfg["segments"])
+    st.selectbox("Specialty", bconf["specialties"])
+    st.selectbox("Segment", bconf["segments"])
 
     st.session_state.tone = st.selectbox(
         "Tone", ["executive", "clinical", "coaching"]
@@ -245,6 +294,7 @@ with st.sidebar:
 st.markdown(
     f"""
     <h2>💡 AI Sales Call Assistant — {brand_data[st.session_state.selected_brand]['display']}</h2>
+    <img src="{AI_AVATAR}" width="64" style="float:right; border-radius:50%; box-shadow:0 0 12px rgba(0,255,255,0.6);"/>
     """,
     unsafe_allow_html=True,
 )
