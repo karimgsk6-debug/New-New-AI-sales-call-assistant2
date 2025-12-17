@@ -1,8 +1,8 @@
 # ============================================================
-# AI Sales Call Assistant - Full Merged Version
+# AI Sales Call Assistant - UI/UX Updated Version
 # ============================================================
 import streamlit as st
-import os, base64, io
+import os, base64
 from datetime import datetime
 
 # -------------------------
@@ -168,10 +168,10 @@ st.markdown(
 
     .user-bubble{ background: rgba(0,0,0,0.06); color:#111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
 
-    .suggestions-box{ background: rgba(20,20,40,0.5); padding:10px; border-radius:8px; margin-bottom:6px; color:#CFF; }
+    .suggestions-box{ background: rgba(20,20,40,0.5); padding:10px; border-radius:8px; margin-bottom:6px; color:#CFF; cursor:pointer; }
 
     /* Sticky input */
-    .stTextInput>div>div>input {position: fixed !important; bottom: 8px; width:calc(100% - 40px); z-index:1000; }
+    .stTextInput>div>div>input {position: fixed !important; bottom: 40px; width:calc(100% - 40px); z-index:1000; }
     footer { position: fixed !important; bottom:0; width:100%; opacity:0.85; font-size:12px; text-align:center; color:#aac; background: rgba(0,0,0,0.02); }
     </style>
     """,
@@ -235,35 +235,48 @@ def generate_sales_call(scenario):
     return f"Generated sales call for {scenario['persona']} regarding {scenario['brand']}."
 
 # ============================================================
+# Sidebar filters
+# ============================================================
+st.sidebar.title("Filters / Selections")
+brand_key = st.sidebar.selectbox("Select brand", list(brand_data.keys()), index=0)
+bconf = brand_data[brand_key]
+
+persona_val = st.sidebar.selectbox("Select HCP persona", bconf["personas"])
+segment_val = st.sidebar.selectbox("Segment", bconf["segments"])
+specialty_val = st.sidebar.selectbox("Specialty", bconf["specialties"])
+objective_val = st.sidebar.text_input("Objective for call", "Increase adoption")
+
+# ============================================================
 # Main interface
 # ============================================================
 st.title("AI Sales Call Assistant")
 
-# Brand selection
-brand_key = st.selectbox("Select brand", list(brand_data.keys()), index=0)
-bconf = brand_data[brand_key]
+# Collapsible prompt suggestions (clickable as Copilot)
+prompts = make_suggestions(brand_key, persona_val, bconf["barriers"], segment_val, specialty_val, objective_val)
+st.markdown("### Prompt Suggestions (Click to insert in chat)")
+for p in prompts:
+    if st.button(p):
+        st.session_state.main_input = p
 
-persona_val = st.selectbox("Select HCP persona", bconf["personas"])
-segment_val = st.selectbox("Segment", bconf["segments"])
-specialty_val = st.selectbox("Specialty", bconf["specialties"])
-objective_val = st.text_input("Objective for call", "Increase adoption")
-
-# Collapsible prompt suggestions
-with st.expander("Prompt Suggestions", expanded=False):
-    prompts = make_suggestions(brand_key, persona_val, bconf["barriers"], segment_val, specialty_val, objective_val)
-    for p in prompts:
-        st.markdown(f"- {p}", unsafe_allow_html=True)
-
-# Input scenario
+# Input and Generate button
 scenario = {"brand": brand_key, "persona": persona_val, "segment": segment_val, "specialty": specialty_val, "objective": objective_val}
+user_input = st.text_input("Your message", value=st.session_state.main_input, key="chat_input")
 if st.button("Generate Sales Call"):
+    st.session_state.chat_history.append({"role":"user","content":user_input})
     output = generate_sales_call(scenario)
-    st.markdown(f"""
-    <div class="ai-message">
-        <img class="ai-avatar" src="{AI_AVATAR}">
-        <div class="ai-bubble">{output}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.session_state.chat_history.append({"role":"ai","content":output})
+
+# Display chat history
+for msg in st.session_state.chat_history:
+    if msg["role"]=="user":
+        st.markdown(f'<div class="user-bubble">{msg["content"]}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="ai-message">
+            <img class="ai-avatar" src="{AI_AVATAR}">
+            <div class="ai-bubble">{msg["content"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Footer disclaimer
-st.markdown('<div class="fixed-disclaimer">⚠️ This tool is for internal training purposes only.</div>', unsafe_allow_html=True)
+st.markdown('<footer>⚠️ This tool is for internal training purposes only.</footer>', unsafe_allow_html=True)
