@@ -124,18 +124,6 @@ def init_session():
 init_session()
 
 # ============================================================
-# GROQ CLIENT
-# ============================================================
-def get_client():
-    if not GROQ_API_KEY or GROQ_API_KEY.startswith("Add_"):
-        st.warning("⚠️ GROQ API is not set")
-        return None
-    if Groq is None:
-        st.warning("⚠️ groq package not installed")
-        return None
-    return Groq(api_key=GROQ_API_KEY)
-
-# ============================================================
 # FILE HELPERS
 # ============================================================
 def read_file(path):
@@ -204,10 +192,6 @@ def generate_sales_call(user_input):
     if not sales_module or not references:
         return f"❌ Missing approved materials for {bconf['display']}"
 
-    client = get_client()
-    if not client:
-        return "⚠️ GROQ API unavailable"
-
     system_prompt = f"""
 You are a pharmaceutical sales excellence coach.
 
@@ -240,6 +224,10 @@ Include:
 - 1–2 objections from: {bconf['objections'].keys()}
 - Clear next-step close
 """
+
+    client = get_client()
+    if not client:
+        return "⚠️ GROQ API unavailable"
 
     resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -300,6 +288,17 @@ st.markdown(
 )
 
 # ============================================================
+# REAG-LIKE SUMMARIES
+# ============================================================
+bconf = brand_data[st.session_state.selected_brand]
+
+with st.expander("📄 Sales Module Summary", expanded=False):
+    st.text_area("Sales Module Content", value=load_folder(bconf["sales_path"])[:4000], height=250)
+
+with st.expander("📚 Medical References Summary", expanded=False):
+    st.text_area("References Content", value=load_folder(bconf["references_path"])[:4000], height=250)
+
+# ============================================================
 # MAIN UI
 # ============================================================
 scenario = st.text_area(
@@ -317,9 +316,26 @@ if st.button("🧠 Generate Brand-Specific Sales Call"):
         st.audio(audio, format="audio/mp3")
 
 # ============================================================
-# DISCLAIMER
+# FIXED FOOTER DISCLAIMER
 # ============================================================
 st.markdown(
-    "<small>Internal use only. Generated content limited to approved materials.</small>",
+    """
+    <style>
+    .footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: rgba(0,0,0,0.05);
+        color: #444;
+        text-align: center;
+        padding: 6px;
+        font-size:12px;
+    }
+    </style>
+    <div class="footer">
+        ⚠️ Internal use only. Generated content limited to approved materials.
+    </div>
+    """,
     unsafe_allow_html=True,
 )
