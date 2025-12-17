@@ -5,8 +5,12 @@
 
 import streamlit as st
 import os, re, tempfile, base64, io
-from datetime import datetime
 from html import escape
+
+# ============================================================
+# 🔐 GROQ API KEY (REPLACE THIS)
+# ============================================================
+GROQ_API_KEY = "Add_GROQ_API_here"
 
 # -------------------------
 # Optional imports
@@ -53,7 +57,6 @@ def init_session():
         "tone": "executive",
         "temperature": 0.4,
         "chunks": [],
-        "chunk_meta": [],
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -64,10 +67,11 @@ init_session()
 # GROQ CLIENT
 # ============================================================
 def get_groq():
-    key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
-    if not key or Groq is None:
+    if not GROQ_API_KEY or GROQ_API_KEY == "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":
         return None
-    return Groq(api_key=key)
+    if Groq is None:
+        return None
+    return Groq(api_key=GROQ_API_KEY)
 
 # ============================================================
 # BRAND CONFIG
@@ -104,10 +108,7 @@ def read_text(file):
 
 def build_chunks(text, size=3):
     sents = re.split(r'(?<=[.!?])\s+', text)
-    chunks = []
-    for i in range(0, len(sents), size):
-        chunks.append(" ".join(sents[i:i+size]))
-    return chunks
+    return [" ".join(sents[i:i+size]) for i in range(0, len(sents), size)]
 
 def local_search(query, chunks, top_k=4):
     if not SKLEARN_AVAILABLE or not chunks:
@@ -124,7 +125,7 @@ def local_search(query, chunks, top_k=4):
 def llm(prompt, context=""):
     client = get_groq()
     if not client:
-        return "⚠️ Groq API not configured."
+        return "⚠️ GROQ API key not set. Please add your key."
 
     messages = [
         {"role": "system", "content": "You are a compliant pharmaceutical sales coach."},
@@ -140,32 +141,30 @@ def llm(prompt, context=""):
     return resp.choices[0].message.content
 
 # ============================================================
-# SALES FLOW GENERATOR
+# SALES CALL FLOW GENERATOR
 # ============================================================
-def generate_call(user_prompt):
+def generate_sales_call(user_prompt):
     brand = BRANDS[st.session_state.brand]
     persona = st.session_state.persona
     tone = st.session_state.tone
 
     refs = local_search(user_prompt, st.session_state.chunks)
-
-    context = ""
-    if refs:
-        context = "REFERENCE MATERIAL:\n" + "\n".join(refs[:3])
+    context = "REFERENCE MATERIAL:\n" + "\n".join(refs[:3]) if refs else ""
 
     prompt = f"""
-Create a sales call flow for brand: {brand['display']}
-HCP Persona: {persona}
+Generate a structured sales call for {brand['display']}.
+
+HCP persona: {persona}
 Tone: {tone}
 
-Structure:
-- Opening
-- Needs discovery (questions)
-- Value proposition
-- Objection handling
-- Close
+Include:
+1. Opening
+2. Insightful discovery questions
+3. Feature → benefit → patient value
+4. Likely objections + handling
+5. Close with next step
 
-Be concise, practical, and field-ready.
+Be concise and field-ready.
 """
 
     return llm(prompt, context)
@@ -174,22 +173,21 @@ Be concise, practical, and field-ready.
 # ROLE PLAY ENGINE
 # ============================================================
 def role_play(rep_input):
-    persona = st.sessionA = st.session_state.persona
+    persona = st.session_state.persona
     prompt = f"""
-You are a {persona} HCP.
-Respond realistically to the medical rep.
-Challenge weak arguments.
+You are a {persona} healthcare professional.
+Respond realistically and challenge weak selling points.
 """
     return llm(rep_input, prompt)
 
 # ============================================================
-# AUDIO
+# AUDIO (OPTIONAL)
 # ============================================================
 def speak(text):
     if not gTTS:
         return None
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    gTTS(text=text, lang="en").save(tmp.name)
+    gTTS(text=text[:1000], lang="en").save(tmp.name)
     with open(tmp.name, "rb") as f:
         return f.read()
 
@@ -199,26 +197,21 @@ def speak(text):
 with st.sidebar:
     st.header("Configuration")
 
-    st.session_state.brand = st.selectbox(
-        "Brand", list(BRANDS.keys())
-    )
-
+    st.session_state.brand = st.selectbox("Brand", BRANDS.keys())
     st.session_state.persona = st.selectbox(
         "HCP Persona",
-        ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"],
+        ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
     )
-
     st.session_state.tone = st.selectbox(
         "Tone", ["executive", "coaching", "persuasive", "clinical"]
     )
-
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.4)
 
-    uploaded = st.file_uploader("Upload medical / sales PDF", type=["pdf", "txt"])
+    uploaded = st.file_uploader("Upload approved PDF / TXT", type=["pdf", "txt"])
     if uploaded:
         text = read_text(uploaded)
         st.session_state.chunks = build_chunks(text)
-        st.success("Reference loaded")
+        st.success("Reference material loaded")
 
 # ============================================================
 # MAIN UI
@@ -228,25 +221,26 @@ st.title("💡 AI Medical Rep Sales Call Assistant")
 for msg in st.session_state.chat:
     st.markdown(msg, unsafe_allow_html=True)
 
-user_input = st.text_area("Your input")
+user_input = st.text_area("Enter your question or scenario")
 
 col1, col2 = st.columns(2)
 
-if col1.button("Generate Sales Call"):
-    reply = generate_call(user_input)
-    st.session_state.chat.append(f"### 🧠 AI\n{reply}")
-    audio = speak(reply[:800])
+if col1.button("🧠 Generate Sales Call"):
+    reply = generate_sales_call(user_input)
+    st.session_state.chat.append(f"### AI Coach\n{reply}")
+    audio = speak(reply)
     if audio:
         st.audio(audio, format="audio/mp3")
 
-if col2.button("Role Play"):
+if col2.button("🩺 Role Play"):
     reply = role_play(user_input)
-    st.session_state.chat.append(f"### 🩺 HCP\n{reply}")
+    st.session_state.chat.append(f"### HCP\n{reply}")
 
 # ============================================================
 # DISCLAIMER
 # ============================================================
 st.markdown(
-    "<small>For internal training and sales excellence only. No off-label promotion.</small>",
+    "<small>For internal sales training and selling excellence support only. "
+    "No off-label or promotional misuse.</small>",
     unsafe_allow_html=True,
 )
