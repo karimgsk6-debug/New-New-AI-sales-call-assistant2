@@ -96,7 +96,7 @@ st.markdown(
         50% { box-shadow:0 0 22px rgba(0,255,255,0.9);}
         100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
 
-    .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18);
+    .ai-bubble { background: rgba(255,255,255,0.08); border:1px solid rgba(0,255,255,0.18);
         color:#E6FBFF; padding:14px; border-radius:14px; max-width:90%; white-space:pre-wrap; }
 
     .fixed-disclaimer{ font-size:12px; color:#aac; margin-top:16px; }
