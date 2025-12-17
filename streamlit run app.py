@@ -1,20 +1,20 @@
 # ============================================================
-# app.py — AI Medical Rep Sales Call Assistant (FINAL)
-# Groq + llama-3.3-70b-versatile
+# app.py — AI Medical Rep Sales Call Assistant (FINAL MERGED)
+# Model: llama-3.3-70b-versatile (GROQ)
 # ============================================================
 
 import streamlit as st
-import os, re, tempfile, base64, io
+import os, re, tempfile
 from html import escape
 
 # ============================================================
-# 🔐 GROQ API KEY (REPLACE THIS)
+# 🔐 GROQ API KEY (REPLACE VALUE)
 # ============================================================
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"  # <-- replace with gsk_...
 
-# -------------------------
-# Optional imports
-# -------------------------
+# ============================================================
+# OPTIONAL IMPORTS (SAFE)
+# ============================================================
 try:
     from groq import Groq
 except Exception:
@@ -38,18 +38,18 @@ except Exception:
     SKLEARN_AVAILABLE = False
 
 # ============================================================
-# PAGE CONFIG
+# STREAMLIT CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="AI Sales Call Assistant",
+    page_title="AI Medical Rep Sales Assistant",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # ============================================================
-# SESSION STATE
+# SESSION STATE INIT
 # ============================================================
-def init_session():
+def init_state():
     defaults = {
         "chat": [],
         "brand": "shingrix",
@@ -61,129 +61,138 @@ def init_session():
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
-init_session()
+init_state()
 
 # ============================================================
-# GROQ CLIENT
+# GROQ CLIENT (ROBUST)
 # ============================================================
-def get_groq():
-    if not GROQ_API_KEY or GROQ_API_KEY == "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":
-        return None
+def get_groq_client():
     if Groq is None:
+        st.error("❌ Groq SDK not installed. Run: pip install groq")
         return None
-    return Groq(api_key=GROQ_API_KEY)
+
+    if not GROQ_API_KEY or GROQ_API_KEY.startswith("Add_"):
+        st.error("❌ GROQ API key is missing. Please add your key.")
+        return None
+
+    try:
+        return Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        st.error(f"❌ GROQ initialization failed: {e}")
+        return None
 
 # ============================================================
-# BRAND CONFIG
+# BRAND CONFIG (EXTENDABLE)
 # ============================================================
 BRANDS = {
     "shingrix": {
-        "display": "Shingrix",
-        "flow": ["Prepare", "Engage", "Create Opportunity", "Influence", "Close"],
+        "name": "Shingrix",
+        "gsl": ["Prepare", "Engage", "Create Opportunity", "Influence", "Close"],
         "objections": {
-            "efficacy": "Durable protection across age groups",
+            "efficacy": "Long-term protection against herpes zoster",
             "safety": "Expected reactogenicity vs disease burden",
-            "cost": "Prevention of downstream complications",
+            "cost": "Prevention of PHN and complications",
         },
     },
     "jemperli": {
-        "display": "Jemperli",
-        "flow": ["Context", "Evidence", "Patient Selection", "Access", "Close"],
+        "name": "Jemperli",
+        "gsl": ["Context", "Evidence", "Patient Identification", "Access", "Close"],
         "objections": {
-            "efficacy": "Durable response in dMMR/MSI-H",
+            "efficacy": "Durable response in dMMR/MSI-H patients",
             "safety": "Manageable immune-related AEs",
-            "access": "Eligibility & reimbursement pathways",
+            "access": "Clear eligibility pathways",
         },
     },
 }
 
 # ============================================================
-# RAG HELPERS (LOCAL)
+# RAG — DOCUMENT HANDLING
 # ============================================================
-def read_text(file):
+def read_document(file):
     if file.name.endswith(".pdf") and PdfReader:
         reader = PdfReader(file)
-        return "".join(p.extract_text() or "" for p in reader.pages)
+        return "".join(page.extract_text() or "" for page in reader.pages)
     return file.read().decode("utf-8", errors="ignore")
 
-def build_chunks(text, size=3):
-    sents = re.split(r'(?<=[.!?])\s+', text)
-    return [" ".join(sents[i:i+size]) for i in range(0, len(sents), size)]
+def chunk_text(text, size=3):
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    return [" ".join(sentences[i:i+size]) for i in range(0, len(sentences), size)]
 
-def local_search(query, chunks, top_k=4):
+def search_chunks(query, chunks, top_k=4):
     if not SKLEARN_AVAILABLE or not chunks:
         return []
-    vect = TfidfVectorizer(stop_words="english")
-    X = vect.fit_transform(chunks + [query])
-    sims = linear_kernel(X[-1], X[:-1]).flatten()
-    idx = sims.argsort()[::-1][:top_k]
-    return [chunks[i] for i in idx if sims[i] > 0]
+    vectorizer = TfidfVectorizer(stop_words="english")
+    X = vectorizer.fit_transform(chunks + [query])
+    scores = linear_kernel(X[-1], X[:-1]).flatten()
+    best = scores.argsort()[::-1][:top_k]
+    return [chunks[i] for i in best if scores[i] > 0]
 
 # ============================================================
-# LLM CALL
+# LLM CORE FUNCTION
 # ============================================================
-def llm(prompt, context=""):
-    client = get_groq()
+def call_llm(user_prompt, context=""):
+    client = get_groq_client()
     if not client:
-        return "⚠️ GROQ API key not set. Please add your key."
+        return "⚠️ LLM unavailable. Fix API key or installation."
 
     messages = [
-        {"role": "system", "content": "You are a compliant pharmaceutical sales coach."},
-        {"role": "user", "content": context + "\n\n" + prompt},
+        {"role": "system", "content": "You are a compliant pharmaceutical sales excellence coach."},
+        {"role": "user", "content": context + "\n\n" + user_prompt},
     ]
 
-    resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        temperature=st.session_state.temperature,
-    )
-
-    return resp.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            temperature=st.session_state.temperature,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"❌ LLM call failed: {e}"
 
 # ============================================================
 # SALES CALL FLOW GENERATOR
 # ============================================================
-def generate_sales_call(user_prompt):
+def generate_sales_call(scenario):
     brand = BRANDS[st.session_state.brand]
-    persona = st.session_state.persona
-    tone = st.session_state.tone
+    refs = search_chunks(scenario, st.session_state.chunks)
 
-    refs = local_search(user_prompt, st.session_state.chunks)
-    context = "REFERENCE MATERIAL:\n" + "\n".join(refs[:3]) if refs else ""
+    context = "APPROVED REFERENCES:\n" + "\n".join(refs[:3]) if refs else ""
 
     prompt = f"""
-Generate a structured sales call for {brand['display']}.
+Generate a structured medical sales call.
 
-HCP persona: {persona}
-Tone: {tone}
+Brand: {brand['name']}
+GSL Steps: {', '.join(brand['gsl'])}
+HCP Persona: {st.session_state.persona}
+Tone: {st.session_state.tone}
 
 Include:
-1. Opening
-2. Insightful discovery questions
-3. Feature → benefit → patient value
-4. Likely objections + handling
-5. Close with next step
+1. Opening aligned to persona
+2. Insightful discovery questions (unmet needs)
+3. Feature → Benefit → Patient value
+4. Anticipated objections with responses
+5. Strong close & next action
 
-Be concise and field-ready.
+Field-ready. No off-label claims.
 """
 
-    return llm(prompt, context)
+    return call_llm(prompt, context)
 
 # ============================================================
 # ROLE PLAY ENGINE
 # ============================================================
 def role_play(rep_input):
-    persona = st.session_state.persona
     prompt = f"""
-You are a {persona} healthcare professional.
-Respond realistically and challenge weak selling points.
+You are a {st.session_state.persona} healthcare professional.
+Respond realistically. Challenge weak selling.
 """
-    return llm(rep_input, prompt)
+    return call_llm(rep_input, prompt)
 
 # ============================================================
-# AUDIO (OPTIONAL)
+# TEXT TO SPEECH (OPTIONAL)
 # ============================================================
-def speak(text):
+def text_to_speech(text):
     if not gTTS:
         return None
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
@@ -192,10 +201,10 @@ def speak(text):
         return f.read()
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR UI
 # ============================================================
 with st.sidebar:
-    st.header("Configuration")
+    st.header("🔧 Configuration")
 
     st.session_state.brand = st.selectbox("Brand", BRANDS.keys())
     st.session_state.persona = st.selectbox(
@@ -203,15 +212,20 @@ with st.sidebar:
         ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
     )
     st.session_state.tone = st.selectbox(
-        "Tone", ["executive", "coaching", "persuasive", "clinical"]
+        "Conversation Tone",
+        ["executive", "clinical", "coaching", "persuasive"]
     )
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.4)
 
-    uploaded = st.file_uploader("Upload approved PDF / TXT", type=["pdf", "txt"])
-    if uploaded:
-        text = read_text(uploaded)
-        st.session_state.chunks = build_chunks(text)
-        st.success("Reference material loaded")
+    doc = st.file_uploader("Upload approved PDF / TXT", type=["pdf", "txt"])
+    if doc:
+        text = read_document(doc)
+        st.session_state.chunks = chunk_text(text)
+        st.success("📚 Smart library ready")
+
+    if st.button("🔌 Test GROQ Connection"):
+        test = call_llm("Reply only with OK")
+        st.info(test)
 
 # ============================================================
 # MAIN UI
@@ -221,26 +235,29 @@ st.title("💡 AI Medical Rep Sales Call Assistant")
 for msg in st.session_state.chat:
     st.markdown(msg, unsafe_allow_html=True)
 
-user_input = st.text_area("Enter your question or scenario")
+scenario = st.text_area(
+    "Enter visit objective, patient profile, or question",
+    height=120,
+)
 
 col1, col2 = st.columns(2)
 
 if col1.button("🧠 Generate Sales Call"):
-    reply = generate_sales_call(user_input)
-    st.session_state.chat.append(f"### AI Coach\n{reply}")
-    audio = speak(reply)
+    response = generate_sales_call(scenario)
+    st.session_state.chat.append(f"### 🧠 AI Coach\n{escape(response)}")
+    audio = text_to_speech(response)
     if audio:
         st.audio(audio, format="audio/mp3")
 
-if col2.button("🩺 Role Play"):
-    reply = role_play(user_input)
-    st.session_state.chat.append(f"### HCP\n{reply}")
+if col2.button("🩺 Role Play with HCP"):
+    response = role_play(scenario)
+    st.session_state.chat.append(f"### 🩺 HCP\n{escape(response)}")
 
 # ============================================================
-# DISCLAIMER
+# FOOTER
 # ============================================================
 st.markdown(
-    "<small>For internal sales training and selling excellence support only. "
-    "No off-label or promotional misuse.</small>",
+    "<small>Internal use only. For training and selling excellence support. "
+    "No promotional or off-label usage.</small>",
     unsafe_allow_html=True,
 )
