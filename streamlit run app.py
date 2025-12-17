@@ -35,7 +35,7 @@ try:
     import elevenlabs
     ELEVENLABS_AVAILABLE = True
 except Exception:
-    ELEVENLABS AVAILABLE = False
+    ELEVENLABS_AVAILABLE = False
 
 # -------------------------
 # Page config
@@ -99,4 +99,5 @@ st.markdown(
     @keyframes holoPulse { 0% { box-shadow:0 0 8px rgba(0,255,255,0.35);} 50% { box-shadow:0 0 22px rgba(0,255,255,0.9);} 100% { box-shadow:0 0 8px rgba(0,255,255,0.35);} }
     .ai-bubble { background: rgba(255,255,255,0.06); border:1px solid rgba(0,255,255,0.18); color:#E6FBFF; padding:14px; border-radius:14px; backdrop-filter: blur(6px); max-width:90%; white-space:pre-wrap; }
 
-    .citation-box{ font-size
+    .citation-box{ font-size:12px; color:#bcd; margin-left:6px; margin-bottom:6px; }
+    .fixed
