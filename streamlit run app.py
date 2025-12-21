@@ -274,6 +274,19 @@ with st.sidebar:
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
 
 # ============================================================
+# PROMPT SUGGESTIONS COLLAPSIBLE
+# ============================================================
+with st.expander("💡 Suggested lines to say to HCP"):
+    st.markdown(
+        """
+        - “Based on clinical evidence, this product offers durable protection…”
+        - “Many patients benefit from a simplified administration schedule…”
+        - “One practical way to integrate this therapy is…”
+        - “Addressing cost concerns: highlight long-term savings…”
+        """
+    )
+
+# ============================================================
 # CHAT INTERFACE
 # ============================================================
 st.markdown("<h2>💬 Conversation</h2>", unsafe_allow_html=True)
