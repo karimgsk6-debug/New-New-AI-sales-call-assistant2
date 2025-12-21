@@ -1,6 +1,6 @@
 # ============================================================
 # app.py — AI Medical Rep Sales Call Assistant (ENTERPRISE)
-# Enhanced UI: Clickable prompts + Voice + Brand-governed content
+# Enhanced UI: Color-coded chat bubbles + Clickable prompts + Voice
 # ============================================================
 
 import streamlit as st
@@ -73,7 +73,7 @@ def init_session():
 init_session()
 
 # ============================================================
-# BRAND DATA
+# BRAND DATA (Shingrix, Jemperli, Trelegy)
 # ============================================================
 brand_data = {
     "shingrix": {
@@ -91,7 +91,36 @@ brand_data = {
             "cost": "Frame cost as prevention of downstream complications and reduce clinic workload."
         },
     },
-    # Add other brands (jemperli, trelegy) similarly...
+    "jemperli": {
+        "display": "Jemperli",
+        "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
+        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
+        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited eligibility", "Access/reimbursement issues"],
+        "specialties": ["Oncologist", "Medical Oncologist"],
+        "references_path": os.path.join(REFERENCE_PATH, "jemperli"),
+        "sales_path": os.path.join(SALES_MODULE_PATH, "jemperli"),
+        "call_flow": ["COCO", "Anchor", "Engage", "Close"],
+        "objections": {
+            "efficacy": "Discuss durable responses in dMMR/MSI-H and appropriate patient selection.",
+            "safety": "Share safety profile and monitoring guidance to reduce perceived risk.",
+            "access": "Offer starter kits or initiation support and reimbursement pathways."
+        }
+    },
+    "trelegy": {
+        "display": "Trelegy",
+        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
+        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
+        "barriers": ["Formulary access", "Inhaler technique", "Side effect concerns", "Cost/coverage"],
+        "specialties": ["GP", "Pulmonologist", "Internal Medicine", "Respiratory Specialist"],
+        "references_path": os.path.join(REFERENCE_PATH, "trelegy"),
+        "sales_path": os.path.join(SALES_MODULE_PATH, "trelegy"),
+        "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"],
+        "objections": {
+            "device": "Offer quick practical coaching and demo materials.",
+            "coverage": "Explain access options and patient support programs.",
+            "effectiveness": "Share comparative outcomes framed for real-world practice."
+        }
+    }
 }
 
 # ============================================================
@@ -143,9 +172,9 @@ def persona_profile(persona):
 def objection_response(product_key, objection_key, persona):
     product = brand_data.get(product_key, {})
     base = product.get("objections", {})
-    reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, propose a low-effort next step.")
+    reply = base.get(objection_key, "Acknowledge concern and propose next step.")
     prof = persona_profile(persona)
-    return f"{reply} (Tailored suggestion: {prof['quick_win']})"
+    return f"{reply} (Tailored: {prof['quick_win']})"
 
 # ============================================================
 # GENERATE SALES CALL
@@ -185,7 +214,7 @@ APPROVED MEDICAL REFERENCES:
 {references}
 
 TASK:
-Generate a full sales call aligned to the defined call flow.
+Generate a full sales call aligned to the call flow.
 Scenario:
 {user_input}
 
@@ -206,8 +235,6 @@ Include:
     )
 
     output = resp.choices[0].message.content
-
-    # Extract suggested phrases (simple heuristic)
     suggestions = re.findall(r"- (.+)", output)
     st.session_state.suggestions = suggestions[:3]
     return output
@@ -238,29 +265,34 @@ with st.sidebar:
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
 
 # ============================================================
-# TITLE BOX (combined logos)
+# TITLE BOX
 # ============================================================
 st.markdown(
     f"""
-    <div style='background: rgba(255,255,255,0.15); padding:12px; border-radius:12px; display:flex; align-items:center; justify-content:space-between;'>
-        <img src="{GSK_LOGO_RAW}" style="height:32px;">
-        <h2 style="margin:0;">💡 AI Sales Call Assistant — {bconf['display']}</h2>
-        <img src="{AI_LOGO_RAW}" style="height:32px;">
+    <div style='background: rgba(255,255,255,0.15); padding:10px; border-radius:12px; display:flex; align-items:center; justify-content:space-between;'>
+        <img src="{GSK_LOGO_RAW}" style="height:28px;">
+        <h3 style="margin:0;">💡 AI Sales Call Assistant — {bconf['display']}</h3>
+        <img src="{AI_LOGO_RAW}" style="height:28px;">
     </div>
     """,
     unsafe_allow_html=True,
 )
 
 # ============================================================
-# CHAT DISPLAY
+# CHAT DISPLAY (color-coded)
 # ============================================================
 for role, msg in st.session_state.messages:
-    avatar = SALES_AVATAR if role == "AI" else HCP_AVATAR
+    if role == "HCP":
+        bg = "rgba(173,216,230,0.3)"  # light blue
+        avatar = HCP_AVATAR
+    else:
+        bg = "rgba(144,238,144,0.3)"  # light green
+        avatar = SALES_AVATAR
     st.markdown(
         f"""
-        <div style="display:flex; align-items:flex-start; gap:12px; margin:8px 0;">
-            <img src="{avatar}" width="48" style="border-radius:50%;"/>
-            <div style="background:rgba(255,255,255,0.08); padding:10px; border-radius:12px; max-width:75%; white-space:pre-wrap;">
+        <div style="display:flex; align-items:flex-start; gap:12px; margin:6px 0;">
+            <img src="{avatar}" width="48" style="border-radius:50%;">
+            <div style="background:{bg}; padding:10px; border-radius:12px; max-width:75%; white-space:pre-wrap;">
                 <b>{role}:</b> {msg}
             </div>
         </div>
