@@ -37,7 +37,7 @@ GSK_LOGO_RAW = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sal
 AI_LOGO_RAW = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/AURA1.png"
 AI_AVATAR = load_img_base64(".devcontainer/Visuals/futuristic_hologram_ai.gif")
 HCP_AVATAR = load_img_base64(".devcontainer/Visuals/HCP.gif")
-SALES_REP_AVATAR = load_img_base64(".devcontainer/Visuals/sales rep.gif")
+SALES_REP_AVATAR = load_img_base64(".devcontainer/Visuals/futuristic_hologram_ai.gif")
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ============================================================
