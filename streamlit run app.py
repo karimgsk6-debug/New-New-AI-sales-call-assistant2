@@ -1,27 +1,60 @@
 # ============================================================
-# AI SALES CALL ASSISTANT — FINAL INTEGRATED VERSION
+# app.py — AI Medical Rep Sales Call Assistant (ENTERPRISE)
+# Brand-governed | SalesModule-driven | Hologram UI
 # ============================================================
 
 import streamlit as st
-import os, re
+import os, tempfile, base64
+
+# ============================================================
+# 🔐 GROQ API KEY
+# ============================================================
+GROQ_API_KEY = "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"  # <-- replace with your key
+
+# ============================================================
+# SAFE IMPORTS
+# ============================================================
+try:
+    from groq import Groq
+except:
+    Groq = None
+
+try:
+    from PyPDF2 import PdfReader
+except:
+    PdfReader = None
+
+try:
+    from gtts import gTTS
+except:
+    gTTS = None
+
+# ============================================================
+# REPO ASSETS
+# ============================================================
+REPO_USER = "karimgsk6-debug"
+REPO_NAME = "New-New-AI-sales-call-assistant2"
+
+GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+AI_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+HCP_AVATAR = ".devcontainer/Visuals/HCP.gif"
+SALES_REP_AVATAR = ".devcontainer/Visuals/sales rep.gif"
+BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
+
+# ============================================================
+# PATH CONFIG
+# ============================================================
+BASE_PATH = ".devcontainer"
+SALES_MODULE_PATH = os.path.join(BASE_PATH, "SalesModule")
+REFERENCE_PATH = os.path.join(BASE_PATH, "references")
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
-st.set_page_config(
-    page_title="AI Sales Call Coach",
-    layout="wide",
-)
-
-# ============================================================
-# PATHS & VISUALS
-# ============================================================
-BASE_PATH = ".devcontainer"
-VISUALS = os.path.join(BASE_PATH, "Visuals")
-
-AI_AVATAR = f"{VISUALS}/futuristic_hologram_ai.gif"
-HCP_AVATAR = f"{VISUALS}/HCP.gif"
-REP_AVATAR = f"{VISUALS}/sales rep.gif"
+st.set_page_config(page_title="AI Sales Call Assistant",
+                   layout="wide",
+                   initial_sidebar_state="expanded")
 
 # ============================================================
 # BRAND DATA
@@ -31,241 +64,278 @@ brand_data = {
         "display": "Shingrix",
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
-        "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
-        "specialties": ["GP", "Dermatologist", "Cardiology", "Endocrinology", "Immunology", "Internal Medicine", "Rheumatology"],
-        "references_path": ".devcontainer/references/shingrix/",
-        "sales_path": ".devcontainer/SalesModule/shingrix/",
+        "specialties": ["GP", "Dermatology", "Cardiology", "Immunology", "Internal Medicine"],
+        "references_path": os.path.join(REFERENCE_PATH, "shingrix"),
+        "sales_path": os.path.join(SALES_MODULE_PATH, "shingrix"),
         "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Analyze"],
         "objections": {
             "efficacy": "Focus on durable protection and age-agnostic efficacy evidence.",
             "safety": "Acknowledge common AEs, then contrast with risk of complications from shingles.",
             "cost": "Frame cost as prevention of downstream complications and reduce clinic workload."
-        }
+        },
     },
     "jemperli": {
         "display": "Jemperli",
-        "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
-        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
-        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited eligibility", "Access/reimbursement issues"],
+        "segments": ["Target ID", "Trial", "Routine", "Advocacy"],
+        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber"],
         "specialties": ["Oncologist", "Medical Oncologist"],
-        "references_path": ".devcontainer/references/jemperli/",
-        "sales_path": ".devcontainer/SalesModule/jemperli/",
+        "references_path": os.path.join(REFERENCE_PATH, "jemperli"),
+        "sales_path": os.path.join(SALES_MODULE_PATH, "jemperli"),
         "call_flow": ["COCO", "Anchor", "Engage", "Close"],
         "objections": {
             "efficacy": "Discuss durable responses in dMMR/MSI-H and appropriate patient selection.",
             "safety": "Share safety profile and monitoring guidance to reduce perceived risk.",
             "access": "Offer starter kits or initiation support and reimbursement pathways."
-        }
+        },
     },
     "trelegy": {
         "display": "Trelegy",
         "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
-        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
-        "barriers": ["Formulary access", "Inhaler technique", "Side effect concerns", "Cost/coverage"],
-        "specialties": ["GP", "Pulmonologist", "Internal Medicine", "Respiratory Specialist"],
-        "references_path": ".devcontainer/references/trelegy/",
-        "sales_path": ".devcontainer/SalesModule/trelegy/",
+        "personas": ["PCP Prescriber", "Pulmonologist", "Respiratory Nurse"],
+        "specialties": ["GP", "Pulmonologist"],
+        "references_path": os.path.join(REFERENCE_PATH, "trelegy"),
+        "sales_path": os.path.join(SALES_MODULE_PATH, "trelegy"),
         "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"],
         "objections": {
             "device": "Offer quick practical coaching and demo materials.",
             "coverage": "Explain access options and patient support programs.",
             "effectiveness": "Share comparative outcomes framed for real-world practice."
-        }
-    }
+        },
+    },
 }
-
-# ============================================================
-# SAFE GROQ IMPORT
-# ============================================================
-try:
-    from groq import Groq
-except:
-    Groq = None
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-
-def get_client():
-    if not GROQ_API_KEY or not Groq:
-        return None
-    return Groq(api_key=GROQ_API_KEY)
 
 # ============================================================
 # SESSION STATE
 # ============================================================
-def init_state():
-    st.session_state.setdefault("chat_history", [])
-    st.session_state.setdefault("brand", "shingrix")
-    st.session_state.setdefault("hcp_persona", "Uncommitted Vaccinator")
-    st.session_state.setdefault("tone", "Professional")
-    st.session_state.setdefault("main_input", "")
-
-init_state()
-
-bconf = brand_data[st.session_state.brand]
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
+if "selected_brand" not in st.session_state:
+    st.session_state.selected_brand = "shingrix"
+if "hcp_persona" not in st.session_state:
+    st.session_state.hcp_persona = ""
 
 # ============================================================
-# STYLES
+# GROQ CLIENT
 # ============================================================
-st.markdown("""
-<style>
-.chat-container {max-width: 920px; margin:auto;}
-.msg {display:flex; margin-bottom:16px;}
-.avatar {width:46px; margin-right:10px;}
-.bubble {
-  padding:14px;
-  border-radius:16px;
-  max-width:720px;
-  background:#1f2937;
-  color:white;
-}
-.rep {background:#0b3c49;}
-.hcp {background:#3a2c1f;}
-.fixed-input {
-  position:fixed;
-  bottom:48px;
-  left:0;
-  right:0;
-  background:#0e1117;
-  padding:12px;
-  border-top:1px solid #333;
-}
-.footer {
-  position:fixed;
-  bottom:6px;
-  width:100%;
-  text-align:center;
-  font-size:12px;
-  color:#999;
-}
-</style>
-""", unsafe_allow_html=True)
+def get_client():
+    if not GROQ_API_KEY or GROQ_API_KEY.startswith("Add_"):
+        st.warning("⚠️ GROQ API is not set")
+        return None
+    if Groq is None:
+        st.warning("⚠️ groq package not installed")
+        return None
+    return Groq(api_key=GROQ_API_KEY)
 
 # ============================================================
-# DIALOG PARSER
+# FILE HELPERS
 # ============================================================
-def parse_dialogue(text):
-    blocks = []
-    role = "rep"
-    buff = ""
+def read_file(path):
+    if path.endswith(".pdf") and PdfReader:
+        reader = PdfReader(path)
+        return "".join(p.extract_text() or "" for p in reader.pages)
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
 
-    for line in text.split("\n"):
-        if re.search(r"\bhcp\b", line, re.I):
-            if buff:
-                blocks.append((role, buff.strip()))
-            role = "hcp"
-            buff = re.sub(r"\bhcp[:\-]*", "", line, flags=re.I)
-        elif re.search(r"\brep\b|\byou say\b", line, re.I):
-            if buff:
-                blocks.append((role, buff.strip()))
-            role = "rep"
-            buff = re.sub(r"\brep[:\-]*|\byou say[:\-]*", "", line, flags=re.I)
-        else:
-            buff += " " + line
-
-    if buff.strip():
-        blocks.append((role, buff.strip()))
-    return blocks
+def load_folder(folder):
+    if not os.path.exists(folder):
+        return ""
+    content = []
+    for f in os.listdir(folder):
+        if f.endswith((".txt", ".pdf")):
+            content.append(read_file(os.path.join(folder, f)))
+    return "\n".join(content)
 
 # ============================================================
-# AI RESPONSE
+# PERSONA PROFILE (for objections)
 # ============================================================
-def add_ai_response(user_input):
+def persona_profile(persona):
+    profiles = {
+        "Uncommitted Vaccinator": {"quick_win": "Focus on 1-step vaccination script."},
+        "Reluctant Efficiency": {"quick_win": "Offer concise adoption checklist."},
+        "Patient Influenced": {"quick_win": "Provide patient-facing summary."},
+        "Committed Vaccinator": {"quick_win": "Highlight long-term impact data."},
+        "Data-Driven Oncologist": {"quick_win": "Share key trial metrics."},
+        "Skeptical Specialist": {"quick_win": "Provide monitoring protocols."},
+        "Innovator Prescriber": {"quick_win": "Show new workflow pilots."},
+        "PCP Prescriber": {"quick_win": "Demonstrate simple inhaler use."},
+        "Pulmonologist": {"quick_win": "Share comparative outcomes."},
+        "Respiratory Nurse": {"quick_win": "Provide patient coaching sheets."},
+    }
+    return profiles.get(persona, {"quick_win": "Offer concise actionable next step."})
+
+# ============================================================
+# OBJECTION HANDLING
+# ============================================================
+def objection_response(product_key, objection_key, persona):
+    product = brand_data.get(product_key, {})
+    base = product.get("objections", {})
+    reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
+    prof = persona_profile(persona)
+
+    if "evidence" in persona.lower():
+        return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer to share a 1-page evidence summary."
+    if "time" in persona.lower():
+        return f"Answer (Time-pressured): {reply} Then offer a single-sentence script and a nurse checklist to make adoption painless."
+    if "skeptical" in persona.lower():
+        return f"Answer (Skeptical): {reply} Start by acknowledging, then show safety data and a monitoring plan; propose a conservative pilot."
+    if "early" in persona.lower():
+        return f"Answer (Early-adopter): {reply} Highlight differentiation and offer to co-design a small pilot with outcome monitoring."
+    return f"{reply} (Tailored suggestion: {prof['quick_win']})"
+
+# ============================================================
+# CORE GENERATION
+# ============================================================
+def generate_sales_call(user_input):
+    brand = st.session_state.selected_brand
+    bconf = brand_data[brand]
+
+    sales_module = load_folder(bconf["sales_path"])
+    references = load_folder(bconf["references_path"])
+
+    if not sales_module or not references:
+        return f"❌ Missing approved materials for {bconf['display']}"
+
     client = get_client()
     if not client:
-        st.session_state.chat_history.append(
-            {"role": "rep", "content": "⚠️ GROQ API key is not configured."}
-        )
-        return
+        return "⚠️ GROQ API unavailable"
 
     system_prompt = f"""
-You are a senior pharmaceutical sales coach.
-Brand: {bconf['display']}
-Persona: {st.session_state.hcp_persona}
-Tone: {st.session_state.tone}
+You are a pharmaceutical sales excellence coach.
+RULES:
+- Use ONLY the provided Sales Module
+- Use ONLY the provided References
+- Follow this call flow exactly: {bconf['call_flow']}
+- Do NOT introduce external knowledge
+- Do NOT cross-reference other brands
 
-Generate a realistic back-and-forth conversation.
-Use natural spoken language.
-No bullets, no headings, no symbols.
-Clearly alternate between HCP and Sales Rep.
+Brand: {bconf['display']}
+HCP Persona: {st.session_state.hcp_persona}
+Tone: executive
+"""
+
+    user_prompt = f"""
+SALES MODULE:
+{sales_module}
+
+MEDICAL REFERENCES:
+{references}
+
+TASK:
+Generate a full sales call aligned to the defined call flow.
+Scenario:
+{user_input}
+
+Include:
+- Persona-adapted HCP questions
+- 1–2 objections
+- Clear next-step close
+- Example sentences a sales rep can say
 """
 
     resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": user_prompt},
         ],
-        temperature=0.4,
+        temperature=0.7,
     )
 
-    parsed = parse_dialogue(resp.choices[0].message.content)
-    for r, c in parsed:
-        st.session_state.chat_history.append({"role": r, "content": c})
+    return resp.choices[0].message.content
 
 # ============================================================
-# PROMPT SUGGESTIONS
+# TEXT → VOICE
 # ============================================================
-with st.expander("💡 Prompt Suggestions (Click to Expand)", expanded=False):
-    suggs = [
-        f"Generate a {bconf['display']} sales call for {st.session_state.hcp_persona} in {st.session_state.tone} tone",
-        f"How to handle an efficacy objection for {bconf['display']}?",
-        "Short 30-second script for my next call",
-        "Pilot offer for 10 patients — example script"
-    ]
-    cols = st.columns(2)
-    for i, s in enumerate(suggs):
-        if cols[i % 2].button(s, key=f"sugg_{i}"):
-            st.session_state.main_input = s
+def text_to_voice(text):
+    if not gTTS:
+        return None
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    gTTS(text=text[:1200], lang="en").save(tmp.name)
+    return open(tmp.name, "rb").read()
 
 # ============================================================
-# CHAT HISTORY
+# SIDEBAR
 # ============================================================
-st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
-
-for msg in st.session_state.chat_history:
-    avatar = REP_AVATAR if msg["role"] == "rep" else HCP_AVATAR
-    css = "rep" if msg["role"] == "rep" else "hcp"
-    st.markdown(f"""
-    <div class="msg">
-        <img src="{avatar}" class="avatar">
-        <div class="bubble {css}">{msg["content"]}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)
+with st.sidebar:
+    st.header("Call Configuration")
+    st.session_state.selected_brand = st.selectbox("Brand", list(brand_data.keys()))
+    bconf = brand_data[st.session_state.selected_brand]
+    st.session_state.hcp_persona = st.selectbox("HCP Persona", bconf["personas"])
+    st.selectbox("Specialty", bconf["specialties"])
+    st.selectbox("Segment", bconf["segments"])
+    st.session_state.tone = st.selectbox("Tone", ["executive", "clinical", "coaching"])
+    st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
 
 # ============================================================
-# FIXED INPUT
+# BACKGROUND
 # ============================================================
-st.markdown(f"""
-<div class="fixed-input">
-  <div style="display:flex;align-items:center;max-width:920px;margin:auto;">
-    <img src="{AI_AVATAR}" width="46" style="margin-right:10px;">
-""", unsafe_allow_html=True)
+if os.path.exists(BACKGROUND_PATH):
+    with open(BACKGROUND_PATH, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+        st.markdown(
+            f"""
+            <style>
+            [data-testid="stAppViewContainer"] {{
+                background: linear-gradient(90deg, rgba(255,140,0,0.06), rgba(255,165,0,0.02)),
+                            url("data:image/png;base64,{encoded}");
+                background-repeat: no-repeat;
+                background-position: right top;
+                background-size: cover;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
-with st.form("main_input_form", clear_on_submit=True):
-    user_input = st.text_area(
-        "",
-        st.session_state.main_input,
-        height=80,
-        label_visibility="collapsed",
-        key="chat_input",
-    )
-    submitted = st.form_submit_button("SEND")
+# ============================================================
+# CHAT INTERFACE
+# ============================================================
+st.markdown("<h2>💡 AI Sales Call Assistant</h2>", unsafe_allow_html=True)
 
-st.markdown("</div></div>", unsafe_allow_html=True)
+# Display chat messages
+for role, text in st.session_state.messages:
+    if role == "HCP":
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px;">
+                <img src="{HCP_AVATAR}" width="48" style="border-radius:50%"/>
+                <div style="background:rgba(255,255,255,0.06); padding:10px; border-radius:10px; max-width:80%;">
+                    {text}
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px;">
+                <img src="{SALES_REP_AVATAR}" width="48" style="border-radius:50%"/>
+                <div style="background:rgba(0,255,255,0.1); padding:10px; border-radius:10px; max-width:80%;">
+                    {text}
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
 
-if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "hcp", "content": user_input.strip()})
-    add_ai_response(user_input.strip())
-    st.session_state.main_input = ""
-    st.experimental_rerun()
+# User input fixed at bottom
+st.session_state.user_input = st.text_area("Type your HCP scenario here...", st.session_state.user_input, height=100, key="chat_input")
+send = st.button("SEND")
+
+if send and st.session_state.user_input.strip():
+    output = generate_sales_call(st.session_state.user_input)
+    st.session_state.messages.append(("HCP", st.session_state.user_input))
+    st.session_state.messages.append(("AI", output))
+    audio = text_to_voice(output)
+    if audio:
+        st.audio(audio, format="audio/mp3")
+    st.session_state.user_input = ""
 
 # ============================================================
 # FOOTER
 # ============================================================
-st.markdown("""
-<div class="footer">
-Internal use only. Content generated strictly from approved materials.
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    "<small>Internal use only. Generated content limited to approved materials.</small>",
+    unsafe_allow_html=True
+)
