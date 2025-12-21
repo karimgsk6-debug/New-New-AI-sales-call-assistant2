@@ -242,11 +242,22 @@ if st.button("Generate Brand-Specific Sales Call"):
 # SUMMARIES
 # ============================================================
 with st.expander("📚 Medical References Summary"):
-    st.text_area("", st.session_state.medical_summary, height=160)
+    st.text_area(
+        label="Medical References",
+        value=st.session_state.medical_summary,
+        height=160,
+        key="medical_summary_box",
+        disabled=True,
+    )
 
 with st.expander("📊 Sales Module Summary"):
-    st.text_area("", st.session_state.sales_summary, height=160)
-
+    st.text_area(
+        label="Sales Module",
+        value=st.session_state.sales_summary,
+        height=160,
+        key="sales_summary_box",
+        disabled=True,
+    )
 # ============================================================
 # FOOTER DISCLAIMER (FIXED)
 # ============================================================
