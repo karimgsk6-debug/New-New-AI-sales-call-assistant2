@@ -9,7 +9,7 @@ import os, tempfile, base64
 # ============================================================
 # 🔐 GROQ API KEY
 # ============================================================
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 # ============================================================
 # SAFE IMPORTS
