@@ -1,6 +1,6 @@
 # ============================================================
 # app.py — AI Medical Rep Sales Call Assistant (ENTERPRISE)
-# Brand-governed | SalesModule-driven | Hologram UI
+# Enhanced UI: Chat Simulator with Voice + Brand-governed content
 # ============================================================
 
 import streamlit as st
@@ -30,7 +30,7 @@ except:
     gTTS = None
 
 # ============================================================
-# REPO ASSETS
+# ASSETS
 # ============================================================
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
@@ -52,11 +52,7 @@ REFERENCE_PATH = os.path.join(BASE_PATH, "references")
 # ============================================================
 # PAGE CONFIG
 # ============================================================
-st.set_page_config(
-    page_title="AI Sales Call Assistant",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # ============================================================
 # SESSION STATE INIT
@@ -183,7 +179,6 @@ def objection_response(product_key, objection_key, persona):
     base = product.get("objections", {})
     reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, propose a low-effort next step.")
     prof = persona_profile(persona)
-
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # ============================================================
@@ -273,14 +268,14 @@ with st.sidebar:
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
 
 # ============================================================
-# TITLE BOX
+# TITLE BOX (minimized logos)
 # ============================================================
 st.markdown(
     f"""
     <div class="title-box">
-        <img src="{GSK_LOGO_RAW}" class="left-logo">
+        <img src="{GSK_LOGO_RAW}" class="left-logo" style="height:32px;">
         <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
-        <img src="{AI_LOGO_RAW}" class="right-logo">
+        <img src="{AI_LOGO_RAW}" class="right-logo" style="height:32px;">
     </div>
     """,
     unsafe_allow_html=True,
@@ -310,7 +305,7 @@ if os.path.exists(BACKGROUND_PATH):
 # CHAT DISPLAY
 # ============================================================
 for role, msg in st.session_state.messages:
-    avatar = AI_AVATAR if role == "AI" else HCP_AVATAR
+    avatar = SALES_AVATAR if role == "AI" else HCP_AVATAR
     st.markdown(
         f"""
         <div style="display:flex; align-items:flex-start; gap:12px; margin:8px 0;">
@@ -336,23 +331,14 @@ st.session_state.user_input = st.text_area(
 send = st.button("SEND")
 
 if send and st.session_state.user_input.strip():
-    # Append HCP message
     st.session_state.messages.append(("HCP", st.session_state.user_input))
-    
-    # Generate AI response
     output = generate_sales_call(st.session_state.user_input)
     st.session_state.messages.append(("AI", output))
-    
-    # TTS
     audio = text_to_voice(output)
     if audio:
         st.audio(audio, format="audio/mp3")
-    
-    # Clear input
-    st.session_state.user_input = ""
-    
-    # Let Streamlit naturally rerender (remove experimental_rerun)
-    
+    st.session_state.user_input = ""  # Clear input
+
 # ============================================================
 # FOOTER DISCLAIMER
 # ============================================================
