@@ -274,7 +274,7 @@ st.markdown(
     f"""
     <div class="title-box">
         <img src="{GSK_LOGO_RAW}" class="left-logo" style="height:32px;">
-        <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
+        <h2 style="display:inline-block; margin:0 12px;">💡 AI Sales Call Assistant — {bconf['display']}</h2>
         <img src="{AI_LOGO_RAW}" class="right-logo" style="height:32px;">
     </div>
     """,
@@ -338,6 +338,21 @@ if send and st.session_state.user_input.strip():
     if audio:
         st.audio(audio, format="audio/mp3")
     st.session_state.user_input = ""  # Clear input
+
+# ============================================================
+# SHOW LATEST GENERATED RESPONSE
+# ============================================================
+if st.session_state.messages:
+    last_role, last_msg = st.session_state.messages[-1]
+    if last_role == "AI":
+        st.markdown(
+            f"""
+            <div style="background:rgba(255,255,255,0.1); padding:12px; border-radius:12px; margin-top:8px;">
+                <b>Latest AI Response:</b><br>{last_msg}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # ============================================================
 # FOOTER DISCLAIMER
