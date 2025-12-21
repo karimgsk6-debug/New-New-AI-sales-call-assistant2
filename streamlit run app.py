@@ -273,9 +273,9 @@ with st.sidebar:
 st.markdown(
     f"""
     <div class="title-box">
-        <img src="{GSK_LOGO_RAW}" class="left-logo" style="height:32px;">
+        <img src="{GSK_LOGO_RAW}" class="left-logo" style="height:320px;">
         <h2 style="display:inline-block; margin:0 12px;">💡 AI Sales Call Assistant — {bconf['display']}</h2>
-        <img src="{AI_LOGO_RAW}" class="right-logo" style="height:32px;">
+        <img src="{AI_LOGO_RAW}" class="right-logo" style="height:320px;">
     </div>
     """,
     unsafe_allow_html=True,
