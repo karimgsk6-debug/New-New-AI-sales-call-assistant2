@@ -181,17 +181,9 @@ def persona_profile(persona):
 def objection_response(product_key, objection_key, persona):
     product = brand_data.get(product_key, {})
     base = product.get("objections", {})
-    reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, and propose a low-effort next step.")
+    reply = base.get(objection_key, "Acknowledge the concern, offer concise evidence, propose a low-effort next step.")
     prof = persona_profile(persona)
 
-    if "evidence" in persona.lower():
-        return f"Answer (Evidence-led): {reply} Provide trial highlights and one quick citation; offer a 1-page evidence summary."
-    if "time" in persona.lower():
-        return f"Answer (Time-pressured): {reply} Then offer a single-sentence script and a nurse checklist."
-    if "skeptical" in persona.lower():
-        return f"Answer (Skeptical): {reply} Acknowledge, show safety data, propose a conservative pilot."
-    if "early" in persona.lower():
-        return f"Answer (Early-adopter): {reply} Highlight differentiation and offer a small pilot."
     return f"{reply} (Tailored suggestion: {prof['quick_win']})"
 
 # ============================================================
@@ -241,6 +233,7 @@ Include:
 - Persona-adapted questions
 - 1–2 objections from: {bconf['objections'].keys()}
 - Clear next-step close
+- Provide 3 suggested phrases for the sales rep to say
 """
 
     resp = client.chat.completions.create(
@@ -358,9 +351,8 @@ if send and st.session_state.user_input.strip():
     # Clear input
     st.session_state.user_input = ""
     
-    # Rerun naturally
-    st.experimental_rerun()
-
+    # Let Streamlit naturally rerender (remove experimental_rerun)
+    
 # ============================================================
 # FOOTER DISCLAIMER
 # ============================================================
