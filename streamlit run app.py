@@ -1,6 +1,6 @@
 # ============================================================
 # app.py — AI Medical Rep Sales Call Assistant (ENTERPRISE)
-# Enhanced UI: Color-coded chat bubbles + Clickable prompts + Voice
+# Enhanced UI: HCP & AI GIFs, Clickable suggestions, Voice
 # ============================================================
 
 import streamlit as st
@@ -39,7 +39,7 @@ GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 AI_AVATAR = ".devcontainer/Visuals/futuristic_hologram_ai.gif"
 HCP_AVATAR = ".devcontainer/Visuals/HCP.gif"
-SALES_AVATAR = ".devcontainer/Visuals/sales rep.gif"
+SALES_AVATAR = ".devcontainer/Visuals/futuristic_hologram_ai.gif"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ============================================================
@@ -66,6 +66,7 @@ def init_session():
         "tone": "executive",
         "temperature": 0.3,
         "suggestions": [],
+        "last_audio": None
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -73,7 +74,7 @@ def init_session():
 init_session()
 
 # ============================================================
-# BRAND DATA (Shingrix, Jemperli, Trelegy)
+# BRAND DATA
 # ============================================================
 brand_data = {
     "shingrix": {
@@ -237,17 +238,16 @@ Include:
     output = resp.choices[0].message.content
     suggestions = re.findall(r"- (.+)", output)
     st.session_state.suggestions = suggestions[:3]
-    return output
 
-# ============================================================
-# TEXT → VOICE
-# ============================================================
-def text_to_voice(text):
-    if not gTTS:
-        return None
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    gTTS(text=text[:1200], lang="en").save(tmp.name)
-    return open(tmp.name, "rb").read()
+    # Generate audio
+    audio = None
+    if gTTS:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        gTTS(text=output[:1200], lang="en").save(tmp.name)
+        audio = tmp.name
+        st.session_state.last_audio = audio
+
+    return output
 
 # ============================================================
 # SIDEBAR
@@ -279,15 +279,11 @@ st.markdown(
 )
 
 # ============================================================
-# CHAT DISPLAY (color-coded)
+# CHAT DISPLAY
 # ============================================================
 for role, msg in st.session_state.messages:
-    if role == "HCP":
-        bg = "rgba(173,216,230,0.3)"  # light blue
-        avatar = HCP_AVATAR
-    else:
-        bg = "rgba(144,238,144,0.3)"  # light green
-        avatar = SALES_AVATAR
+    avatar = HCP_AVATAR if role == "HCP" else SALES_AVATAR
+    bg = "rgba(173,216,230,0.3)" if role == "HCP" else "rgba(144,238,144,0.3)"
     st.markdown(
         f"""
         <div style="display:flex; align-items:flex-start; gap:12px; margin:6px 0;">
@@ -301,7 +297,7 @@ for role, msg in st.session_state.messages:
     )
 
 # ============================================================
-# BOTTOM INPUT
+# INPUT BOX
 # ============================================================
 st.session_state.user_input = st.text_area(
     "Type HCP scenario...",
@@ -315,9 +311,6 @@ if send and st.session_state.user_input.strip():
     st.session_state.messages.append(("HCP", st.session_state.user_input))
     output = generate_sales_call(st.session_state.user_input)
     st.session_state.messages.append(("AI", output))
-    audio = text_to_voice(output)
-    if audio:
-        st.audio(audio, format="audio/mp3")
     st.session_state.user_input = ""
 
 # ============================================================
@@ -327,6 +320,12 @@ if st.session_state.suggestions:
     st.markdown("<b>Suggested phrases for Sales Rep:</b>", unsafe_allow_html=True)
     for s in st.session_state.suggestions:
         st.button(s, key=s)
+
+# ============================================================
+# VOICE PLAYER
+# ============================================================
+if st.session_state.last_audio:
+    st.audio(st.session_state.last_audio, format="audio/mp3")
 
 # ============================================================
 # FOOTER DISCLAIMER
