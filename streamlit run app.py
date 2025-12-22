@@ -71,7 +71,7 @@ st.markdown(
     """
     <style>
     .title-box{
-        background: rgba(255,255,255,0.88);
+        background: rgba(255,255,255,0.75);
         padding:10px 14px;
         border-radius:14px;
         display:flex;
