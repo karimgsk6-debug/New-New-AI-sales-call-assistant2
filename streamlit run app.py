@@ -1,279 +1,266 @@
-# ============================================================
-# AI Sales Call Assistant — LIVE ROLE PLAY
+# =========================================================
+# AI Sales Call Assistant
 # Repo: New-New-AI-sales-call-assistant2
-# ============================================================
+# =========================================================
 
 import streamlit as st
-import os, base64, tempfile
+import os
+from pathlib import Path
 
 # -------------------------
-# Page config
+# PAGE CONFIG
 # -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
+st.set_page_config(
+    page_title="AI Sales Call Assistant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# ============================================================
-# API KEY
-# ============================================================
+# -------------------------
+# API
+# -------------------------
 GROQ_API_KEY = "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"
-
-# -------------------------
-# Safe imports
-# -------------------------
 try:
     from groq import Groq
 except:
     Groq = None
 
-try:
-    from gtts import gTTS
-except:
-    gTTS = None
-
 # -------------------------
-# Assets
+# ASSETS
 # -------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
-
-GSK_LOGO = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AURA_LOGO = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
 SALES_REP_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/sales%20rep.gif"
 HCP_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/HCP.gif"
 AI_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
-# ============================================================
-# SESSION STATE
-# ============================================================
-def init_session():
-    defaults = {
-        "messages": [],
-        "suggestions": [],
-        "audio": None,
-        "brand": "Shingrix",
-        "persona": "",
-        "specialty": "",
-        "segment": "",
-        "objective": "",
-        "temperature": 0.3,
-    }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
+# -------------------------
+# PATHS
+# -------------------------
+BASE_PATH = ".devcontainer"
+SALES_MODULE_PATH = os.path.join(BASE_PATH, "SalesModule")
+REFERENCE_PATH = os.path.join(BASE_PATH, "references")
 
-init_session()
-
-# ============================================================
+# -------------------------
 # BRAND DATA
-# ============================================================
+# -------------------------
 BRANDS = {
-    "Shingrix": {
-        "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Committed Vaccinator"],
-        "specialties": ["GP", "Internal Medicine"],
-        "segments": ["Reach", "Convert"],
-        "objectives": ["Raise risk awareness", "Simplify vaccination"]
+    "shingrix": {
+        "display": "Shingrix",
+        "specialties": ["GP", "Internal Medicine", "Immunology", "Rheumatology"],
+        "personas": ["Uncommitted Vaccinator", "Time-Pressed GP", "Safety-Focused"],
+        "call_flow": ["Prepare", "Engage", "Risk Awareness", "Value", "Close"],
+        "sales_path": f"{SALES_MODULE_PATH}/shingrix",
+        "ref_path": f"{REFERENCE_PATH}/shingrix",
     },
-    "Jemperli": {
-        "personas": ["Data-Driven Oncologist", "Skeptical Specialist"],
-        "specialties": ["Medical Oncology"],
-        "segments": ["Trial", "Routine"],
-        "objectives": ["Identify dMMR patients", "Discuss efficacy"]
+    "jemperli": {
+        "display": "Jemperli",
+        "specialties": ["Medical Oncologist", "Gynecologic Oncologist"],
+        "personas": ["Evidence-Driven", "Skeptical Specialist", "Early Adopter"],
+        "call_flow": ["Identify", "Position", "Data", "Access", "Commit"],
+        "sales_path": f"{SALES_MODULE_PATH}/jemperli",
+        "ref_path": f"{REFERENCE_PATH}/jemperli",
     },
-    "Trelegy": {
-        "personas": ["Primary Care Prescriber", "Pulmonologist"],
-        "specialties": ["GP", "Pulmonology"],
-        "segments": ["Adoption", "Adherence"],
-        "objectives": ["Simplify triple therapy", "Improve control"]
-    }
+    "trelegy": {
+        "display": "Trelegy",
+        "specialties": ["Pulmonologist", "GP", "Respiratory Specialist"],
+        "personas": ["Guideline-Driven", "Adherence-Focused", "Cost-Concerned"],
+        "call_flow": ["Diagnose", "Differentiate", "Demonstrate", "Access", "Close"],
+        "sales_path": f"{SALES_MODULE_PATH}/trelegy",
+        "ref_path": f"{REFERENCE_PATH}/trelegy",
+    },
 }
 
-# ============================================================
-# GROQ CLIENT
-# ============================================================
-def get_client():
-    if not GROQ_API_KEY or GROQ_API_KEY.startswith("Add_") or Groq is None:
+# -------------------------
+# SESSION DEFAULTS
+# -------------------------
+st.session_state.setdefault("brand", "shingrix")
+st.session_state.setdefault("history", [])
+
+# -------------------------
+# CSS
+# -------------------------
+st.markdown(
+    """
+    <style>
+    .chat-container { margin-bottom:120px; }
+    .bubble { padding:12px 16px; border-radius:14px; max-width:85%; }
+    .user { background:#eef2f6; color:#000; }
+    .ai { background:#0e1a25; color:#e6f7ff; border:1px solid #1ecad3; }
+    .row { display:flex; gap:12px; margin:10px 0; }
+    .fixed-input {
+        position:fixed; bottom:0; left:0; right:0;
+        background:#fff; padding:12px; border-top:1px solid #ddd;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -------------------------
+# HELPERS
+# -------------------------
+def load_text(folder):
+    text = ""
+    if not os.path.exists(folder):
+        return ""
+    for f in Path(folder).glob("**/*"):
+        if f.suffix.lower() in [".txt", ".md"]:
+            text += f"\n\n{f.read_text(errors='ignore')}"
+    return text[:15000]
+
+def groq_client():
+    if not Groq or "ADD_" in GROQ_API_KEY:
         return None
     return Groq(api_key=GROQ_API_KEY)
 
-# ============================================================
-# PARSE DIALOGUE
-# ============================================================
-def parse_dialogue(text):
-    blocks = []
-    role = None
-    buffer = []
+def is_medical(q):
+    return any(k in q.lower() for k in [
+        "indication","dose","safety","efficacy","approved","label","contra"
+    ])
 
-    for line in text.splitlines():
-        line = line.strip()
-        if line.lower().startswith("hcp says"):
-            if buffer and role:
-                blocks.append((role, "\n".join(buffer)))
-            role = "HCP"
-            buffer = []
-        elif line.lower().startswith("sales rep says"):
-            if buffer and role:
-                blocks.append((role, "\n".join(buffer)))
-            role = "AI"
-            buffer = []
-        else:
-            if line:
-                buffer.append(line)
-
-    if buffer and role:
-        blocks.append((role, "\n".join(buffer)))
-
-    return blocks
-
-# ============================================================
-# AI RESPONSE (LIVE ROLE PLAY)
-# ============================================================
-def generate_roleplay(rep_text):
-    client = get_client()
+def generate_response(query, brand_key):
+    client = groq_client()
     if not client:
-        return "⚠️ API not configured."
+        return "⚠️ GROQ API not configured."
 
-    prompt = f"""
-You are acting as BOTH:
-1) An HCP responding realistically
-2) A sales excellence coach suggesting what the rep should say next
+    brand = BRANDS[brand_key]
+    refs = load_text(brand["ref_path"])
+    sales = load_text(brand["sales_path"])
 
-Context:
-Brand: {st.session_state.brand}
-Persona: {st.session_state.persona}
-Specialty: {st.session_state.specialty}
-Segment: {st.session_state.segment}
-Objective: {st.session_state.objective}
+    if is_medical(query):
+        system = f"""
+You are a pharma AI assistant.
+Answer ONLY using approved references.
+References:
+{refs}
+"""
+    else:
+        system = f"""
+Simulate a FULL sales call.
+Use ONLY the selling modules below.
+Brand: {brand['display']}
+Call flow: {', '.join(brand['call_flow'])}
 
-Rules:
-- Spoken field language
-- No bullets, no markdown
-- Natural dialogue
-- Coaching tone
+Selling modules:
+{sales}
 
-Format EXACTLY like this:
+Format EXACTLY:
 
 HCP says:
-(one realistic sentence)
+...
 
-Sales Rep says:
-(what the rep should say next)
-
-Then provide exactly 3 short alternative phrases.
+AI Sales Assistant says:
+...
 """
 
     r = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": rep_text}
+            {"role":"system","content":system},
+            {"role":"user","content":query}
         ],
-        temperature=st.session_state.temperature
+        temperature=0.3
+    )
+    return r.choices[0].message.content
+
+# -------------------------
+# SIDEBAR
+# -------------------------
+with st.sidebar:
+    st.header("⚙️ Call Setup")
+
+    st.session_state.brand = st.selectbox(
+        "Brand",
+        options=list(BRANDS.keys()),
+        format_func=lambda x: BRANDS[x]["display"]
     )
 
-    output = r.choices[0].message.content
+    st.selectbox(
+        "Specialty",
+        BRANDS[st.session_state.brand]["specialties"]
+    )
 
-    # Extract suggestions (last 3 lines)
-    st.session_state.suggestions = output.splitlines()[-3:]
+    st.selectbox(
+        "HCP Persona",
+        BRANDS[st.session_state.brand]["personas"]
+    )
 
-    # Voice
-    if gTTS:
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        gTTS(text=output[:1200]).save(tmp.name)
-        st.session_state.audio = tmp.name
+    if st.button("🆕 New Call"):
+        st.session_state.history = []
 
-    return output
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-with st.sidebar:
-    st.header("Call Setup")
-
-    st.session_state.brand = st.selectbox("Brand", BRANDS.keys())
-    b = BRANDS[st.session_state.brand]
-
-    st.session_state.persona = st.selectbox("Persona", b["personas"])
-    st.session_state.specialty = st.selectbox("Specialty", b["specialties"])
-    st.session_state.segment = st.selectbox("Segment", b["segments"])
-    st.session_state.objective = st.selectbox("Objective", b["objectives"])
-
-    st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
-
-# ============================================================
+# -------------------------
 # TITLE
-# ============================================================
+# -------------------------
 st.markdown(
-    f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;
-                background:rgba(255,255,255,0.85);padding:10px;border-radius:12px;">
-        <img src="{GSK_LOGO}" height="28">
-        <h3>AI Sales Call Assistant — Live Role Play</h3>
-        <img src="{AURA_LOGO}" height="28">
-    </div>
-    """,
-    unsafe_allow_html=True
+    f"## 💡 AI Sales Call Assistant — {BRANDS[st.session_state.brand]['display']}"
 )
 
-# ============================================================
-# CHAT WINDOW
-# ============================================================
-for role, msg in st.session_state.messages:
+# -------------------------
+# CHAT
+# -------------------------
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-    if role == "Sales Rep":
+for role, text in st.session_state.history:
+    if role == "user":
         st.markdown(
             f"""
-            <div style="display:flex;gap:12px;margin:10px 0;">
-                <img src="{SALES_REP_AVATAR}" width="48">
-                <div><b>Sales Rep:</b><br>{msg}</div>
+            <div class="row">
+                <img src="{SALES_REP_AVATAR}" width="44">
+                <div class="bubble user">{text}</div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
-
-    elif role == "AI":
-        for speaker, text in parse_dialogue(msg):
-            avatar = HCP_AVATAR if speaker == "HCP" else AI_AVATAR
-            label = "HCP says" if speaker == "HCP" else "Sales Rep says"
-
+    else:
+        if "HCP says:" in text:
+            hcp, rep = text.split("AI Sales Assistant says:")
             st.markdown(
                 f"""
-                <div style="display:flex;gap:12px;margin:10px 0;">
-                    <img src="{avatar}" width="48">
-                    <div><b>{label}:</b><br>{text}</div>
+                <div class="row">
+                    <img src="{HCP_AVATAR}" width="44">
+                    <div class="bubble ai">{hcp.replace("HCP says:","")}</div>
                 </div>
-                """,
-                unsafe_allow_html=True
+                <div class="row">
+                    <img src="{AI_AVATAR}" width="44">
+                    <div class="bubble ai">{rep}</div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="row">
+                    <img src="{AI_AVATAR}" width="44">
+                    <div class="bubble ai">{text}</div>
+                </div>
+                """, unsafe_allow_html=True
             )
 
-# ============================================================
-# SUGGESTIONS (CLICK → AUTO SEND)
-# ============================================================
-if st.session_state.suggestions:
-    st.markdown("### Suggested phrases")
-    for s in st.session_state.suggestions:
-        if st.button(s):
-            st.session_state.messages.append(("Sales Rep", s))
-            ai = generate_roleplay(s)
-            st.session_state.messages.append(("AI", ai))
+st.markdown("</div>", unsafe_allow_html=True)
 
-# Voice
-if st.session_state.audio:
-    st.audio(st.session_state.audio)
+# -------------------------
+# FIXED INPUT
+# -------------------------
+st.markdown('<div class="fixed-input">', unsafe_allow_html=True)
 
-# ============================================================
-# INPUT (LIVE ROLE PLAY)
-# ============================================================
-rep_input = st.text_area("What do you say next?", height=90)
+query = st.text_area(
+    "Sales Rep query",
+    placeholder="Generate sales call, ask indication, objection handling...",
+    label_visibility="collapsed",
+    height=70,
+    key="input_box"
+)
 
 if st.button("SEND"):
-    if rep_input.strip():
-        st.session_state.messages.append(("Sales Rep", rep_input))
-        ai = generate_roleplay(rep_input)
-        st.session_state.messages.append(("AI", ai))
+    if query.strip():
+        st.session_state.history.append(("user", query))
+        answer = generate_response(query, st.session_state.brand)
+        st.session_state.history.append(("ai", answer))
 
-# ============================================================
+st.markdown("</div>", unsafe_allow_html=True)
+
+# -------------------------
 # FOOTER
-# ============================================================
-st.markdown(
-    "<small>Internal use only — Live AI role-play training</small>",
-    unsafe_allow_html=True
-)
+# -------------------------
+st.caption("For internal training use only. Approved sources required for external use.")
