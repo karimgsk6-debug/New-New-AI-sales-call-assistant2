@@ -1,19 +1,15 @@
 # ============================================================
-# AI Sales Call Assistant — ENTERPRISE FINAL
+# AI Sales Call Assistant — LIVE ROLE PLAY
 # Repo: New-New-AI-sales-call-assistant2
 # ============================================================
 
 import streamlit as st
-import os, base64, tempfile, re
+import os, base64, tempfile
 
 # -------------------------
 # Page config
 # -------------------------
-st.set_page_config(
-    page_title="AI Sales Call Assistant",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
 # ============================================================
 # API KEY
@@ -34,134 +30,59 @@ except:
     gTTS = None
 
 # -------------------------
-# Resources & Avatar
+# Assets
 # -------------------------
 REPO_USER = "karimgsk6-debug"
 REPO_NAME = "New-New-AI-sales-call-assistant2"
 
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
+GSK_LOGO = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
+AURA_LOGO = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
-AI_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+SALES_REP_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/sales%20rep.gif"
 HCP_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/HCP.gif"
+AI_AVATAR = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 
-BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-
-# -------------------------
-# Session defaults
-# -------------------------
-def _init_session():
+# ============================================================
+# SESSION STATE
+# ============================================================
+def init_session():
     defaults = {
         "messages": [],
         "suggestions": [],
         "audio": None,
+        "brand": "Shingrix",
+        "persona": "",
+        "specialty": "",
+        "segment": "",
+        "objective": "",
         "temperature": 0.3,
-        "tone": "Executive",
-        "selected_brand": "Shingrix",
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
-_init_session()
-
-# -------------------------
-# CSS for UI
-# -------------------------
-st.markdown(
-    """
-    <style>
-    .title-box{
-        background: rgba(255,255,255,0.75);
-        padding:10px 14px;
-        border-radius:14px;
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        margin-bottom:14px;
-    }
-    .title-box img{ height:28px; }
-
-    .chat-row{ display:flex; gap:12px; margin:10px 0; }
-    .chat-avatar{ width:48px; height:48px; border-radius:50%; }
-    .chat-bubble{
-        background: rgba(255,255,255,0.12);
-        padding:12px;
-        border-radius:14px;
-        max-width:85%;
-        white-space:pre-wrap;
-    }
-
-    .fixed-input{
-        position:fixed;
-        bottom:40px;
-        left:0;
-        right:0;
-        padding:10px;
-        background:#0e1117;
-    }
-
-    .footer{
-        position:fixed;
-        bottom:0;
-        left:0;
-        right:0;
-        text-align:center;
-        font-size:12px;
-        color:#aaa;
-        background:#0e1117;
-        padding:6px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# -------------------------
-# Background
-# -------------------------
-def set_dynamic_background(image_path):
-    if not os.path.exists(image_path):
-        return
-    with open(image_path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background: url("data:image/png;base64,{encoded}");
-            background-size: cover;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-set_dynamic_background(BACKGROUND_PATH)
+init_session()
 
 # ============================================================
-# BRAND DATA (UPDATED)
+# BRAND DATA
 # ============================================================
 BRANDS = {
     "Shingrix": {
-        "specialties": ["GP", "Internal Medicine", "Immunology"],
         "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Committed Vaccinator"],
-        "segments": ["Reach", "Acquire", "Convert"],
-        "objectives": ["Raise shingles risk", "Address hesitancy", "Simplify vaccination flow"],
-        "guardrail": "Reassuring, preventive, public health focused"
+        "specialties": ["GP", "Internal Medicine"],
+        "segments": ["Reach", "Convert"],
+        "objectives": ["Raise risk awareness", "Simplify vaccination"]
     },
     "Jemperli": {
-        "specialties": ["Medical Oncology", "Gynecologic Oncology"],
-        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber"],
-        "segments": ["Trial", "Routine", "Advocacy"],
-        "objectives": ["Identify dMMR patients", "Discuss efficacy", "Address safety"],
-        "guardrail": "Scientific, evidence-based, precise"
+        "personas": ["Data-Driven Oncologist", "Skeptical Specialist"],
+        "specialties": ["Medical Oncology"],
+        "segments": ["Trial", "Routine"],
+        "objectives": ["Identify dMMR patients", "Discuss efficacy"]
     },
     "Trelegy": {
-        "specialties": ["GP", "Pulmonologist", "Respiratory Nurse"],
-        "personas": ["Primary Care Prescriber", "Pulmonologist", "Nurse Advocate"],
-        "segments": ["Awareness", "Adoption", "Adherence"],
-        "objectives": ["Simplify regimen", "Improve control", "Reduce exacerbations"],
-        "guardrail": "Practical, outcomes-driven"
+        "personas": ["Primary Care Prescriber", "Pulmonologist"],
+        "specialties": ["GP", "Pulmonology"],
+        "segments": ["Adoption", "Adherence"],
+        "objectives": ["Simplify triple therapy", "Improve control"]
     }
 }
 
@@ -174,55 +95,86 @@ def get_client():
     return Groq(api_key=GROQ_API_KEY)
 
 # ============================================================
-# AI GENERATION
+# PARSE DIALOGUE
 # ============================================================
-def generate_reply(text, brand, persona, specialty, segment, objective):
+def parse_dialogue(text):
+    blocks = []
+    role = None
+    buffer = []
+
+    for line in text.splitlines():
+        line = line.strip()
+        if line.lower().startswith("hcp says"):
+            if buffer and role:
+                blocks.append((role, "\n".join(buffer)))
+            role = "HCP"
+            buffer = []
+        elif line.lower().startswith("sales rep says"):
+            if buffer and role:
+                blocks.append((role, "\n".join(buffer)))
+            role = "AI"
+            buffer = []
+        else:
+            if line:
+                buffer.append(line)
+
+    if buffer and role:
+        blocks.append((role, "\n".join(buffer)))
+
+    return blocks
+
+# ============================================================
+# AI RESPONSE (LIVE ROLE PLAY)
+# ============================================================
+def generate_roleplay(rep_text):
     client = get_client()
     if not client:
-        return "⚠️ GROQ API not configured."
-
-    b = BRANDS[brand]
+        return "⚠️ API not configured."
 
     prompt = f"""
-You are a pharmaceutical sales representative.
+You are acting as BOTH:
+1) An HCP responding realistically
+2) A sales excellence coach suggesting what the rep should say next
 
-Brand: {brand}
-Specialty: {specialty}
-Persona: {persona}
-Segment: {segment}
-Objective: {objective}
-
-Tone guardrail: {b['guardrail']}
+Context:
+Brand: {st.session_state.brand}
+Persona: {st.session_state.persona}
+Specialty: {st.session_state.specialty}
+Segment: {st.session_state.segment}
+Objective: {st.session_state.objective}
 
 Rules:
-- Natural spoken language
-- No markdown or symbols
-- Dialogue format only
+- Spoken field language
+- No bullets, no markdown
+- Natural dialogue
+- Coaching tone
 
-Format exactly:
+Format EXACTLY like this:
 
 HCP says:
-(one sentence)
+(one realistic sentence)
 
 Sales Rep says:
-(response)
+(what the rep should say next)
 
-Then give 3 short example phrases the sales rep can use next.
+Then provide exactly 3 short alternative phrases.
 """
 
     r = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": prompt},
-            {"role": "user", "content": text}
+            {"role": "user", "content": rep_text}
         ],
         temperature=st.session_state.temperature
     )
 
     output = r.choices[0].message.content
 
-    st.session_state.suggestions = output.split("\n")[-3:]
+    # Extract suggestions (last 3 lines)
+    st.session_state.suggestions = output.splitlines()[-3:]
 
+    # Voice
     if gTTS:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         gTTS(text=output[:1200]).save(tmp.name)
@@ -236,16 +188,14 @@ Then give 3 short example phrases the sales rep can use next.
 with st.sidebar:
     st.header("Call Setup")
 
-    brand = st.selectbox("Brand", BRANDS.keys())
-    st.session_state.selected_brand = brand
-    b = BRANDS[brand]
+    st.session_state.brand = st.selectbox("Brand", BRANDS.keys())
+    b = BRANDS[st.session_state.brand]
 
-    specialty = st.selectbox("Specialty", b["specialties"])
-    persona = st.selectbox("Persona", b["personas"])
-    segment = st.selectbox("Segment", b["segments"])
-    objective = st.selectbox("Objective", b["objectives"])
+    st.session_state.persona = st.selectbox("Persona", b["personas"])
+    st.session_state.specialty = st.selectbox("Specialty", b["specialties"])
+    st.session_state.segment = st.selectbox("Segment", b["segments"])
+    st.session_state.objective = st.selectbox("Objective", b["objectives"])
 
-    st.session_state.tone = st.selectbox("Tone", ["Executive", "Clinical", "Coaching"])
     st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.3)
 
 # ============================================================
@@ -253,60 +203,77 @@ with st.sidebar:
 # ============================================================
 st.markdown(
     f"""
-    <div class="title-box">
-        <img src="{GSK_LOGO_RAW}">
-        <h3>💡 AI Sales Call Assistant — {brand}</h3>
-        <img src="{AI_LOGO_RAW}">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                background:rgba(255,255,255,0.85);padding:10px;border-radius:12px;">
+        <img src="{GSK_LOGO}" height="28">
+        <h3>AI Sales Call Assistant — Live Role Play</h3>
+        <img src="{AURA_LOGO}" height="28">
     </div>
     """,
     unsafe_allow_html=True
 )
 
 # ============================================================
-# CHAT DISPLAY
+# CHAT WINDOW
 # ============================================================
 for role, msg in st.session_state.messages:
-    avatar = HCP_AVATAR if role == "HCP" else AI_AVATAR
-    st.markdown(
-        f"""
-        <div class="chat-row">
-            <img src="{avatar}" class="chat-avatar">
-            <div class="chat-bubble"><b>{role}:</b><br>{msg}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+
+    if role == "Sales Rep":
+        st.markdown(
+            f"""
+            <div style="display:flex;gap:12px;margin:10px 0;">
+                <img src="{SALES_REP_AVATAR}" width="48">
+                <div><b>Sales Rep:</b><br>{msg}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    elif role == "AI":
+        for speaker, text in parse_dialogue(msg):
+            avatar = HCP_AVATAR if speaker == "HCP" else AI_AVATAR
+            label = "HCP says" if speaker == "HCP" else "Sales Rep says"
+
+            st.markdown(
+                f"""
+                <div style="display:flex;gap:12px;margin:10px 0;">
+                    <img src="{avatar}" width="48">
+                    <div><b>{label}:</b><br>{text}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 # ============================================================
-# SUGGESTIONS + VOICE
+# SUGGESTIONS (CLICK → AUTO SEND)
 # ============================================================
 if st.session_state.suggestions:
-    st.markdown("**Suggested phrases:**")
+    st.markdown("### Suggested phrases")
     for s in st.session_state.suggestions:
-        st.button(s)
+        if st.button(s):
+            st.session_state.messages.append(("Sales Rep", s))
+            ai = generate_roleplay(s)
+            st.session_state.messages.append(("AI", ai))
 
+# Voice
 if st.session_state.audio:
     st.audio(st.session_state.audio)
 
 # ============================================================
-# INPUT (FIXED BOTTOM)
+# INPUT (LIVE ROLE PLAY)
 # ============================================================
-st.markdown('<div class="fixed-input">', unsafe_allow_html=True)
-
-user_input = st.text_area("Type what the HCP says…", height=80, key="input_box")
+rep_input = st.text_area("What do you say next?", height=90)
 
 if st.button("SEND"):
-    if user_input.strip():
-        st.session_state.messages.append(("HCP", user_input))
-        reply = generate_reply(user_input, brand, persona, specialty, segment, objective)
-        st.session_state.messages.append(("Sales Rep", reply))
-
-st.markdown('</div>', unsafe_allow_html=True)
+    if rep_input.strip():
+        st.session_state.messages.append(("Sales Rep", rep_input))
+        ai = generate_roleplay(rep_input)
+        st.session_state.messages.append(("AI", ai))
 
 # ============================================================
 # FOOTER
 # ============================================================
 st.markdown(
-    '<div class="footer">Internal use only – Generated coaching content</div>',
+    "<small>Internal use only — Live AI role-play training</small>",
     unsafe_allow_html=True
 )
