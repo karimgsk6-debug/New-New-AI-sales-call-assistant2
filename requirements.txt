@@ -13,3 +13,11 @@ groq
 faiss-cpu
 sentence-transformers
 numpy
+streamlit
+groq
+faiss-cpu
+sentence-transformers
+pdfplumber
+python-docx
+gtts
+numpy
