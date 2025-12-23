@@ -33,7 +33,7 @@ MIN_SCORE = 0.35
 os.makedirs(RAG_PATH, exist_ok=True)
 
 # ==========================================================
-# BRAND DATA (AS PROVIDED)
+# BRAND DATA
 # ==========================================================
 brand_data = {
     "shingrix": {
@@ -42,8 +42,6 @@ brand_data = {
         "personas": ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
         "barriers": ["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
         "specialties": ["GP","Dermatologist","Geriatrician"],
-        "references_path": ".devcontainer/references/shingrix/",
-        "sales_path": ".devcontainer/SalesModule/shingrix/",
         "call_flow": ["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"]
     },
     "jemperli": {
@@ -52,8 +50,6 @@ brand_data = {
         "personas": ["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
         "barriers": ["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
         "specialties": ["Oncologist","Medical Oncologist"],
-        "references_path": ".devcontainer/references/jemperli/",
-        "sales_path": ".devcontainer/SalesModule/jemperli/",
         "call_flow": ["COCO","Anchor","Engage","Close"]
     },
     "trelegy": {
@@ -62,8 +58,6 @@ brand_data = {
         "personas": ["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
         "barriers": ["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
         "specialties": ["GP","Pulmonologist","Respiratory Specialist"],
-        "references_path": ".devcontainer/references/trelegy/",
-        "sales_path": ".devcontainer/SalesModule/trelegy/",
         "call_flow": ["Prepare","Engage","Demonstrate","Address Access","Close"]
     }
 }
@@ -102,16 +96,32 @@ def audit_log(user, payload, sources, response):
     with open("audit.log", "a") as f:
         f.write(json.dumps(record) + "\n")
 
+# ✅ FIXED PDF EXTRACTION
 def extract_text(file):
-    if file.name.endswith(".pdf"):
-        with pdfplumber.open(file) as pdf:
-            return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
-    if file.name.endswith(".docx"):
-        d = docx.Document(file)
-        return "\n".join(p.text for p in d.paragraphs)
-    return file.read().decode("utf-8")
+    try:
+        if file.name.lower().endswith(".pdf"):
+            text = ""
+            with pdfplumber.open(file) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+            return text.strip()
+
+        elif file.name.lower().endswith(".docx"):
+            d = docx.Document(file)
+            return "\n".join(p.text for p in d.paragraphs if p.text.strip())
+
+        else:  # TXT
+            return file.read().decode("utf-8")
+
+    except Exception as e:
+        st.error(f"❌ Failed to read {file.name}: {e}")
+        return ""
 
 def ingest_text(text, brand, doc_type, doc_name):
+    if not text.strip():
+        return
     emb = embedder.encode([text], normalize_embeddings=True)
     index.add(np.array(emb).astype("float32"))
     metadata.append({
@@ -147,7 +157,7 @@ def tts_play(text):
         st.audio(f.name)
 
 # ==========================================================
-# PROMPTS
+# PROMPT
 # ==========================================================
 SYSTEM_PROMPT = """
 You are a compliance-first AI sales assistant.
@@ -168,9 +178,7 @@ brand_key = st.sidebar.selectbox("Brand", list(brand_data.keys()))
 brand = brand_data[brand_key]
 
 mode = st.sidebar.radio("Mode", ["Sales Call", "Medical Q&A"])
-
 st.sidebar.markdown("---")
-st.sidebar.caption("AI-generated; for training only")
 
 # ==========================================================
 # DOCUMENT UPLOADER
@@ -188,23 +196,19 @@ if uploaded:
     for f in uploaded:
         text = extract_text(f)
         ingest_text(text, brand_key, doc_type, f.name)
-    st.sidebar.success("Documents ingested securely")
+    st.sidebar.success("✅ Documents ingested successfully")
 
 # ==========================================================
 # SALES CALL MODE
 # ==========================================================
 if mode == "Sales Call":
-    col1, col2 = st.columns(2)
+    segment = st.selectbox("Segment", brand["segments"])
+    persona = st.selectbox("Persona", brand["personas"])
+    barrier = st.multiselect("Barriers", brand["barriers"])
+    specialty = st.selectbox("Specialty", brand["specialties"])
 
-    with col1:
-        segment = st.selectbox("Segment", brand["segments"])
-        persona = st.selectbox("Persona", brand["personas"])
-        barrier = st.multiselect("Barriers", brand["barriers"])
-        specialty = st.selectbox("Specialty", brand["specialties"])
-
-    with col2:
-        st.markdown("### Call Flow")
-        st.write(" → ".join(brand["call_flow"]))
+    st.markdown("### Call Flow")
+    st.write(" → ".join(brand["call_flow"]))
 
     if st.button("Generate Sales Call"):
         chunks = retrieve("selling module key messages", brand_key, "selling_module")
@@ -244,7 +248,6 @@ Context:
             audit_log(user_id, prompt, [c["doc_name"] for c in chunks], text)
             st.markdown(text)
             tts_play(text)
-            st.caption("AI-generated; for training; verified against approved sources")
 
 # ==========================================================
 # MEDICAL Q&A MODE
@@ -278,4 +281,3 @@ if mode == "Medical Q&A":
             audit_log(user_id, question, [c["doc_name"] for c in chunks], text)
             st.markdown(text)
             tts_play(text)
-            st.caption("AI-generated; for training; verified against approved sources")
