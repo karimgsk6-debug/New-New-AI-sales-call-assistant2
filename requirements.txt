@@ -8,3 +8,8 @@ python-docx
 scikit-learn
 elevenlabs
 matplotlib
+streamlit
+groq
+faiss-cpu
+sentence-transformers
+numpy
