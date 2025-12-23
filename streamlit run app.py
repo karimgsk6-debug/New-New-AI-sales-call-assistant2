@@ -30,6 +30,8 @@ RAG_PATH = "./rag_index"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 MIN_SCORE = 0.35
 
+SALES_MODULE_ROOT = ".devcontainer/SalesModule"
+
 os.makedirs(RAG_PATH, exist_ok=True)
 
 # ==========================================================
@@ -79,7 +81,7 @@ else:
     metadata = []
 
 # ==========================================================
-# UTILITIES
+# CORE UTILITIES
 # ==========================================================
 def save_index():
     faiss.write_index(index, INDEX_FILE)
@@ -96,28 +98,28 @@ def audit_log(user, payload, sources, response):
     with open("audit.log", "a") as f:
         f.write(json.dumps(record) + "\n")
 
-# ✅ FIXED PDF EXTRACTION
-def extract_text(file):
+def extract_text_from_file(path):
     try:
-        if file.name.lower().endswith(".pdf"):
+        if path.lower().endswith(".pdf"):
             text = ""
-            with pdfplumber.open(file) as pdf:
+            with pdfplumber.open(path) as pdf:
                 for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
+                    t = page.extract_text()
+                    if t:
+                        text += t + "\n"
             return text.strip()
 
-        elif file.name.lower().endswith(".docx"):
-            d = docx.Document(file)
+        elif path.lower().endswith(".docx"):
+            d = docx.Document(path)
             return "\n".join(p.text for p in d.paragraphs if p.text.strip())
 
-        else:  # TXT
-            return file.read().decode("utf-8")
+        elif path.lower().endswith(".txt"):
+            return open(path, encoding="utf-8").read()
 
-    except Exception as e:
-        st.error(f"❌ Failed to read {file.name}: {e}")
+    except Exception:
         return ""
+
+    return ""
 
 def ingest_text(text, brand, doc_type, doc_name):
     if not text.strip():
@@ -157,6 +159,26 @@ def tts_play(text):
         st.audio(f.name)
 
 # ==========================================================
+# AUTO-INGEST SELLING MODULES FROM .devcontainer/SalesModule
+# ==========================================================
+def ingest_selling_modules():
+    existing = {(m["doc_name"], m["brand"]) for m in metadata if m["document_type"] == "selling_module"}
+
+    for brand_key in brand_data:
+        brand_folder = os.path.join(SALES_MODULE_ROOT, brand_key)
+        if not os.path.exists(brand_folder):
+            continue
+
+        for file in os.listdir(brand_folder):
+            path = os.path.join(brand_folder, file)
+            if (file, brand_key) in existing:
+                continue
+            text = extract_text_from_file(path)
+            ingest_text(text, brand_key, "selling_module", file)
+
+ingest_selling_modules()
+
+# ==========================================================
 # PROMPT
 # ==========================================================
 SYSTEM_PROMPT = """
@@ -178,76 +200,64 @@ brand_key = st.sidebar.selectbox("Brand", list(brand_data.keys()))
 brand = brand_data[brand_key]
 
 mode = st.sidebar.radio("Mode", ["Sales Call", "Medical Q&A"])
-st.sidebar.markdown("---")
+st.sidebar.caption("AI-generated; for training only")
 
 # ==========================================================
-# DOCUMENT UPLOADER
-# ==========================================================
-st.sidebar.subheader("📄 Upload Approved Documents")
-uploaded = st.sidebar.file_uploader(
-    "Upload PDF / DOCX / TXT",
-    type=["pdf", "docx", "txt"],
-    accept_multiple_files=True
-)
-
-doc_type = st.sidebar.selectbox("Document Type", ["medical", "selling_module"])
-
-if uploaded:
-    for f in uploaded:
-        text = extract_text(f)
-        ingest_text(text, brand_key, doc_type, f.name)
-    st.sidebar.success("✅ Documents ingested successfully")
-
-# ==========================================================
-# SALES CALL MODE
+# SALES CALL MODE (STRICTLY FROM .devcontainer/SalesModule)
 # ==========================================================
 if mode == "Sales Call":
     segment = st.selectbox("Segment", brand["segments"])
     persona = st.selectbox("Persona", brand["personas"])
-    barrier = st.multiselect("Barriers", brand["barriers"])
+    barriers = st.multiselect("Barriers", brand["barriers"])
     specialty = st.selectbox("Specialty", brand["specialties"])
 
     st.markdown("### Call Flow")
     st.write(" → ".join(brand["call_flow"]))
 
     if st.button("Generate Sales Call"):
-        chunks = retrieve("selling module key messages", brand_key, "selling_module")
+        chunks = retrieve(
+            query="selling module key messages",
+            brand=brand_key,
+            doc_type="selling_module"
+        )
 
         if not chunks:
-            st.error("❌ Selling module not found")
-        else:
-            context = "\n\n".join(
-                f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for c in chunks
-            )
+            st.error("❌ No selling module found in .devcontainer/SalesModule")
+            st.stop()
 
-            prompt = f"""
-Generate a sales call aligned to:
+        context = "\n\n".join(
+            f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
+            for c in chunks
+        )
+
+        prompt = f"""
+Generate a compliant sales call using ONLY the content below.
+
 Segment: {segment}
 Persona: {persona}
-Barriers: {", ".join(barrier)}
+Barriers: {", ".join(barriers)}
 Specialty: {specialty}
 
-Use this call flow:
+Follow this call flow:
 {brand['call_flow']}
 
 Context:
 {context}
 """
 
-            response = client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
-                temperature=0.2,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ]
-            )
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-            text = response.choices[0].message.content
-            audit_log(user_id, prompt, [c["doc_name"] for c in chunks], text)
-            st.markdown(text)
-            tts_play(text)
+        text = response.choices[0].message.content
+        audit_log(user_id, prompt, [c["doc_name"] for c in chunks], text)
+        st.markdown(text)
+        tts_play(text)
 
 # ==========================================================
 # MEDICAL Q&A MODE
@@ -260,24 +270,25 @@ if mode == "Medical Q&A":
 
         if not chunks:
             st.error("❌ I cannot answer based on approved sources.")
-        else:
-            context = "\n\n".join(
-                f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for c in chunks
-            )
+            st.stop()
 
-            prompt = f"Question: {question}\n\nContext:\n{context}"
+        context = "\n\n".join(
+            f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
+            for c in chunks
+        )
 
-            response = client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
-                temperature=0.2,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ]
-            )
+        prompt = f"Question: {question}\n\nContext:\n{context}"
 
-            text = response.choices[0].message.content
-            audit_log(user_id, question, [c["doc_name"] for c in chunks], text)
-            st.markdown(text)
-            tts_play(text)
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        text = response.choices[0].message.content
+        audit_log(user_id, question, [c["doc_name"] for c in chunks], text)
+        st.markdown(text)
+        tts_play(text)
