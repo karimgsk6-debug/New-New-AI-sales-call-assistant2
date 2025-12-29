@@ -19,7 +19,7 @@ EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 SALES_ROOT = ".devcontainer/SalesModule"
 AUDIT_FILE = "audit_log.jsonl"
 
-client = Groq(api_key=os.getenv("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"))
+client = Groq(api_key=os.getenv("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"))
 embedder = SentenceTransformer(EMBED_MODEL)
 
 # ================= BRAND DATA =================
