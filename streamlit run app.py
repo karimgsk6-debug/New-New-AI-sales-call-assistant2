@@ -20,8 +20,10 @@ client = Groq(api_key="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"
 # ======================================================
 # ⚙️ CONFIG
 # ======================================================
-PRIMARY_MODEL = "llama-3.1-70b-versatile"
-FALLBACK_MODEL = "llama-3.1-8b-instant"
+MODEL_CANDIDATES = [
+    "llama3-8b-8192",
+    "mixtral-8x7b-32768"
+]
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 MIN_SCORE = 0.35
@@ -231,21 +233,30 @@ CONTENT:
                 ]
             )
         except Exception:
-            response = client.chat.completions.create(
-                model=FALLBACK_MODEL,
-                temperature=0.2,
-                messages=[
-                    {"role": "user", "content": prompt},
-                    {"role": "system", "content": "Use only provided content. No assumptions."}
-                ]
-            )
-
+            response = groq_chat([
+    {"role": "system", "content": "Use only approved content."},
+    {"role": "user", "content": prompt}
+])
         output = response.choices[0].message.content
         st.markdown(output)
         speak(output)
         log_audit({"mode":"call","brand":brand,"persona":persona}, [d["doc_name"] for d in docs], output)
 
 # ======================================================
+def groq_chat(messages, temperature=0.2):
+    last_error = None
+    for model in MODEL_CANDIDATES:
+        try:
+            return client.chat.completions.create(
+                model=model,
+                temperature=temperature,
+                messages=messages
+            )
+        except Exception as e:
+            last_error = e
+            continue
+    raise last_error
+
 # ❓ Q&A MODE
 # ======================================================
 else:
