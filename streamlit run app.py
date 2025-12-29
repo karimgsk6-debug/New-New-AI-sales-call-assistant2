@@ -22,7 +22,6 @@ EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 120
 MIN_SCORE = 0.35
-VECTOR_PATH = "./rag_index"
 
 SALES_MODULE_ROOT = ".devcontainer/SalesModule"
 REFERENCE_ROOT = ".devcontainer/references"
@@ -255,6 +254,7 @@ Approved Content:
 with tab2:
     brand_q = st.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"], key="brand_qa")
     question = st.text_input("Medical / Product Question", key="question")
+
     if st.button("Ask Question"):
         chunks = retrieve(store, embed_model, question, brand_q, "medical_reference")
         if not enforce_sources(chunks):
