@@ -33,7 +33,7 @@ AUDIT_LOG = "audit_log.jsonl"
 # ======================================================
 brand_data = {
     "shingrix": {
-        "display":"Shingrix",
+        "display":"shingrix",
         "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
         "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
         "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
