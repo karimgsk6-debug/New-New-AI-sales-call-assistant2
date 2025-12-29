@@ -49,9 +49,7 @@ class VectorStore:
         self.meta.extend(metadata)
 
     def search(self, emb, k=6):
-        scores, idxs = self.index.search(
-            np.array([emb]).astype("float32"), k
-        )
+        scores, idxs = self.index.search(np.array([emb]).astype("float32"), k)
         results = []
         for s, i in zip(scores[0], idxs[0]):
             if i != -1:
@@ -70,10 +68,10 @@ def build_store():
         if path.endswith(".pdf"):
             with pdfplumber.open(path) as pdf:
                 return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
-        if path.endswith(".docx"):
+        elif path.endswith(".docx"):
             d = docx.Document(path)
             return "\n".join(p.text for p in d.paragraphs)
-        if path.endswith(".html"):
+        elif path.endswith(".html"):
             return BeautifulSoup(open(path), "html.parser").get_text()
         return ""
 
@@ -202,13 +200,16 @@ with st.sidebar:
     st.selectbox("Language", ["English", "French", "Spanish"], key="lang")
 
 st.title("AI Sales Assistant (Groq + Llama-3)")
+
+# Load vector store
 store, embed_model = build_store()
 
+# Tabs
 tab1, tab2 = st.tabs(["Sales Call", "Medical / Product Q&A"])
 
-# --------------------------
-# Sales Call Tab
-# --------------------------
+# =========================
+# SALES CALL TAB
+# =========================
 with tab1:
     brand = st.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"], key="brand_call")
     persona = st.text_input("HCP Persona", "Evidence-driven", key="persona")
@@ -248,9 +249,9 @@ Approved Content:
             st.success(out)
             st.caption(DISCLAIMER)
 
-# --------------------------
-# Q&A Tab
-# --------------------------
+# =========================
+# Q&A TAB
+# =========================
 with tab2:
     brand_q = st.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"], key="brand_qa")
     question = st.text_input("Medical / Product Question", key="question")
@@ -277,9 +278,9 @@ Approved Content:
             st.success(out)
             st.caption(DISCLAIMER)
 
-# --------------------------
-# Footer
-# --------------------------
+# =========================
+# FOOTER
+# =========================
 st.markdown("---")
 st.markdown(
     f"<div style='text-align:center; font-size:12px'>"
