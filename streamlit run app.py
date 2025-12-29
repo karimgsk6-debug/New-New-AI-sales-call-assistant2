@@ -13,27 +13,31 @@ from sentence_transformers import SentenceTransformer
 import faiss
 
 # ======================================================
-# 🔐 GROQ CLIENT (PLACEHOLDER AS REQUESTED)
+# 🔐 GROQ CLIENT — PLACEHOLDER AS REQUESTED
 # ======================================================
 client = Groq(api_key="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")
 
 # ======================================================
 # ⚙️ CONFIG
 # ======================================================
-MODEL_NAME = "llama-3.1-70b-versatile"
+PRIMARY_MODEL = "llama-3.1-70b-versatile"
+FALLBACK_MODEL = "llama-3.1-8b-instant"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
 MIN_SCORE = 0.35
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 120
+MAX_CONTEXT_CHARS = 8000
+
 SALES_MODULE_ROOT = ".devcontainer/SalesModule"
 AUDIT_LOG = "audit_log.jsonl"
 
 # ======================================================
-# 🏷️ BRAND DATA (AS PROVIDED)
+# 🏷️ BRAND DATA (EXACT AS PROVIDED)
 # ======================================================
 brand_data = {
     "shingrix": {
-        "display":"shingrix",
+        "display":"Shingrix",
         "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
         "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
         "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
@@ -74,7 +78,7 @@ if "index" not in st.session_state:
 embedder = SentenceTransformer(EMBED_MODEL)
 
 # ======================================================
-# 📄 TEXT EXTRACTION (FIXED PDF BUG)
+# 📄 TEXT EXTRACTION (PDF BUG FIXED)
 # ======================================================
 def extract_text_from_file(file):
     if file.name.lower().endswith(".pdf"):
@@ -105,13 +109,13 @@ def ingest_text(text, brand, doc_type, doc_name):
         })
 
 # ======================================================
-# 🔍 RETRIEVAL
+# 🔍 RETRIEVAL (WITH SCORE FILTER)
 # ======================================================
 def retrieve(query, brand):
     if st.session_state.index.ntotal == 0:
         return []
     qv = embedder.encode(query).astype("float32")
-    D, I = st.session_state.index.search(np.array([qv]), 5)
+    D, I = st.session_state.index.search(np.array([qv]), 6)
     results = []
     for d, i in zip(D[0], I[0]):
         if i == -1:
@@ -174,7 +178,7 @@ if files:
                 ingest_text(text, brand, "selling_module", f.name)
                 st.sidebar.success(f"Indexed: {f.name}")
             else:
-                st.sidebar.error(f"No text found: {f.name}")
+                st.sidebar.error(f"⚠️ No text extracted: {f.name}")
         except Exception as e:
             st.sidebar.error(f"{f.name}: {e}")
 
@@ -192,33 +196,54 @@ if mode == "Sales Call":
             st.error("❌ No selling module found in .devcontainer/SalesModule")
             st.stop()
 
-        context = "\n".join(d["text"] for d in docs)
+        context = ""
+        for d in docs:
+            if len(context) + len(d["text"]) > MAX_CONTEXT_CHARS:
+                break
+            context += "\n" + d["text"]
+
+        if not context.strip():
+            st.error("❌ Selling module has no usable text (likely scanned PDF).")
+            st.stop()
 
         prompt = f"""
 You are a compliance-first AI sales assistant.
 ONLY use the content below.
 
-Generate a full sales call with:
-Opening, Discovery, On-label Key Messages,
-Objection Handling, Next Steps.
+Create a sales call with:
+Opening
+Discovery
+On-label Key Messages
+Objection Handling
+Next Steps / Close
 
 CONTENT:
 {context}
 """
 
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content": "Only from provided content. No assumptions."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+        try:
+            response = client.chat.completions.create(
+                model=PRIMARY_MODEL,
+                temperature=0.2,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": "Use only provided content. No assumptions."}
+                ]
+            )
+        except Exception:
+            response = client.chat.completions.create(
+                model=FALLBACK_MODEL,
+                temperature=0.2,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": "Use only provided content. No assumptions."}
+                ]
+            )
 
         output = response.choices[0].message.content
         st.markdown(output)
         speak(output)
-        log_audit({"mode":"call","brand":brand}, [d["doc_name"] for d in docs], output)
+        log_audit({"mode":"call","brand":brand,"persona":persona}, [d["doc_name"] for d in docs], output)
 
 # ======================================================
 # ❓ Q&A MODE
@@ -233,11 +258,19 @@ else:
             st.warning("I cannot answer based on approved sources.")
             st.stop()
 
-        context = "\n".join(d["text"] for d in docs)
+        context = ""
+        for d in docs:
+            if len(context) + len(d["text"]) > MAX_CONTEXT_CHARS:
+                break
+            context += "\n" + d["text"]
+
+        if not context.strip():
+            st.warning("Approved documents contain no usable text.")
+            st.stop()
 
         prompt = f"""
 Answer the question ONLY using the content below.
-Provide citations.
+Provide a compliant, on-label answer.
 
 CONTENT:
 {context}
@@ -246,18 +279,28 @@ QUESTION:
 {question}
 """
 
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content": "Compliance-first. Cite sources."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+        try:
+            response = client.chat.completions.create(
+                model=PRIMARY_MODEL,
+                temperature=0.2,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": "Compliance-first. Cite approved content only."}
+                ]
+            )
+        except Exception:
+            response = client.chat.completions.create(
+                model=FALLBACK_MODEL,
+                temperature=0.2,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": "Compliance-first. Cite approved content only."}
+                ]
+            )
 
         output = response.choices[0].message.content
         st.markdown(output)
         speak(output)
-        log_audit({"mode":"qa","brand":brand,"q":question}, [d["doc_name"] for d in docs], output)
+        log_audit({"mode":"qa","brand":brand,"question":question}, [d["doc_name"] for d in docs], output)
 
 st.caption("⚠️ AI-generated | Training only | Verified against approved sources")
