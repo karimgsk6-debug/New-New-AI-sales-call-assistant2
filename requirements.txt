@@ -21,3 +21,11 @@ pdfplumber
 python-docx
 gtts
 numpy
+streamlit
+groq
+faiss-cpu
+sentence-transformers
+pdfplumber
+python-docx
+beautifulsoup4
+numpy
