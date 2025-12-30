@@ -1,289 +1,256 @@
 import os
 import json
-import uuid
 import hashlib
-from datetime import datetime
-from typing import List
+import datetime
+from pathlib import Path
 
 import streamlit as st
-from groq import Groq
-
-import faiss
 import numpy as np
+import faiss
 import pdfplumber
 import docx
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
+from groq import Groq
 
-# =========================
-# CONFIG
-# =========================
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-CHUNK_SIZE = 1200
-CHUNK_OVERLAP = 120
+# =========================================================
+# CONFIGURATION
+# =========================================================
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+RAG_PATH = "./rag_index"
+EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 MIN_SCORE = 0.35
+LANGUAGES = ["English", "Arabic", "French"]
 
-SALES_MODULE_ROOT = ".devcontainer/SalesModule"
-REFERENCE_ROOT = ".devcontainer/references"
+DISCLAIMER = "⚠️ AI-generated; for training only; verified against approved sources."
 
-LLM_MODEL = "llama-3.1-70b-versatile"
+# =========================================================
+# CLIENTS
+# =========================================================
+embedder = SentenceTransformer(EMBED_MODEL_NAME)
+groq_client = Groq(api_key=GROQ_API_KEY)
 
-DISCLAIMER = "AI-generated; for training only; verified against approved sources."
+# =========================================================
+# UTILITIES
+# =========================================================
+def extract_text(file_path):
+    if file_path.endswith(".pdf"):
+        with pdfplumber.open(file_path) as pdf:
+            return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
+    elif file_path.endswith(".docx"):
+        doc = docx.Document(file_path)
+        return "\n".join(p.text for p in doc.paragraphs)
+    elif file_path.endswith(".html"):
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return BeautifulSoup(f.read(), "html.parser").get_text()
+    return ""
 
-# =========================
-# GROQ CLIENT
-# =========================
-client = Groq(api_key=os.getenv("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"))
+def chunk_text(text, size=1200, overlap=120):
+    chunks = []
+    start = 0
+    while start < len(text):
+        chunks.append(text[start:start + size])
+        start += size - overlap
+    return chunks
 
-# =========================
-# VECTOR STORE
-# =========================
-class VectorStore:
-    def __init__(self, dim):
-        self.index = faiss.IndexFlatIP(dim)
-        self.meta = []
+# =========================================================
+# RAG INGESTION
+# =========================================================
+def ingest_documents():
+    docs = []
+    base_paths = {
+        "sales_module": ".devcontainer/SalesModule",
+        "medical_reference": ".devcontainer/references"
+    }
 
-    def add(self, embeddings, metadata):
-        self.index.add(np.array(embeddings).astype("float32"))
-        self.meta.extend(metadata)
+    for doc_type, base in base_paths.items():
+        for brand in ["shingrix", "jemperli", "trelegy"]:
+            folder = Path(base) / brand
+            if not folder.exists():
+                continue
+            for file in folder.glob("*"):
+                text = extract_text(str(file))
+                for idx, chunk in enumerate(chunk_text(text)):
+                    docs.append({
+                        "text": chunk,
+                        "brand": brand.capitalize(),
+                        "document_type": doc_type,
+                        "doc_name": file.name,
+                        "section_id": f"{file.name}_chunk_{idx}",
+                        "version": "1.0",
+                        "effective_date": "2025-01-01"
+                    })
 
-    def search(self, emb, k=6):
-        scores, idxs = self.index.search(np.array([emb]).astype("float32"), k)
-        results = []
-        for s, i in zip(scores[0], idxs[0]):
-            if i != -1:
-                results.append((float(s), self.meta[i]))
-        return results
+    if not docs:
+        return None, []
 
-# =========================
-# INGESTION
-# =========================
-@st.cache_resource
-def build_store():
-    model = SentenceTransformer(EMBED_MODEL)
-    store = VectorStore(model.get_sentence_embedding_dimension())
+    embeddings = embedder.encode([d["text"] for d in docs], show_progress_bar=True)
+    index = faiss.IndexFlatIP(embeddings.shape[1])
+    faiss.normalize_L2(embeddings)
+    index.add(np.array(embeddings))
 
-    def extract_text(path):
-        if path.endswith(".pdf"):
-            with pdfplumber.open(path) as pdf:
-                return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
-        elif path.endswith(".docx"):
-            d = docx.Document(path)
-            return "\n".join(p.text for p in d.paragraphs)
-        elif path.endswith(".html"):
-            return BeautifulSoup(open(path), "html.parser").get_text()
-        return ""
+    os.makedirs(RAG_PATH, exist_ok=True)
+    faiss.write_index(index, f"{RAG_PATH}/index.faiss")
+    with open(f"{RAG_PATH}/meta.json", "w") as f:
+        json.dump(docs, f)
 
-    def chunk(txt):
-        chunks = []
-        i = 0
-        while i < len(txt):
-            chunks.append(txt[i:i + CHUNK_SIZE])
-            i += CHUNK_SIZE - CHUNK_OVERLAP
-        return chunks
+    return index, docs
 
-    def ingest(root, brand, doc_type):
-        for r, _, files in os.walk(root):
-            for f in files:
-                if not f.lower().endswith((".pdf", ".docx", ".html")):
-                    continue
-                text = extract_text(os.path.join(r, f))
-                for c in chunk(text):
-                    emb = model.encode(c, normalize_embeddings=True)
-                    store.add(
-                        [emb],
-                        [{
-                            "id": str(uuid.uuid4()),
-                            "brand": brand.lower(),
-                            "document_type": doc_type,
-                            "doc_name": f,
-                            "version": "1.0",
-                            "effective_date": "2024-01-01",
-                            "text": c
-                        }]
-                    )
+def load_index():
+    index = faiss.read_index(f"{RAG_PATH}/index.faiss")
+    with open(f"{RAG_PATH}/meta.json") as f:
+        meta = json.load(f)
+    return index, meta
 
-    for brand in ["shingrix", "jemperli", "trelegy"]:
-        ingest(f"{SALES_MODULE_ROOT}/{brand}", brand, "selling_module")
-        ingest(f"{REFERENCE_ROOT}/{brand}", brand, "medical_reference")
-
-    return store, model
-
-# =========================
+# =========================================================
 # RETRIEVAL
-# =========================
-def retrieve(store, model, query, brand, doc_type=None):
-    emb = model.encode(query, normalize_embeddings=True)
-    results = store.search(emb)
-    filtered = []
-    for score, m in results:
-        if score < MIN_SCORE:
-            continue
-        if m["brand"] != brand.lower():
-            continue
-        if doc_type and m["document_type"] != doc_type:
-            continue
-        filtered.append((score, m))
-    return filtered
+# =========================================================
+def retrieve(query, brand, doc_type, top_k=6):
+    index, meta = load_index()
+    q_emb = embedder.encode([query])
+    faiss.normalize_L2(q_emb)
+    scores, ids = index.search(q_emb, top_k)
 
-# =========================
-# POLICY
-# =========================
+    results = []
+    for score, idx in zip(scores[0], ids[0]):
+        if score >= MIN_SCORE:
+            m = meta[idx]
+            if m["brand"] == brand and m["document_type"] == doc_type:
+                m["score"] = float(score)
+                results.append(m)
+    return results
+
+# =========================================================
+# POLICY / GUARDRAILS
+# =========================================================
 def enforce_sources(chunks):
     return len(chunks) > 0
 
 def decline():
-    return "⚠️ I cannot answer based on approved sources."
+    return "❌ I cannot answer based on approved sources."
 
-# =========================
-# AUDIT
-# =========================
-def audit_log(input_payload, sources, output):
+# =========================================================
+# LLM CALL
+# =========================================================
+def generate(prompt):
+    response = groq_client.chat.completions.create(
+        model="llama-3.1-70b-versatile",
+        messages=[
+            {"role": "system", "content": "You are a compliance-first medical sales training assistant. ONLY use retrieved content."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2,
+        top_p=0.9
+    )
+    return response.choices[0].message.content
+
+# =========================================================
+# AUDIT LOG
+# =========================================================
+def audit_log(input_data, sources, output):
     record = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "input": input_payload,
-        "sources": [s[1]["id"] for s in sources],
-        "hash": hashlib.sha256(output.encode()).hexdigest()
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "input": input_data,
+        "sources": [s["section_id"] for s in sources],
+        "response_hash": hashlib.sha256(output.encode()).hexdigest()
     }
     with open("audit.log", "a") as f:
         f.write(json.dumps(record) + "\n")
 
-# =========================
-# LLM CALL
-# =========================
-def generate(prompt):
-    r = client.chat.completions.create(
-        model=LLM_MODEL,
-        temperature=0.2,
-        top_p=0.9,
-        messages=[
-            {"role": "system", "content":
-             "You are a compliance-first assistant. "
-             "You MUST ONLY use retrieved text. "
-             "If not grounded in citations, decline."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return r.choices[0].message.content
-
-# =========================
-# PERSONA-ADAPTIVE OBJECTION TREE
-# =========================
-def adapt_objections(barriers: List[str], persona: str):
-    tree = []
-    for b in barriers:
-        if persona.lower() == "evidence-driven":
-            tree.append(f"Barrier: {b} → Respond with clinical evidence and approved citations.")
-        elif persona.lower() == "emotional":
-            tree.append(f"Barrier: {b} → Respond empathetically and reference patient stories.")
-        else:
-            tree.append(f"Barrier: {b} → Respond with standard approved messaging.")
-    return "\n".join(tree)
-
-# =========================
+# =========================================================
 # STREAMLIT UI
-# =========================
-st.set_page_config(page_title="AI Sales Assistant", layout="wide")
+# =========================================================
+st.set_page_config(layout="wide", page_title="AI MR Sales Assistant")
 
-# Sidebar
-with st.sidebar:
-    st.title("🧠 MR Assistant Sidebar")
-    st.markdown("""
-    **Instructions:**
-    1. Select Brand
-    2. Choose Mode: Sales-Call or Q&A
-    3. Enter Persona / Question / Barriers
-    4. Click Generate
-    """)
-    st.markdown("---")
-    st.selectbox("Language", ["English", "French", "Spanish"], key="lang")
+st.sidebar.title("📊 Configuration")
+language = st.sidebar.selectbox("Language", LANGUAGES)
+brand = st.sidebar.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"])
+mode = st.sidebar.radio("Mode", ["Sales Call", "Medical Q&A"])
 
-st.title("AI Sales Assistant (Groq + Llama-3)")
+st.title("🤖 AI Sales Assistant for Medical Representatives")
 
-# Load vector store
-store, embed_model = build_store()
+if st.sidebar.button("📥 Ingest / Refresh Documents"):
+    ingest_documents()
+    st.sidebar.success("Documents ingested successfully")
 
-# Tabs
-tab1, tab2 = st.tabs(["Sales Call", "Medical / Product Q&A"])
-
-# =========================
-# SALES CALL TAB
-# =========================
-with tab1:
-    brand = st.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"], key="brand_call")
-    persona = st.text_input("HCP Persona", "Evidence-driven", key="persona")
-    segment = st.text_input("HCP Segment", "GP", key="segment")
-    barriers = st.text_input("Barriers (comma-separated)", "safety", key="barriers")
-    style = st.text_input("Personal Style", "consultative", key="style")
+# =========================================================
+# SALES CALL MODE
+# =========================================================
+if mode == "Sales Call":
+    persona = st.selectbox("HCP Persona", ["Skeptic", "Advocate", "Data-driven"])
+    barriers = st.multiselect("Barriers", ["Safety", "Efficacy", "Cost", "Access"])
+    style = st.selectbox("Personal Style", ["Consultative", "Concise", "Scientific"])
 
     if st.button("Generate Sales Call"):
-        barrier_list = [b.strip() for b in barriers.split(",")]
-        chunks = retrieve(store, embed_model, "sales call key messages", brand, "selling_module")
-
+        chunks = retrieve("selling module", brand, "sales_module")
         if not enforce_sources(chunks):
-            st.error(decline())
+            st.error("❌ Selling module not found. Please upload it.")
         else:
             context = "\n\n".join(
-                f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for _, c in chunks
+                f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
+                for c in chunks
             )
-            objection_tree = adapt_objections(barrier_list, persona)
 
             prompt = f"""
-Using ONLY the content below, generate a compliant sales-call script with:
-Opening, Discovery, On-label Key Messages, Objection Handling, Next Steps.
+Create a compliant sales-call script in {language}.
 
 Persona: {persona}
-Segment: {segment}
 Barriers: {barriers}
-Personal Style: {style}
-Objection Tree:
-{objection_tree}
+Style: {style}
+
+STRICT RULES:
+- Use ONLY approved content below
+- No off-label statements
+- Cite after each section
 
 Approved Content:
 {context}
+
+Sections:
+1. Opening
+2. Discovery
+3. On-label Key Messages
+4. Objection Handling
+5. Next Steps
 """
-            out = generate(prompt)
-            audit_log(prompt, chunks, out)
-            st.success(out)
+            output = generate(prompt)
+            audit_log(prompt, chunks, output)
+            st.success(output)
             st.caption(DISCLAIMER)
 
-# =========================
-# Q&A TAB
-# =========================
-with tab2:
-    brand_q = st.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"], key="brand_qa")
-    question = st.text_input("Medical / Product Question", key="question")
+# =========================================================
+# MEDICAL Q&A MODE
+# =========================================================
+if mode == "Medical Q&A":
+    question = st.text_input("Ask a medical or product question")
 
-    if st.button("Ask Question"):
-        chunks = retrieve(store, embed_model, question, brand_q, "medical_reference")
+    if st.button("Ask"):
+        chunks = retrieve(question, brand, "medical_reference")
         if not enforce_sources(chunks):
             st.error(decline())
         else:
             context = "\n\n".join(
-                f"[{c['doc_name']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for _, c in chunks
+                f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
+                for c in chunks
             )
-            prompt = f"""
-Answer ONLY using the approved content below.
-Include citations after each statement.
 
-Question: {question}
+            prompt = f"""
+Answer the question ONLY using the approved content.
+Cite every statement.
+
+Question:
+{question}
 
 Approved Content:
 {context}
 """
-            out = generate(prompt)
-            audit_log(question, chunks, out)
-            st.success(out)
+            output = generate(prompt)
+            audit_log(question, chunks, output)
+            st.success(output)
             st.caption(DISCLAIMER)
 
-# =========================
+# =========================================================
 # FOOTER
-# =========================
+# =========================================================
 st.markdown("---")
-st.markdown(
-    f"<div style='text-align:center; font-size:12px'>"
-    f"AI Sales Assistant | Version 1.0 | {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
-    f"</div>", unsafe_allow_html=True
-)
+st.markdown("© 2025 AI MR Training Platform | Compliance-first | CRM-ready")
