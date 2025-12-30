@@ -37,14 +37,22 @@ groq = Groq(api_key=GROQ_API_KEY)
 # =========================================================
 def extract_text(path):
     if path.endswith(".pdf"):
+        text = []
         with pdfplumber.open(path) as pdf:
-            return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text.append(page_text)
+        return "\n".join(text)
+
     if path.endswith(".docx"):
         doc = docx.Document(path)
-        return "\n".join(p.text for p in doc.paragraphs)
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
     if path.endswith(".html"):
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             return BeautifulSoup(f.read(), "html.parser").get_text()
+
     return ""
 
 def chunk_text(text, size=1200, overlap=120):
