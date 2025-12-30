@@ -14,12 +14,14 @@ from sentence_transformers import SentenceTransformer
 from groq import Groq
 
 # =========================================================
-# CONFIGURATION
+# CONFIG
 # =========================================================
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 RAG_PATH = "./rag_index"
-EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 MIN_SCORE = 0.35
+
+BRANDS = ["Shingrix", "Jemperli", "Trelegy"]
 LANGUAGES = ["English", "Arabic", "French"]
 
 DISCLAIMER = "⚠️ AI-generated; for training only; verified against approved sources."
@@ -27,21 +29,21 @@ DISCLAIMER = "⚠️ AI-generated; for training only; verified against approved 
 # =========================================================
 # CLIENTS
 # =========================================================
-embedder = SentenceTransformer(EMBED_MODEL_NAME)
-groq_client = Groq(api_key=GROQ_API_KEY)
+embedder = SentenceTransformer(EMBED_MODEL)
+groq = Groq(api_key=GROQ_API_KEY)
 
 # =========================================================
-# UTILITIES
+# FILE UTILITIES
 # =========================================================
-def extract_text(file_path):
-    if file_path.endswith(".pdf"):
-        with pdfplumber.open(file_path) as pdf:
+def extract_text(path):
+    if path.endswith(".pdf"):
+        with pdfplumber.open(path) as pdf:
             return "\n".join(p.page.extract_text() or "" for p in pdf.pages)
-    elif file_path.endswith(".docx"):
-        doc = docx.Document(file_path)
+    if path.endswith(".docx"):
+        doc = docx.Document(path)
         return "\n".join(p.text for p in doc.paragraphs)
-    elif file_path.endswith(".html"):
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+    if path.endswith(".html"):
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
             return BeautifulSoup(f.read(), "html.parser").get_text()
     return ""
 
@@ -54,47 +56,63 @@ def chunk_text(text, size=1200, overlap=120):
     return chunks
 
 # =========================================================
-# RAG INGESTION
+# INGESTION
 # =========================================================
-def ingest_documents():
+def ingest():
     docs = []
-    base_paths = {
+
+    sources = {
         "sales_module": ".devcontainer/SalesModule",
         "medical_reference": ".devcontainer/references"
     }
 
-    for doc_type, base in base_paths.items():
+    for doc_type, base in sources.items():
         for brand in ["shingrix", "jemperli", "trelegy"]:
             folder = Path(base) / brand
             if not folder.exists():
                 continue
+
             for file in folder.glob("*"):
                 text = extract_text(str(file))
-                for idx, chunk in enumerate(chunk_text(text)):
+                if not text.strip():
+                    continue
+
+                for i, chunk in enumerate(chunk_text(text)):
                     docs.append({
                         "text": chunk,
                         "brand": brand.capitalize(),
                         "document_type": doc_type,
                         "doc_name": file.name,
-                        "section_id": f"{file.name}_chunk_{idx}",
+                        "section_id": f"{file.name}_{i}",
                         "version": "1.0",
                         "effective_date": "2025-01-01"
                     })
 
     if not docs:
-        return None, []
+        return False
 
-    embeddings = embedder.encode([d["text"] for d in docs], show_progress_bar=True)
-    index = faiss.IndexFlatIP(embeddings.shape[1])
+    embeddings = embedder.encode([d["text"] for d in docs])
     faiss.normalize_L2(embeddings)
+
+    index = faiss.IndexFlatIP(embeddings.shape[1])
     index.add(np.array(embeddings))
 
     os.makedirs(RAG_PATH, exist_ok=True)
     faiss.write_index(index, f"{RAG_PATH}/index.faiss")
+
     with open(f"{RAG_PATH}/meta.json", "w") as f:
         json.dump(docs, f)
 
-    return index, docs
+    return True
+
+# =========================================================
+# SAFE LOAD
+# =========================================================
+def index_exists():
+    return (
+        os.path.exists(f"{RAG_PATH}/index.faiss")
+        and os.path.exists(f"{RAG_PATH}/meta.json")
+    )
 
 def load_index():
     index = faiss.read_index(f"{RAG_PATH}/index.faiss")
@@ -105,11 +123,16 @@ def load_index():
 # =========================================================
 # RETRIEVAL
 # =========================================================
-def retrieve(query, brand, doc_type, top_k=6):
+def retrieve(query, brand, doc_type):
+    if not index_exists():
+        return []
+
     index, meta = load_index()
+
     q_emb = embedder.encode([query])
     faiss.normalize_L2(q_emb)
-    scores, ids = index.search(q_emb, top_k)
+
+    scores, ids = index.search(q_emb, 6)
 
     results = []
     for score, idx in zip(scores[0], ids[0]):
@@ -121,60 +144,57 @@ def retrieve(query, brand, doc_type, top_k=6):
     return results
 
 # =========================================================
-# POLICY / GUARDRAILS
+# LLM
 # =========================================================
-def enforce_sources(chunks):
-    return len(chunks) > 0
-
-def decline():
-    return "❌ I cannot answer based on approved sources."
-
-# =========================================================
-# LLM CALL
-# =========================================================
-def generate(prompt):
-    response = groq_client.chat.completions.create(
+def llm(prompt):
+    res = groq.chat.completions.create(
         model="llama-3.1-70b-versatile",
-        messages=[
-            {"role": "system", "content": "You are a compliance-first medical sales training assistant. ONLY use retrieved content."},
-            {"role": "user", "content": prompt}
-        ],
         temperature=0.2,
-        top_p=0.9
+        top_p=0.9,
+        messages=[
+            {"role": "system", "content": "Compliance-first assistant. Use ONLY approved content."},
+            {"role": "user", "content": prompt}
+        ]
     )
-    return response.choices[0].message.content
+    return res.choices[0].message.content
 
 # =========================================================
-# AUDIT LOG
+# AUDIT
 # =========================================================
-def audit_log(input_data, sources, output):
+def audit(input_data, sources, output):
     record = {
         "timestamp": datetime.datetime.utcnow().isoformat(),
         "input": input_data,
         "sources": [s["section_id"] for s in sources],
-        "response_hash": hashlib.sha256(output.encode()).hexdigest()
+        "hash": hashlib.sha256(output.encode()).hexdigest()
     }
     with open("audit.log", "a") as f:
         f.write(json.dumps(record) + "\n")
 
 # =========================================================
-# STREAMLIT UI
+# UI
 # =========================================================
-st.set_page_config(layout="wide", page_title="AI MR Sales Assistant")
+st.set_page_config(page_title="AI MR Sales Assistant", layout="wide")
 
-st.sidebar.title("📊 Configuration")
+st.sidebar.title("⚙️ Setup")
+brand = st.sidebar.selectbox("Brand", BRANDS)
 language = st.sidebar.selectbox("Language", LANGUAGES)
-brand = st.sidebar.selectbox("Brand", ["Shingrix", "Jemperli", "Trelegy"])
 mode = st.sidebar.radio("Mode", ["Sales Call", "Medical Q&A"])
 
-st.title("🤖 AI Sales Assistant for Medical Representatives")
-
 if st.sidebar.button("📥 Ingest / Refresh Documents"):
-    ingest_documents()
-    st.sidebar.success("Documents ingested successfully")
+    ok = ingest()
+    if ok:
+        st.sidebar.success("Documents indexed successfully")
+    else:
+        st.sidebar.error("No documents found")
+
+st.title("🤖 AI Sales Assistant")
+
+if not index_exists():
+    st.warning("⚠️ No index found. Please ingest documents from the sidebar.")
 
 # =========================================================
-# SALES CALL MODE
+# SALES CALL
 # =========================================================
 if mode == "Sales Call":
     persona = st.selectbox("HCP Persona", ["Skeptic", "Advocate", "Data-driven"])
@@ -183,8 +203,9 @@ if mode == "Sales Call":
 
     if st.button("Generate Sales Call"):
         chunks = retrieve("selling module", brand, "sales_module")
-        if not enforce_sources(chunks):
-            st.error("❌ Selling module not found. Please upload it.")
+
+        if not chunks:
+            st.error("❌ Brand selling module not found or not indexed.")
         else:
             context = "\n\n".join(
                 f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
@@ -192,42 +213,43 @@ if mode == "Sales Call":
             )
 
             prompt = f"""
-Create a compliant sales-call script in {language}.
+Create a compliant sales-call in {language}.
 
 Persona: {persona}
 Barriers: {barriers}
 Style: {style}
 
-STRICT RULES:
-- Use ONLY approved content below
-- No off-label statements
-- Cite after each section
+RULES:
+- Use ONLY approved content
+- Cite after every section
+- No off-label claims
 
 Approved Content:
 {context}
 
 Sections:
-1. Opening
-2. Discovery
-3. On-label Key Messages
-4. Objection Handling
-5. Next Steps
+Opening
+Discovery
+On-label Key Messages
+Objection Handling
+Next Steps
 """
-            output = generate(prompt)
-            audit_log(prompt, chunks, output)
-            st.success(output)
+            out = llm(prompt)
+            audit(prompt, chunks, out)
+            st.success(out)
             st.caption(DISCLAIMER)
 
 # =========================================================
-# MEDICAL Q&A MODE
+# MEDICAL Q&A
 # =========================================================
 if mode == "Medical Q&A":
-    question = st.text_input("Ask a medical or product question")
+    q = st.text_input("Ask a medical/product question")
 
     if st.button("Ask"):
-        chunks = retrieve(question, brand, "medical_reference")
-        if not enforce_sources(chunks):
-            st.error(decline())
+        chunks = retrieve(q, brand, "medical_reference")
+
+        if not chunks:
+            st.error("❌ I cannot answer based on approved sources.")
         else:
             context = "\n\n".join(
                 f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
@@ -235,18 +257,18 @@ if mode == "Medical Q&A":
             )
 
             prompt = f"""
-Answer the question ONLY using the approved content.
+Answer ONLY using approved content.
 Cite every statement.
 
 Question:
-{question}
+{q}
 
 Approved Content:
 {context}
 """
-            output = generate(prompt)
-            audit_log(question, chunks, output)
-            st.success(output)
+            out = llm(prompt)
+            audit(q, chunks, out)
+            st.success(out)
             st.caption(DISCLAIMER)
 
 # =========================================================
