@@ -1,36 +1,37 @@
 """
-AI SALES ASSISTANT – COMPLIANCE-FIRST (SINGLE FILE)
+AI SALES ASSISTANT – FULL MERGED DEPLOYABLE APP
 
 AI-generated; for training; verified against approved sources.
 
-Features:
+FEATURES
 - Groq + llama-3.1-70b-versatile
 - Local RAG (FAISS + sentence-transformers)
 - Sales Call Generation
-- Medical/Product Q&A
+- Medical / Product Q&A
+- Streamlit UI
+- Multi-brand orchestration
+- Persona-driven objection trees
 - On-label enforcement
 - Off-label blocking
 - Citation enforcement
-- Brand selling-module enforcement
 - Audit logging
 """
 
-# =========================
+# =====================================================
 # CONFIGURATION
-# =========================
+# =====================================================
 
-GROQ_API_KEY = "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"   # <-- REPLACE THIS
+GROQ_API_KEY = "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"   # <<< REPLACE
 RAG_STORE_PATH = "./rag_index"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 120
 MIN_SCORE = 0.35
-
 AUDIT_LOG = "./audit.log"
 
-# =========================
-# DEPENDENCIES
-# =========================
+# =====================================================
+# IMPORTS
+# =====================================================
 
 import os
 import json
@@ -40,6 +41,7 @@ from typing import List
 
 import faiss
 import numpy as np
+import streamlit as st
 from groq import Groq
 from sentence_transformers import SentenceTransformer
 
@@ -47,39 +49,86 @@ from pypdf import PdfReader
 from docx import Document
 from bs4 import BeautifulSoup
 
-# =========================
+# =====================================================
 # INITIALIZATION
-# =========================
+# =====================================================
 
 os.makedirs(RAG_STORE_PATH, exist_ok=True)
 
 client = Groq(api_key=GROQ_API_KEY)
 embedder = SentenceTransformer(EMBEDDING_MODEL)
 
-# =========================
+# =====================================================
 # SYSTEM PROMPT (LOCKED)
-# =========================
+# =====================================================
 
 SYSTEM_PROMPT = """
 You are a compliance-first pharmaceutical AI assistant.
 
 STRICT RULES:
-- You MUST ONLY use retrieved approved text.
-- EVERY medical or product statement MUST have citations.
-- If content is not grounded in retrieved sources, DECLINE.
-- No off-label discussion.
-- If evidence is insufficient, explicitly say so.
+- Use ONLY retrieved approved text.
+- EVERY medical or product statement MUST be cited.
+- NO off-label content.
+- If evidence is insufficient, explicitly decline.
 
-Tone:
-Professional, compliant, concise.
+Tone: professional, compliant, concise.
 
 Always include this disclaimer:
 "AI-generated; for training; verified against approved sources."
 """
 
-# =========================
+# =====================================================
+# PERSONA OBJECTION TREES
+# =====================================================
+
+PERSONA_OBJECTIONS = {
+    "Skeptical": {
+        "primary": [
+            "Safety concerns",
+            "Doubts clinical relevance",
+            "Requests real-world evidence"
+        ],
+        "style": "Acknowledge concerns and reinforce approved safety data"
+    },
+    "Time-Pressed": {
+        "primary": [
+            "Limited time",
+            "Wants quick summary"
+        ],
+        "style": "Concise, single key on-label message"
+    },
+    "Evidence-Driven": {
+        "primary": [
+            "Requests trial data",
+            "Guideline alignment"
+        ],
+        "style": "Use approved clinical endpoints only"
+    }
+}
+
+def persona_context(persona):
+    p = PERSONA_OBJECTIONS.get(persona)
+    if not p:
+        return ""
+    return f"""
+Persona: {persona}
+Likely objections: {p['primary']}
+Preferred handling style: {p['style']}
+"""
+
+# =====================================================
+# MULTI-BRAND ROUTER
+# =====================================================
+
+BRANDS = ["Shingrix", "Jemperli", "Trelegy"]
+
+def validate_brand(brand):
+    if brand not in BRANDS:
+        raise ValueError("Brand not configured or approved content missing.")
+
+# =====================================================
 # UTILITIES
-# =========================
+# =====================================================
 
 def audit_log(user_id, input_payload, sources, response):
     record = {
@@ -93,17 +142,17 @@ def audit_log(user_id, input_payload, sources, response):
         f.write(json.dumps(record) + "\n")
 
 
-def extract_text(path: str) -> str:
+def extract_text(path):
     if path.endswith(".pdf"):
         return "\n".join(p.extract_text() or "" for p in PdfReader(path).pages)
     if path.endswith(".docx"):
         return "\n".join(p.text for p in Document(path).paragraphs)
     if path.endswith(".html"):
         return BeautifulSoup(open(path, encoding="utf-8"), "html.parser").get_text()
-    raise ValueError("Unsupported file format")
+    raise ValueError("Unsupported format")
 
 
-def chunk_text(text: str) -> List[str]:
+def chunk_text(text):
     chunks = []
     start = 0
     while start < len(text):
@@ -111,20 +160,16 @@ def chunk_text(text: str) -> List[str]:
         start += CHUNK_SIZE - CHUNK_OVERLAP
     return chunks
 
-
-# =========================
-# RAG INGESTION
-# =========================
+# =====================================================
+# RAG INGESTION (RUN SEPARATELY IF NEEDED)
+# =====================================================
 
 def ingest_documents(directory, metadata):
     texts, metas = [], []
 
     for file in os.listdir(directory):
-        full_path = os.path.join(directory, file)
-        raw_text = extract_text(full_path)
-        chunks = chunk_text(raw_text)
-
-        for i, chunk in enumerate(chunks):
+        raw = extract_text(os.path.join(directory, file))
+        for i, chunk in enumerate(chunk_text(raw)):
             texts.append(chunk)
             metas.append({
                 "brand": metadata["brand"],
@@ -138,17 +183,15 @@ def ingest_documents(directory, metadata):
             })
 
     vectors = embedder.encode(texts).astype("float32")
-
     index = faiss.IndexFlatIP(vectors.shape[1])
     index.add(vectors)
 
     faiss.write_index(index, f"{RAG_STORE_PATH}/index.faiss")
     json.dump(metas, open(f"{RAG_STORE_PATH}/meta.json", "w"), indent=2)
 
-
-# =========================
+# =====================================================
 # RAG RETRIEVAL
-# =========================
+# =====================================================
 
 def retrieve(query, brand, document_type=None, top_k=8):
     index = faiss.read_index(f"{RAG_STORE_PATH}/index.faiss")
@@ -161,62 +204,53 @@ def retrieve(query, brand, document_type=None, top_k=8):
     for score, idx in zip(scores[0], idxs[0]):
         if score < MIN_SCORE:
             continue
-
         m = meta[idx]
         if m["brand"].lower() != brand.lower():
             continue
         if document_type and m["document_type"] != document_type:
             continue
-
-        results.append({
-            "score": float(score),
-            "source_id": idx,
-            "meta": m
-        })
+        results.append({"score": float(score), "meta": m})
 
     return results
 
-
-# =========================
+# =====================================================
 # POLICY / GUARDRAILS
-# =========================
+# =====================================================
 
 def enforce_only_from_rag(chunks):
     if not chunks:
         raise ValueError("I cannot answer based on approved sources.")
 
-
 def enforce_citations(text):
     if "[" not in text or "]" not in text:
         raise ValueError("Blocked: missing citations.")
 
-
 def off_label_block(text, chunks):
-    approved_text = " ".join(c["meta"]["text"] for c in chunks)
+    approved = " ".join(c["meta"]["text"] for c in chunks)
     for sentence in text.split("."):
-        if sentence.strip() and sentence.strip() not in approved_text:
+        if sentence.strip() and sentence.strip() not in approved:
             raise ValueError("Blocked: potential off-label or hallucinated content.")
 
-
-# =========================
+# =====================================================
 # ASSISTANT MODES
-# =========================
+# =====================================================
 
-def sales_call(input_json, user_id="cli"):
-    brand = input_json["brand"]
+def sales_call(payload, user_id="ui"):
+    validate_brand(payload["brand"])
 
     chunks = retrieve(
-        query=" ".join(input_json["barriers"]),
-        brand=brand,
+        query=" ".join(payload["barriers"]),
+        brand=payload["brand"],
         document_type="selling_module"
     )
 
     enforce_only_from_rag(chunks)
 
     context = "\n".join(c["meta"]["text"] for c in chunks)
+    persona_info = persona_context(payload["persona"])
 
     prompt = f"""
-Create a FULL sales-call scenario using ONLY the text below.
+Generate a FULL sales-call scenario using ONLY the text below.
 
 SECTIONS:
 1. Opening
@@ -225,14 +259,17 @@ SECTIONS:
 4. Objection Handling
 5. Next Steps / Close
 
+Persona guidance:
+{persona_info}
+
 Cite each section like:
-[document_name | section_id | version | effective_date]
+[doc | section | version | effective_date]
 
 TEXT:
 {context}
 """
 
-    response = client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
         temperature=0.2,
         top_p=0.9,
@@ -242,36 +279,33 @@ TEXT:
         ]
     )
 
-    answer = response.choices[0].message.content
+    answer = resp.choices[0].message.content
     enforce_citations(answer)
     off_label_block(answer, chunks)
+    audit_log(user_id, payload, chunks, answer)
 
-    audit_log(user_id, input_json, chunks, answer)
     return answer + "\n\nAI-generated; for training; verified against approved sources."
 
+def medical_qa(payload, user_id="ui"):
+    validate_brand(payload["brand"])
 
-def medical_qa(input_json, user_id="cli"):
-    chunks = retrieve(
-        query=input_json["question"],
-        brand=input_json["brand"]
-    )
-
+    chunks = retrieve(payload["question"], payload["brand"])
     enforce_only_from_rag(chunks)
 
     context = "\n".join(c["meta"]["text"] for c in chunks)
 
     prompt = f"""
 Answer the question using ONLY approved text below.
-If insufficient, say so.
+If insufficient, explicitly say so.
 
 QUESTION:
-{input_json["question"]}
+{payload["question"]}
 
 TEXT:
 {context}
 """
 
-    response = client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
         temperature=0.2,
         messages=[
@@ -280,29 +314,57 @@ TEXT:
         ]
     )
 
-    answer = response.choices[0].message.content
+    answer = resp.choices[0].message.content
     enforce_citations(answer)
     off_label_block(answer, chunks)
+    audit_log(user_id, payload, chunks, answer)
 
-    audit_log(user_id, input_json, chunks, answer)
     return answer + "\n\nAI-generated; for training; verified against approved sources."
 
+# =====================================================
+# STREAMLIT UI
+# =====================================================
 
-# =========================
-# CLI
-# =========================
+st.set_page_config(page_title="AI Sales Assistant", layout="wide")
+st.title("🧠 AI Sales Assistant (Training Only)")
+st.caption("AI-generated; for training; verified against approved sources.")
 
-if __name__ == "__main__":
-    import argparse
+tab1, tab2 = st.tabs(["Sales Call", "Medical / Product Q&A"])
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", required=True, choices=["call", "qa"])
-    parser.add_argument("--input", required=True)
+with tab1:
+    brand = st.selectbox("Brand", BRANDS)
+    hcp = st.text_input("HCP Segment", "GP")
+    persona = st.selectbox("Persona", list(PERSONA_OBJECTIONS.keys()))
+    barriers = st.text_area("Barriers (comma separated)", "safety concerns")
+    style = st.selectbox("Personal Style", ["Consultative", "Direct", "Educational"])
 
-    args = parser.parse_args()
-    payload = json.loads(args.input)
+    if st.button("Generate Sales Call"):
+        payload = {
+            "mode": "call",
+            "brand": brand,
+            "hcp_segment": hcp,
+            "persona": persona,
+            "barriers": [b.strip() for b in barriers.split(",")],
+            "personal_style": style
+        }
+        try:
+            result = sales_call(payload)
+            st.text_area("Sales Call Script", result, height=450)
+        except Exception as e:
+            st.error(str(e))
 
-    if args.mode == "call":
-        print(sales_call(payload))
-    else:
-        print(medical_qa(payload))
+with tab2:
+    brand_q = st.selectbox("Brand ", BRANDS)
+    question = st.text_area("Question")
+
+    if st.button("Get Answer"):
+        payload = {
+            "mode": "qa",
+            "brand": brand_q,
+            "question": question
+        }
+        try:
+            result = medical_qa(payload)
+            st.text_area("Answer", result, height=300)
+        except Exception as e:
+            st.error(str(e))
