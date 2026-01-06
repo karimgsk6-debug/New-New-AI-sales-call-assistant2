@@ -1,15 +1,14 @@
 # ============================================================
-# AI SALES CALL ASSISTANT
-# RAG + SENTENCE CITATION + ROLE PLAY
+# AI SALES CALL ASSISTANT — FULLY MERGED VERSION
 # ============================================================
 
 import streamlit as st
-import os, re, io, base64
+import os, re
 from html import escape
 
-# -------------------------
-# OPTIONAL IMPORTS
-# -------------------------
+# =========================
+# OPTIONAL DEPENDENCIES
+# =========================
 try:
     from groq import Groq
 except:
@@ -27,120 +26,86 @@ try:
 except:
     SKLEARN = False
 
-# -------------------------
-# PAGE CONFIG
-# -------------------------
+# =========================
+# PAGE CONFIG & STYLING
+# =========================
 st.set_page_config(
     page_title="AI Sales Call Assistant",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# -------------------------
-# PRODUCT MASTER DATA
-# -------------------------
-PRODUCTS = {
-    "shingrix": {
-        "display": "Shingrix",
-        "indication": "Herpes Zoster (Shingles) Prevention",
-        "segments": ["Reach", "Acquire", "Convert", "Engage"],
-        "personas": [
-            "Evidence-led",
-            "Time-pressured",
-            "Skeptical",
-            "Patient-influenced",
-            "Committed vaccinator"
-        ],
-        "specialties": ["GP", "Internal Medicine", "Rheumatology", "Immunology"],
-        "barriers": [
-            "HZ not perceived as serious",
-            "Time constraints",
-            "Cost concerns",
-            "Safety misconceptions"
-        ],
-        "objectives": ["Awareness", "Adoption", "Acceleration"],
-        "call_flow": ["Prepare", "Engage", "Create Opportunity", "Influence", "Impact", "Analyze"],
-        "objections": ["Efficacy", "Safety", "Cost"],
-        "refs": ".devcontainer/references/shingrix/",
-        "sales": ".devcontainer/SalesModule/shingrix/"
-    },
+st.markdown(
+    """
+    <style>
+        .stApp {
+            background-image: url('https://images.unsplash.com/photo-1588776814546-8c80b1cd3b19?auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            background-position: center;
+        }
+        .chat-bubble-user {background-color:#cce5ff; padding:10px; border-radius:10px; margin:5px 0;}
+        .chat-bubble-ai {background-color:#e2e3e5; padding:10px; border-radius:10px; margin:5px 0;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-    "jemperli": {
-        "display": "Jemperli",
-        "indication": "dMMR / MSI-H Endometrial Cancer",
-        "segments": ["Identify", "Initiate", "Adopt", "Advocate"],
-        "personas": [
-            "Data-driven oncologist",
-            "Skeptical specialist",
-            "Early adopter",
-            "Guideline follower"
-        ],
-        "specialties": ["Medical Oncology", "Gynecologic Oncology"],
-        "barriers": [
-            "Patient eligibility uncertainty",
-            "Safety concerns",
-            "Reimbursement complexity"
-        ],
-        "objectives": ["Trial", "Routine Use", "Advocacy"],
-        "call_flow": ["COCO", "Anchor", "Engage", "Close"],
-        "objections": ["Efficacy", "Safety", "Access"],
-        "refs": ".devcontainer/references/jemperli/",
-        "sales": ".devcontainer/SalesModule/jemperli/"
-    },
-
-    "trelegy": {
-        "display": "Trelegy",
-        "indication": "COPD Maintenance Therapy",
-        "segments": ["Awareness", "Diagnose", "Adopt", "Adhere"],
-        "personas": [
-            "Primary care prescriber",
-            "Pulmonologist",
-            "Nurse educator"
-        ],
-        "specialties": ["GP", "Pulmonology", "Respiratory"],
-        "barriers": [
-            "Inhaler technique",
-            "Formulary access",
-            "Side effect concerns"
-        ],
-        "objectives": ["Initiation", "Switch", "Adherence"],
-        "call_flow": ["Prepare", "Engage", "Demonstrate", "Access", "Close"],
-        "objections": ["Device", "Coverage", "Effectiveness"],
-        "refs": ".devcontainer/references/trelegy/",
-        "sales": ".devcontainer/SalesModule/trelegy/"
-    }
-}
-
-# -------------------------
-# SESSION INIT
-# -------------------------
-def init_session():
+# =========================
+# SESSION STATE
+# =========================
+def init_state():
     defaults = {
         "chat": [],
         "roleplay_history": [],
-        "brand": "shingrix",
-        "persona": "",
-        "tone": "executive",
-        "simulation": False
+        "simulation": False,
+        "product": "Shingrix",
+        "indication": "Herpes Zoster",
+        "persona": "Evidence-led",
+        "hcp_segment": "Consultant",
+        "barrier": "Time constraints",
+        "objective": "Initiate discussion"
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
-init_session()
+init_state()
 
-# -------------------------
+# =========================
+# PRODUCT REGISTRY
+# =========================
+PRODUCTS = {
+    "Shingrix": {
+        "indications": ["Herpes Zoster"],
+        "refs": "data/shingrix/references/",
+        "sales": "data/shingrix/sales/"
+    },
+    "Jemperli": {
+        "indications": ["Endometrial Cancer"],
+        "refs": "data/jemperli/references/",
+        "sales": "data/jemperli/sales/"
+    },
+    "Trelegy": {
+        "indications": ["COPD", "Asthma"],
+        "refs": "data/trelegy/references/",
+        "sales": "data/trelegy/sales/"
+    }
+}
+
+# =========================
 # GROQ CLIENT
-# -------------------------
-def groq_client():
-    key = os.getenv("GROQ_API_KEY", "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")
-    if not key or not Groq:
+# =========================
+def get_llm():
+    # Replace with your real Groq API key
+    api_key = "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"
+    if not api_key or not Groq:
         return None
-    return Groq(api_key=key)
+    return Groq(api_key=api_key)
 
-# -------------------------
-# FILE & CORPUS HANDLING
-# -------------------------
-def read_text(path):
+LLM = get_llm()
+
+# =========================
+# FILE & CORPUS LOADING
+# =========================
+def read_file(path):
     if not os.path.exists(path):
         return ""
     if path.endswith(".pdf") and PdfReader:
@@ -149,134 +114,138 @@ def read_text(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
 
-def build_corpus(paths):
-    chunks, sources = [], []
-    for folder in paths:
+def build_corpus(folders):
+    chunks, meta = [], []
+    for folder in folders:
         if not os.path.exists(folder):
             continue
         for f in os.listdir(folder):
             if f.endswith((".pdf", ".txt")):
-                text = read_text(os.path.join(folder, f))
+                text = read_file(os.path.join(folder, f))
                 for s in re.split(r'(?<=[.!?])\s+', text):
-                    if len(s.strip()) > 40:
-                        chunks.append(s.strip())
-                        sources.append(f)
-    return chunks, sources
+                    if len(s) > 40:
+                        chunks.append(s)
+                        meta.append(f)
+    return chunks, meta
 
-def retrieve(query, chunks, sources, k=6):
+# =========================
+# RETRIEVAL
+# =========================
+def retrieve(query, chunks, meta, k=6):
     if not SKLEARN or not chunks:
         return []
     vec = TfidfVectorizer(stop_words="english")
     X = vec.fit_transform(chunks + [query])
     sims = linear_kernel(X[-1], X[:-1]).flatten()
     idxs = sims.argsort()[::-1][:k]
-    return [{"text": chunks[i], "src": sources[i]} for i in idxs if sims[i] > 0]
+    return [{"text": chunks[i], "src": meta[i]} for i in idxs if sims[i] > 0]
 
-def cite_sentences(text, refs):
-    output = []
-    for s in re.split(r'(?<=[.!?])\s+', text):
-        src = "Approved material"
-        for r in refs:
-            if any(w.lower() in r["text"].lower() for w in s.split()[:4]):
-                src = r["src"]
-                break
-        output.append(f"{s}<br><span style='font-size:12px;color:#9cf'>(Source: {src})</span>")
-    return "<br>".join(output)
+# =========================
+# CITATION ENGINE
+# =========================
+def cite(text, refs):
+    out = []
+    for sent in re.split(r'(?<=[.!?])\s+', text):
+        src = refs[0]["src"] if refs else "N/A"
+        out.append(f"{sent}<br><span style='font-size:11px;color:#9aa'>(Source: {src})</span>")
+    return "<br>".join(out)
 
-# -------------------------
+# =========================
 # GUARDED GENERATION
-# -------------------------
-def guarded_llm(prompt):
-    client = groq_client()
-    if not client:
-        return "LLM not configured."
+# =========================
+def guarded_llm(user_prompt, role="assistant"):
+    if not LLM:
+        return "⚠️ LLM not configured. Please add GROQ_API_key."
 
-    refs = retrieve(prompt, CORPUS, SOURCES)
-    if not refs:
-        return "⚠️ Not covered in the provided Sales Modules or References."
+    product = PRODUCTS[st.session_state.product]
+    chunks, meta = build_corpus([product["refs"], product["sales"]])
+    retrieved = retrieve(user_prompt, chunks, meta)
 
-    context = "\n".join([f"[{r['src']}] {r['text']}" for r in refs])
+    if not retrieved:
+        return "⚠️ This question is not covered by approved materials."
 
-    final_prompt = f"""
-STRICT COMPLIANCE:
-- Use ONLY the CONTEXT
-- Do NOT add knowledge
-- If missing, say so
+    context = "\n".join(f"[{r['src']}] {r['text']}" for r in retrieved)
+
+    prompt = f"""
+ROLE: {role}
+PRODUCT: {st.session_state.product}
+INDICATION: {st.session_state.indication}
+HCP SEGMENT: {st.session_state.hcp_segment}
+OBJECTIVE: {st.session_state.objective}
+BARRIER: {st.session_state.barrier}
+
+STRICT RULES:
+- Use ONLY the context
+- No external knowledge
+- Cite implicitly
 
 CONTEXT:
 {context}
 
 TASK:
-{prompt}
+{user_prompt}
 """
 
-    resp = client.chat.completions.create(
+    resp = LLM.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": final_prompt}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.3
     )
 
-    return cite_sentences(resp.choices[0].message.content, refs)
+    return cite(resp.choices[0].message.content, retrieved)
 
-# -------------------------
-# ROLE PLAY ENGINE
-# -------------------------
-def roleplay(rep_text):
-    persona = st.session_state.persona
+# =========================
+# ROLE PLAY
+# =========================
+def roleplay(rep_input):
     history = "\n".join(st.session_state.roleplay_history[-6:])
-
     prompt = f"""
-You are a healthcare professional persona: {persona}
+You are an HCP persona: {st.session_state.persona}
 
 Conversation:
 {history}
 
 Rep says:
-{rep_text}
+{rep_input}
 
-Respond as the HCP only.
+Respond ONLY as HCP.
 """
-
-    reply = guarded_llm(prompt)
-    st.session_state.roleplay_history += [f"REP: {rep_text}", f"HCP: {reply}"]
+    reply = guarded_llm(prompt, role="HCP")
+    st.session_state.roleplay_history += [f"REP: {rep_input}", f"HCP: {reply}"]
     return reply
 
-# -------------------------
+# =========================
 # SIDEBAR
-# -------------------------
+# =========================
 with st.sidebar:
-    st.header("🔧 Call Configuration")
+    st.header("⚙️ Call Setup")
 
-    brand = st.selectbox("Brand", PRODUCTS.keys(), format_func=lambda x: PRODUCTS[x]["display"])
-    st.session_state.brand = brand
-    product = PRODUCTS[brand]
+    st.selectbox("Product", PRODUCTS.keys(), key="product")
+    st.selectbox("Indication", PRODUCTS[st.session_state.product]["indications"], key="indication")
 
-    st.caption(f"**Indication:** {product['indication']}")
+    st.selectbox("HCP Segment", ["Consultant", "GP", "Specialist", "Pharmacist"], key="hcp_segment")
+    st.selectbox("Persona", ["Evidence-led", "Skeptical", "Time-pressured", "Early adopter"], key="persona")
+    st.selectbox("Barrier", ["Time constraints", "Budget limits", "Efficacy concerns", "Safety concerns"], key="barrier")
 
-    st.selectbox("Segment", product["segments"])
-    st.selectbox("Objective", product["objectives"])
-    st.selectbox("Specialty", product["specialties"])
+    st.selectbox("Call Objective", [
+        "Initiate discussion",
+        "Handle objection",
+        "Drive adoption",
+        "Close next step"
+    ], key="objective")
 
-    st.session_state.persona = st.selectbox("HCP Persona", product["personas"])
-    st.selectbox("HCP Personality", ["Friendly", "Assertive", "Skeptical", "Detail-oriented"])
-    st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"])
+    st.toggle("🎭 Simulation Mode", key="simulation")
 
-    st.toggle("🎭 Call Simulation Mode", key="simulation")
-
-    if st.button("🗑 Clear Session"):
+    if st.button("🔄 Reset Session"):
         st.session_state.chat = []
         st.session_state.roleplay_history = []
 
-# -------------------------
-# BUILD CORPUS
-# -------------------------
-CORPUS, SOURCES = build_corpus([product["refs"], product["sales"]])
-
-# -------------------------
+# =========================
 # MAIN UI
-# -------------------------
-st.title(f"💡 {product['display']} — AI Sales Call Assistant")
-st.caption("Mode: 🎭 Simulation" if st.session_state.simulation else "Mode: 📋 Advisor")
+# =========================
+st.title("🧠 AI Sales Call Assistant")
+mode = "🎭 Simulation" if st.session_state.simulation else "💬 Q&A"
+st.markdown(f"**Mode:** {mode}")
 
 user_input = st.text_area("Your input")
 
@@ -286,22 +255,35 @@ if st.button("Send") and user_input.strip():
     else:
         reply = guarded_llm(user_input)
 
-    st.session_state.chat.append(("rep", user_input))
+    st.session_state.chat.append(("user", user_input))
     st.session_state.chat.append(("ai", reply))
 
-# -------------------------
+# =========================
 # CHAT DISPLAY
-# -------------------------
-for role, msg in st.session_state.chat:
-    if role == "rep":
-        st.markdown(f"🧑‍💼 **REP:** {escape(msg)}")
+# =========================
+for r, m in st.session_state.chat:
+    if r == "user":
+        st.markdown(f"<div class='chat-bubble-user'>🧑‍💼 {escape(m)}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"🩺 **HCP / AI:**<br>{msg}", unsafe_allow_html=True)
+        st.markdown(f"<div class='chat-bubble-ai'>🤖 {m}</div>", unsafe_allow_html=True)
 
-# -------------------------
-# DISCLAIMER
-# -------------------------
+# =========================
+# COLLAPSIBLE SUMMARIES
+# =========================
+product_data = PRODUCTS[st.session_state.product]
+
+with st.expander("📄 Medical References Summary"):
+    medical_text = "\n".join([read_file(os.path.join(product_data["refs"], f)) for f in os.listdir(product_data["refs"])])
+    st.write(medical_text[:2000] + "...")  # first 2000 chars
+
+with st.expander("💼 Sales Module Summary"):
+    sales_text = "\n".join([read_file(os.path.join(product_data["sales"], f)) for f in os.listdir(product_data["sales"])])
+    st.write(sales_text[:2000] + "...")  # first 2000 chars
+
+# =========================
+# FOOTER
+# =========================
 st.markdown(
-    "<hr><small>Internal use only. Content restricted to approved materials.</small>",
+    "<hr><small>Internal use only — responses limited to approved materials.</small>",
     unsafe_allow_html=True
 )
