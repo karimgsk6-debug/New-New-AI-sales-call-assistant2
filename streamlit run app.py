@@ -1,286 +1,308 @@
+"""
+AI SALES ASSISTANT – COMPLIANCE-FIRST (SINGLE FILE)
+
+AI-generated; for training; verified against approved sources.
+
+Features:
+- Groq + llama-3.1-70b-versatile
+- Local RAG (FAISS + sentence-transformers)
+- Sales Call Generation
+- Medical/Product Q&A
+- On-label enforcement
+- Off-label blocking
+- Citation enforcement
+- Brand selling-module enforcement
+- Audit logging
+"""
+
+# =========================
+# CONFIGURATION
+# =========================
+
+GROQ_API_KEY = "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"   # <-- REPLACE THIS
+RAG_STORE_PATH = "./rag_index"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+CHUNK_SIZE = 1200
+CHUNK_OVERLAP = 120
+MIN_SCORE = 0.35
+
+AUDIT_LOG = "./audit.log"
+
+# =========================
+# DEPENDENCIES
+# =========================
+
 import os
 import json
 import hashlib
-import datetime
-from pathlib import Path
+from datetime import datetime
+from typing import List
 
-import streamlit as st
-import numpy as np
 import faiss
-import pdfplumber
-import docx
-from bs4 import BeautifulSoup
-from sentence_transformers import SentenceTransformer
+import numpy as np
 from groq import Groq
+from sentence_transformers import SentenceTransformer
 
-# =========================================================
-# CONFIG
-# =========================================================
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-RAG_PATH = "./rag_index"
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-MIN_SCORE = 0.35
+from pypdf import PdfReader
+from docx import Document
+from bs4 import BeautifulSoup
 
-BRANDS = ["Shingrix", "Jemperli", "Trelegy"]
-LANGUAGES = ["English", "Arabic", "French"]
+# =========================
+# INITIALIZATION
+# =========================
 
-DISCLAIMER = "⚠️ AI-generated; for training only; verified against approved sources."
+os.makedirs(RAG_STORE_PATH, exist_ok=True)
 
-# =========================================================
-# CLIENTS
-# =========================================================
-embedder = SentenceTransformer(EMBED_MODEL)
-groq = Groq(api_key=GROQ_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
+embedder = SentenceTransformer(EMBEDDING_MODEL)
 
-# =========================================================
-# FILE UTILITIES
-# =========================================================
-def extract_text(path):
+# =========================
+# SYSTEM PROMPT (LOCKED)
+# =========================
+
+SYSTEM_PROMPT = """
+You are a compliance-first pharmaceutical AI assistant.
+
+STRICT RULES:
+- You MUST ONLY use retrieved approved text.
+- EVERY medical or product statement MUST have citations.
+- If content is not grounded in retrieved sources, DECLINE.
+- No off-label discussion.
+- If evidence is insufficient, explicitly say so.
+
+Tone:
+Professional, compliant, concise.
+
+Always include this disclaimer:
+"AI-generated; for training; verified against approved sources."
+"""
+
+# =========================
+# UTILITIES
+# =========================
+
+def audit_log(user_id, input_payload, sources, response):
+    record = {
+        "user_id": user_id,
+        "timestamp": datetime.utcnow().isoformat(),
+        "input": input_payload,
+        "sources": sources,
+        "response_hash": hashlib.sha256(response.encode()).hexdigest()
+    }
+    with open(AUDIT_LOG, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def extract_text(path: str) -> str:
     if path.endswith(".pdf"):
-        text = []
-        with pdfplumber.open(path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text.append(page_text)
-        return "\n".join(text)
-
+        return "\n".join(p.extract_text() or "" for p in PdfReader(path).pages)
     if path.endswith(".docx"):
-        doc = docx.Document(path)
-        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-
+        return "\n".join(p.text for p in Document(path).paragraphs)
     if path.endswith(".html"):
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            return BeautifulSoup(f.read(), "html.parser").get_text()
+        return BeautifulSoup(open(path, encoding="utf-8"), "html.parser").get_text()
+    raise ValueError("Unsupported file format")
 
-    return ""
 
-def chunk_text(text, size=1200, overlap=120):
+def chunk_text(text: str) -> List[str]:
     chunks = []
     start = 0
     while start < len(text):
-        chunks.append(text[start:start + size])
-        start += size - overlap
+        chunks.append(text[start:start + CHUNK_SIZE])
+        start += CHUNK_SIZE - CHUNK_OVERLAP
     return chunks
 
-# =========================================================
-# INGESTION
-# =========================================================
-def ingest():
-    docs = []
 
-    sources = {
-        "sales_module": ".devcontainer/SalesModule",
-        "medical_reference": ".devcontainer/references"
-    }
+# =========================
+# RAG INGESTION
+# =========================
 
-    for doc_type, base in sources.items():
-        for brand in ["shingrix", "jemperli", "trelegy"]:
-            folder = Path(base) / brand
-            if not folder.exists():
-                continue
+def ingest_documents(directory, metadata):
+    texts, metas = [], []
 
-            for file in folder.glob("*"):
-                text = extract_text(str(file))
-                if not text.strip():
-                    continue
+    for file in os.listdir(directory):
+        full_path = os.path.join(directory, file)
+        raw_text = extract_text(full_path)
+        chunks = chunk_text(raw_text)
 
-                for i, chunk in enumerate(chunk_text(text)):
-                    docs.append({
-                        "text": chunk,
-                        "brand": brand.capitalize(),
-                        "document_type": doc_type,
-                        "doc_name": file.name,
-                        "section_id": f"{file.name}_{i}",
-                        "version": "1.0",
-                        "effective_date": "2025-01-01"
-                    })
+        for i, chunk in enumerate(chunks):
+            texts.append(chunk)
+            metas.append({
+                "brand": metadata["brand"],
+                "document_type": metadata["document_type"],
+                "document_name": file,
+                "section_id": f"{file}:{i}",
+                "version": metadata["version"],
+                "effective_date": metadata["effective_date"],
+                "approval_status": metadata["approval_status"],
+                "text": chunk
+            })
 
-    if not docs:
-        return False
+    vectors = embedder.encode(texts).astype("float32")
 
-    embeddings = embedder.encode([d["text"] for d in docs])
-    faiss.normalize_L2(embeddings)
+    index = faiss.IndexFlatIP(vectors.shape[1])
+    index.add(vectors)
 
-    index = faiss.IndexFlatIP(embeddings.shape[1])
-    index.add(np.array(embeddings))
+    faiss.write_index(index, f"{RAG_STORE_PATH}/index.faiss")
+    json.dump(metas, open(f"{RAG_STORE_PATH}/meta.json", "w"), indent=2)
 
-    os.makedirs(RAG_PATH, exist_ok=True)
-    faiss.write_index(index, f"{RAG_PATH}/index.faiss")
 
-    with open(f"{RAG_PATH}/meta.json", "w") as f:
-        json.dump(docs, f)
+# =========================
+# RAG RETRIEVAL
+# =========================
 
-    return True
+def retrieve(query, brand, document_type=None, top_k=8):
+    index = faiss.read_index(f"{RAG_STORE_PATH}/index.faiss")
+    meta = json.load(open(f"{RAG_STORE_PATH}/meta.json"))
 
-# =========================================================
-# SAFE LOAD
-# =========================================================
-def index_exists():
-    return (
-        os.path.exists(f"{RAG_PATH}/index.faiss")
-        and os.path.exists(f"{RAG_PATH}/meta.json")
-    )
-
-def load_index():
-    index = faiss.read_index(f"{RAG_PATH}/index.faiss")
-    with open(f"{RAG_PATH}/meta.json") as f:
-        meta = json.load(f)
-    return index, meta
-
-# =========================================================
-# RETRIEVAL
-# =========================================================
-def retrieve(query, brand, doc_type):
-    if not index_exists():
-        return []
-
-    index, meta = load_index()
-
-    q_emb = embedder.encode([query])
-    faiss.normalize_L2(q_emb)
-
-    scores, ids = index.search(q_emb, 6)
+    q_emb = embedder.encode([query]).astype("float32")
+    scores, idxs = index.search(q_emb, top_k)
 
     results = []
-    for score, idx in zip(scores[0], ids[0]):
-        if score >= MIN_SCORE:
-            m = meta[idx]
-            if m["brand"] == brand and m["document_type"] == doc_type:
-                m["score"] = float(score)
-                results.append(m)
+    for score, idx in zip(scores[0], idxs[0]):
+        if score < MIN_SCORE:
+            continue
+
+        m = meta[idx]
+        if m["brand"].lower() != brand.lower():
+            continue
+        if document_type and m["document_type"] != document_type:
+            continue
+
+        results.append({
+            "score": float(score),
+            "source_id": idx,
+            "meta": m
+        })
+
     return results
 
-# =========================================================
-# LLM
-# =========================================================
-def llm(prompt):
-    res = groq.chat.completions.create(
+
+# =========================
+# POLICY / GUARDRAILS
+# =========================
+
+def enforce_only_from_rag(chunks):
+    if not chunks:
+        raise ValueError("I cannot answer based on approved sources.")
+
+
+def enforce_citations(text):
+    if "[" not in text or "]" not in text:
+        raise ValueError("Blocked: missing citations.")
+
+
+def off_label_block(text, chunks):
+    approved_text = " ".join(c["meta"]["text"] for c in chunks)
+    for sentence in text.split("."):
+        if sentence.strip() and sentence.strip() not in approved_text:
+            raise ValueError("Blocked: potential off-label or hallucinated content.")
+
+
+# =========================
+# ASSISTANT MODES
+# =========================
+
+def sales_call(input_json, user_id="cli"):
+    brand = input_json["brand"]
+
+    chunks = retrieve(
+        query=" ".join(input_json["barriers"]),
+        brand=brand,
+        document_type="selling_module"
+    )
+
+    enforce_only_from_rag(chunks)
+
+    context = "\n".join(c["meta"]["text"] for c in chunks)
+
+    prompt = f"""
+Create a FULL sales-call scenario using ONLY the text below.
+
+SECTIONS:
+1. Opening
+2. Discovery
+3. On-label Key Messages
+4. Objection Handling
+5. Next Steps / Close
+
+Cite each section like:
+[document_name | section_id | version | effective_date]
+
+TEXT:
+{context}
+"""
+
+    response = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
         temperature=0.2,
         top_p=0.9,
         messages=[
-            {"role": "system", "content": "Compliance-first assistant. Use ONLY approved content."},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ]
     )
-    return res.choices[0].message.content
 
-# =========================================================
-# AUDIT
-# =========================================================
-def audit(input_data, sources, output):
-    record = {
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "input": input_data,
-        "sources": [s["section_id"] for s in sources],
-        "hash": hashlib.sha256(output.encode()).hexdigest()
-    }
-    with open("audit.log", "a") as f:
-        f.write(json.dumps(record) + "\n")
+    answer = response.choices[0].message.content
+    enforce_citations(answer)
+    off_label_block(answer, chunks)
 
-# =========================================================
-# UI
-# =========================================================
-st.set_page_config(page_title="AI MR Sales Assistant", layout="wide")
+    audit_log(user_id, input_json, chunks, answer)
+    return answer + "\n\nAI-generated; for training; verified against approved sources."
 
-st.sidebar.title("⚙️ Setup")
-brand = st.sidebar.selectbox("Brand", BRANDS)
-language = st.sidebar.selectbox("Language", LANGUAGES)
-mode = st.sidebar.radio("Mode", ["Sales Call", "Medical Q&A"])
 
-if st.sidebar.button("📥 Ingest / Refresh Documents"):
-    ok = ingest()
-    if ok:
-        st.sidebar.success("Documents indexed successfully")
+def medical_qa(input_json, user_id="cli"):
+    chunks = retrieve(
+        query=input_json["question"],
+        brand=input_json["brand"]
+    )
+
+    enforce_only_from_rag(chunks)
+
+    context = "\n".join(c["meta"]["text"] for c in chunks)
+
+    prompt = f"""
+Answer the question using ONLY approved text below.
+If insufficient, say so.
+
+QUESTION:
+{input_json["question"]}
+
+TEXT:
+{context}
+"""
+
+    response = client.chat.completions.create(
+        model="llama-3.1-70b-versatile",
+        temperature=0.2,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    answer = response.choices[0].message.content
+    enforce_citations(answer)
+    off_label_block(answer, chunks)
+
+    audit_log(user_id, input_json, chunks, answer)
+    return answer + "\n\nAI-generated; for training; verified against approved sources."
+
+
+# =========================
+# CLI
+# =========================
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", required=True, choices=["call", "qa"])
+    parser.add_argument("--input", required=True)
+
+    args = parser.parse_args()
+    payload = json.loads(args.input)
+
+    if args.mode == "call":
+        print(sales_call(payload))
     else:
-        st.sidebar.error("No documents found")
-
-st.title("🤖 AI Sales Assistant")
-
-if not index_exists():
-    st.warning("⚠️ No index found. Please ingest documents from the sidebar.")
-
-# =========================================================
-# SALES CALL
-# =========================================================
-if mode == "Sales Call":
-    persona = st.selectbox("HCP Persona", ["Skeptic", "Advocate", "Data-driven"])
-    barriers = st.multiselect("Barriers", ["Safety", "Efficacy", "Cost", "Access"])
-    style = st.selectbox("Personal Style", ["Consultative", "Concise", "Scientific"])
-
-    if st.button("Generate Sales Call"):
-        chunks = retrieve("selling module", brand, "sales_module")
-
-        if not chunks:
-            st.error("❌ Brand selling module not found or not indexed.")
-        else:
-            context = "\n\n".join(
-                f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for c in chunks
-            )
-
-            prompt = f"""
-Create a compliant sales-call in {language}.
-
-Persona: {persona}
-Barriers: {barriers}
-Style: {style}
-
-RULES:
-- Use ONLY approved content
-- Cite after every section
-- No off-label claims
-
-Approved Content:
-{context}
-
-Sections:
-Opening
-Discovery
-On-label Key Messages
-Objection Handling
-Next Steps
-"""
-            out = llm(prompt)
-            audit(prompt, chunks, out)
-            st.success(out)
-            st.caption(DISCLAIMER)
-
-# =========================================================
-# MEDICAL Q&A
-# =========================================================
-if mode == "Medical Q&A":
-    q = st.text_input("Ask a medical/product question")
-
-    if st.button("Ask"):
-        chunks = retrieve(q, brand, "medical_reference")
-
-        if not chunks:
-            st.error("❌ I cannot answer based on approved sources.")
-        else:
-            context = "\n\n".join(
-                f"[{c['doc_name']} | {c['section_id']} | v{c['version']} | {c['effective_date']}]\n{c['text']}"
-                for c in chunks
-            )
-
-            prompt = f"""
-Answer ONLY using approved content.
-Cite every statement.
-
-Question:
-{q}
-
-Approved Content:
-{context}
-"""
-            out = llm(prompt)
-            audit(q, chunks, out)
-            st.success(out)
-            st.caption(DISCLAIMER)
-
-# =========================================================
-# FOOTER
-# =========================================================
-st.markdown("---")
-st.markdown("© 2025 AI MR Training Platform | Compliance-first | CRM-ready")
+        print(medical_qa(payload))
