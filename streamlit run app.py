@@ -1,276 +1,139 @@
-"""
-AI SALES ASSISTANT – FULL MERGED DEPLOYABLE APP
-
-AI-generated; for training; verified against approved sources.
-
-FEATURES
-- Groq + llama-3.1-70b-versatile
-- Local RAG (FAISS + sentence-transformers)
-- Sales Call Generation
-- Medical / Product Q&A
-- Streamlit UI
-- Multi-brand orchestration
-- Persona-driven objection trees
-- On-label enforcement
-- Off-label blocking
-- Citation enforcement
-- Audit logging
-"""
-
 # =====================================================
-# CONFIGURATION
+# app_final_merged.py — FULL MERGED ENTERPRISE VERSION
+# =====================================================
+# AI-generated; for training; verified against approved sources.
 # =====================================================
 
-GROQ_API_KEY = "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"   # <<< REPLACE
-RAG_STORE_PATH = "./rag_index"
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-CHUNK_SIZE = 1200
-CHUNK_OVERLAP = 120
-MIN_SCORE = 0.35
-AUDIT_LOG = "./audit.log"
-
-# =====================================================
-# IMPORTS
-# =====================================================
-
-import os
-import json
-import hashlib
-from datetime import datetime
-from typing import List
-
-import faiss
-import numpy as np
 import streamlit as st
-from groq import Groq
-from sentence_transformers import SentenceTransformer
+import os, re, json, io, base64, tempfile, hashlib
+from datetime import datetime
+from html import escape
 
-from pypdf import PdfReader
-from docx import Document
-from bs4 import BeautifulSoup
+# ===============================
+# CONFIG — COMPLIANCE FIRST
+# ===============================
+GROQ_API_KEY = "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"
+MODEL_NAME = "llama-3.1-70b-versatile"
+MIN_SCORE = 0.35
+AUDIT_LOG = "./audit_log.jsonl"
 
-# =====================================================
-# INITIALIZATION
-# =====================================================
+# ===============================
+# OPTIONAL IMPORTS
+# ===============================
+try:
+    from groq import Groq
+except Exception:
+    Groq = None
 
-os.makedirs(RAG_STORE_PATH, exist_ok=True)
+try:
+    from PyPDF2 import PdfReader
+except Exception:
+    PdfReader = None
 
-client = Groq(api_key=GROQ_API_KEY)
-embedder = SentenceTransformer(EMBEDDING_MODEL)
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import linear_kernel
+    SKLEARN_AVAILABLE = True
+except Exception:
+    SKLEARN_AVAILABLE = False
 
-# =====================================================
+try:
+    from gtts import gTTS
+except Exception:
+    gTTS = None
+
+# ===============================
 # SYSTEM PROMPT (LOCKED)
-# =====================================================
-
+# ===============================
 SYSTEM_PROMPT = """
 You are a compliance-first pharmaceutical AI assistant.
 
 STRICT RULES:
 - Use ONLY retrieved approved text.
-- EVERY medical or product statement MUST be cited.
-- NO off-label content.
+- Every medical or product statement MUST be grounded.
+- NO off-label claims.
 - If evidence is insufficient, explicitly decline.
 
 Tone: professional, compliant, concise.
 
-Always include this disclaimer:
+Always append:
 "AI-generated; for training; verified against approved sources."
 """
 
-# =====================================================
-# PERSONA OBJECTION TREES
-# =====================================================
+# ===============================
+# GROQ CLIENT
+# ===============================
+def load_groq():
+    if not GROQ_API_KEY or Groq is None:
+        return None
+    return Groq(api_key=GROQ_API_KEY)
 
-PERSONA_OBJECTIONS = {
-    "Skeptical": {
-        "primary": [
-            "Safety concerns",
-            "Doubts clinical relevance",
-            "Requests real-world evidence"
-        ],
-        "style": "Acknowledge concerns and reinforce approved safety data"
-    },
-    "Time-Pressed": {
-        "primary": [
-            "Limited time",
-            "Wants quick summary"
-        ],
-        "style": "Concise, single key on-label message"
-    },
-    "Evidence-Driven": {
-        "primary": [
-            "Requests trial data",
-            "Guideline alignment"
-        ],
-        "style": "Use approved clinical endpoints only"
-    }
-}
+groq_client = load_groq()
 
-def persona_context(persona):
-    p = PERSONA_OBJECTIONS.get(persona)
-    if not p:
-        return ""
-    return f"""
-Persona: {persona}
-Likely objections: {p['primary']}
-Preferred handling style: {p['style']}
-"""
-
-# =====================================================
-# MULTI-BRAND ROUTER
-# =====================================================
-
-BRANDS = ["Shingrix", "Jemperli", "Trelegy"]
-
-def validate_brand(brand):
-    if brand not in BRANDS:
-        raise ValueError("Brand not configured or approved content missing.")
-
-# =====================================================
-# UTILITIES
-# =====================================================
-
-def audit_log(user_id, input_payload, sources, response):
+# ===============================
+# AUDIT LOGGING
+# ===============================
+def audit_log(user_input, sources, response):
     record = {
-        "user_id": user_id,
         "timestamp": datetime.utcnow().isoformat(),
-        "input": input_payload,
+        "input": user_input,
         "sources": sources,
         "response_hash": hashlib.sha256(response.encode()).hexdigest()
     }
     with open(AUDIT_LOG, "a") as f:
         f.write(json.dumps(record) + "\n")
 
-
-def extract_text(path):
-    if path.endswith(".pdf"):
-        return "\n".join(p.extract_text() or "" for p in PdfReader(path).pages)
-    if path.endswith(".docx"):
-        return "\n".join(p.text for p in Document(path).paragraphs)
-    if path.endswith(".html"):
-        return BeautifulSoup(open(path, encoding="utf-8"), "html.parser").get_text()
-    raise ValueError("Unsupported format")
-
-
-def chunk_text(text):
-    chunks = []
-    start = 0
-    while start < len(text):
-        chunks.append(text[start:start + CHUNK_SIZE])
-        start += CHUNK_SIZE - CHUNK_OVERLAP
-    return chunks
-
-# =====================================================
-# RAG INGESTION (RUN SEPARATELY IF NEEDED)
-# =====================================================
-
-def ingest_documents(directory, metadata):
-    texts, metas = [], []
-
-    for file in os.listdir(directory):
-        raw = extract_text(os.path.join(directory, file))
-        for i, chunk in enumerate(chunk_text(raw)):
-            texts.append(chunk)
-            metas.append({
-                "brand": metadata["brand"],
-                "document_type": metadata["document_type"],
-                "document_name": file,
-                "section_id": f"{file}:{i}",
-                "version": metadata["version"],
-                "effective_date": metadata["effective_date"],
-                "approval_status": metadata["approval_status"],
-                "text": chunk
-            })
-
-    vectors = embedder.encode(texts).astype("float32")
-    index = faiss.IndexFlatIP(vectors.shape[1])
-    index.add(vectors)
-
-    faiss.write_index(index, f"{RAG_STORE_PATH}/index.faiss")
-    json.dump(metas, open(f"{RAG_STORE_PATH}/meta.json", "w"), indent=2)
-
-# =====================================================
-# RAG RETRIEVAL
-# =====================================================
-
-def retrieve(query, brand, document_type=None, top_k=8):
-    index = faiss.read_index(f"{RAG_STORE_PATH}/index.faiss")
-    meta = json.load(open(f"{RAG_STORE_PATH}/meta.json"))
-
-    q_emb = embedder.encode([query]).astype("float32")
-    scores, idxs = index.search(q_emb, top_k)
-
-    results = []
-    for score, idx in zip(scores[0], idxs[0]):
-        if score < MIN_SCORE:
-            continue
-        m = meta[idx]
-        if m["brand"].lower() != brand.lower():
-            continue
-        if document_type and m["document_type"] != document_type:
-            continue
-        results.append({"score": float(score), "meta": m})
-
-    return results
-
-# =====================================================
-# POLICY / GUARDRAILS
-# =====================================================
-
-def enforce_only_from_rag(chunks):
+# ===============================
+# LOCAL SEARCH (ON-LABEL RAG)
+# ===============================
+def local_search(query, chunks, metas, top_n=6):
     if not chunks:
+        return []
+
+    if SKLEARN_AVAILABLE:
+        vectorizer = TfidfVectorizer(stop_words="english")
+        X = vectorizer.fit_transform(chunks + [query])
+        sims = linear_kernel(X[-1], X[:-1]).flatten()
+        idxs = sims.argsort()[::-1][:top_n]
+
+        results = []
+        for i in idxs:
+            if sims[i] < MIN_SCORE:
+                continue
+            results.append({
+                "score": float(sims[i]),
+                "text": chunks[i],
+                "meta": metas[i]
+            })
+        return results
+    return []
+
+# ===============================
+# COMPLIANCE ENFORCEMENT
+# ===============================
+def enforce_only_from_rag(snippets):
+    if not snippets:
         raise ValueError("I cannot answer based on approved sources.")
 
 def enforce_citations(text):
     if "[" not in text or "]" not in text:
-        raise ValueError("Blocked: missing citations.")
+        raise ValueError("Blocked: Missing citations.")
 
-def off_label_block(text, chunks):
-    approved = " ".join(c["meta"]["text"] for c in chunks)
-    for sentence in text.split("."):
-        if sentence.strip() and sentence.strip() not in approved:
-            raise ValueError("Blocked: potential off-label or hallucinated content.")
+def off_label_block(text, snippets):
+    approved = " ".join(s["text"] for s in snippets)
+    for sent in re.split(r"[.!?]", text):
+        if sent.strip() and sent.strip() not in approved:
+            raise ValueError("Blocked: Potential off-label or hallucinated content.")
 
-# =====================================================
-# ASSISTANT MODES
-# =====================================================
+# ===============================
+# GROQ COMPLETION (SAFE)
+# ===============================
+def groq_generate(prompt):
+    if not groq_client:
+        return "Groq client not available."
 
-def sales_call(payload, user_id="ui"):
-    validate_brand(payload["brand"])
-
-    chunks = retrieve(
-        query=" ".join(payload["barriers"]),
-        brand=payload["brand"],
-        document_type="selling_module"
-    )
-
-    enforce_only_from_rag(chunks)
-
-    context = "\n".join(c["meta"]["text"] for c in chunks)
-    persona_info = persona_context(payload["persona"])
-
-    prompt = f"""
-Generate a FULL sales-call scenario using ONLY the text below.
-
-SECTIONS:
-1. Opening
-2. Discovery
-3. On-label Key Messages
-4. Objection Handling
-5. Next Steps / Close
-
-Persona guidance:
-{persona_info}
-
-Cite each section like:
-[doc | section | version | effective_date]
-
-TEXT:
-{context}
-"""
-
-    resp = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
+    resp = groq_client.chat.completions.create(
+        model=MODEL_NAME,
         temperature=0.2,
         top_p=0.9,
         messages=[
@@ -278,93 +141,99 @@ TEXT:
             {"role": "user", "content": prompt}
         ]
     )
+    return resp.choices[0].message.content
 
-    answer = resp.choices[0].message.content
-    enforce_citations(answer)
-    off_label_block(answer, chunks)
-    audit_log(user_id, payload, chunks, answer)
+# ===============================
+# SALES CALL GENERATION
+# ===============================
+def generate_sales_call(user_prompt, persona, tone, chunks, metas):
+    snippets = local_search(user_prompt, chunks, metas)
+    enforce_only_from_rag(snippets)
 
-    return answer + "\n\nAI-generated; for training; verified against approved sources."
-
-def medical_qa(payload, user_id="ui"):
-    validate_brand(payload["brand"])
-
-    chunks = retrieve(payload["question"], payload["brand"])
-    enforce_only_from_rag(chunks)
-
-    context = "\n".join(c["meta"]["text"] for c in chunks)
+    context = "\n".join(
+        f"[{s['meta']['filename']} | section {s['meta']['start']}]\n{s['text']}"
+        for s in snippets
+    )
 
     prompt = f"""
-Answer the question using ONLY approved text below.
-If insufficient, explicitly say so.
+Generate a full compliant sales call with sections:
+Opening
+Discovery
+On-label Key Messages
+Objection Handling
+Next Steps
 
-QUESTION:
-{payload["question"]}
+Persona: {persona}
+Tone: {tone}
 
-TEXT:
+USE ONLY THE TEXT BELOW.
+
 {context}
 """
 
-    resp = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    answer = resp.choices[0].message.content
+    answer = groq_generate(prompt)
     enforce_citations(answer)
-    off_label_block(answer, chunks)
-    audit_log(user_id, payload, chunks, answer)
+    off_label_block(answer, snippets)
+
+    audit_log(user_prompt, snippets, answer)
 
     return answer + "\n\nAI-generated; for training; verified against approved sources."
 
-# =====================================================
-# STREAMLIT UI
-# =====================================================
-
-st.set_page_config(page_title="AI Sales Assistant", layout="wide")
-st.title("🧠 AI Sales Assistant (Training Only)")
+# ===============================
+# STREAMLIT UI (UNCHANGED CORE)
+# ===============================
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
+st.title("🧠 AI Sales Call Assistant")
 st.caption("AI-generated; for training; verified against approved sources.")
 
-tab1, tab2 = st.tabs(["Sales Call", "Medical / Product Q&A"])
+# ===============================
+# LOAD BRAND FILES
+# ===============================
+def read_files(folder):
+    texts, metas = [], []
+    if not folder or not os.path.exists(folder):
+        return texts, metas
 
-with tab1:
-    brand = st.selectbox("Brand", BRANDS)
-    hcp = st.text_input("HCP Segment", "GP")
-    persona = st.selectbox("Persona", list(PERSONA_OBJECTIONS.keys()))
-    barriers = st.text_area("Barriers (comma separated)", "safety concerns")
-    style = st.selectbox("Personal Style", ["Consultative", "Direct", "Educational"])
+    for f in os.listdir(folder):
+        if f.lower().endswith(".pdf") and PdfReader:
+            reader = PdfReader(os.path.join(folder, f))
+            txt = "".join(p.extract_text() or "" for p in reader.pages)
+        else:
+            try:
+                txt = open(os.path.join(folder, f), encoding="utf-8", errors="ignore").read()
+            except Exception:
+                continue
 
-    if st.button("Generate Sales Call"):
-        payload = {
-            "mode": "call",
-            "brand": brand,
-            "hcp_segment": hcp,
-            "persona": persona,
-            "barriers": [b.strip() for b in barriers.split(",")],
-            "personal_style": style
-        }
-        try:
-            result = sales_call(payload)
-            st.text_area("Sales Call Script", result, height=450)
-        except Exception as e:
-            st.error(str(e))
+        sentences = re.split(r"(?<=[.!?])\s+", txt)
+        for i, s in enumerate(sentences):
+            if s.strip():
+                texts.append(s.strip())
+                metas.append({"filename": f, "start": i})
+    return texts, metas
 
-with tab2:
-    brand_q = st.selectbox("Brand ", BRANDS)
-    question = st.text_area("Question")
+brand = st.selectbox("Brand", ["shingrix", "jemperli", "trelegy"])
+persona = st.selectbox("Persona", ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"])
+tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"])
 
-    if st.button("Get Answer"):
-        payload = {
-            "mode": "qa",
-            "brand": brand_q,
-            "question": question
-        }
-        try:
-            result = medical_qa(payload)
-            st.text_area("Answer", result, height=300)
-        except Exception as e:
-            st.error(str(e))
+refs_path = f".devcontainer/references/{brand}"
+sales_path = f".devcontainer/SalesModule/{brand}"
+
+chunks_r, metas_r = read_files(refs_path)
+chunks_s, metas_s = read_files(sales_path)
+
+chunks = chunks_r + chunks_s
+metas = metas_r + metas_s
+
+user_input = st.text_area("Ask or request a sales call")
+
+if st.button("Generate"):
+    try:
+        result = generate_sales_call(user_input, persona, tone, chunks, metas)
+        st.markdown(result)
+    except Exception as e:
+        st.error(str(e))
+
+st.markdown(
+    "<hr><small>Internal training tool. Medical content must be verified against approved sources.</small>",
+    unsafe_allow_html=True,
+)
