@@ -362,23 +362,53 @@ corpus_folders = [bconf.get("references_path",""), bconf.get("sales_path","")]
 chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
 
 # -------------------------
-# AI response helper
+# ... [all imports, session init, CSS, sidebar, PDF upload, corpus build remain unchanged]
+
+# -------------------------
+# AI response helper with micro-actions
 # -------------------------
 def generate_ai_response(prompt_text):
     snippets = local_search_snippets(prompt_text, chunks, chunk_meta, top_n=6)
-    flow_html = []
+    response_html = []
     for i, step in enumerate(bconf.get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])):
-        sn = snippets[i]["text"] if i < len(snippets) else ""
+        snippet_text = snippets[i]["text"] if i < len(snippets) else "Refer to sales materials for guidance."
+        
+        # Suggested phrasing (dynamic)
+        phrasing = f"Try saying: 'Here’s how we can approach this step: {step.lower()} with the HCP...'"
+
+        # Micro-actions / next steps
+        micro_actions = [
+            f"Review relevant data or references for {step}",
+            f"Identify HCP persona concerns for this step",
+            f"Prepare 1-2 key questions or prompts to engage",
+            f"Anticipate potential objections and have responses ready"
+        ]
+
+        # Objection handling
         obj_text = ""
-        for k,v in bconf.get("objections", {}).items():
+        for k, v in bconf.get("objections", {}).items():
             if k in prompt_text.lower():
                 obj_text = f"<div class='objection'><b>Objection:</b> {v}</div>"
                 break
-        flow_html.append(f"<div class='step-title'>{escape(step)}</div><div class='story'>{escape(sn)}</div>{obj_text}")
-    return "\n".join(flow_html)
+
+        # Build HTML for step
+        step_html = f"""
+        <div class='step-title'>{escape(step)}</div>
+        <div class='story'>{escape(snippet_text)}</div>
+        <div><b>Suggested Phrasing:</b> {escape(phrasing)}</div>
+        <div><b>Next Actions:</b>
+            <ul class='assist-list'>
+                {''.join([f'<li>{escape(a)}</li>' for a in micro_actions])}
+            </ul>
+        </div>
+        {obj_text}
+        """
+        response_html.append(step_html)
+    
+    return "\n".join(response_html)
 
 # -------------------------
-# Chat input form
+# Chat input form remains the same
 # -------------------------
 with st.form("main_input_form", clear_on_submit=True):
     user_input = st.text_area("Your Message:", st.session_state.main_input, height=80)
@@ -402,7 +432,5 @@ for entry in st.session_state.chat_history:
             audio_b64 = generate_audio(plain)
             if audio_b64: st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
 
-# -------------------------
 # Footer disclaimer
-# -------------------------
 st.markdown('<div class="fixed-disclaimer">💡 This tool is for internal sales support purposes only. Verify medical info from official sources.</div>', unsafe_allow_html=True)
