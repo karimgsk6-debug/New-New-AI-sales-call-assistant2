@@ -369,7 +369,12 @@ def generate_ai_response(prompt_text):
     flow_html = []
     for i, step in enumerate(bconf.get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])):
         sn = snippets[i]["text"] if i < len(snippets) else ""
-        flow_html.append(f"<div class='step-title'>{escape(step)}</div><div>{escape(sn)}</div>")
+        obj_text = ""
+        for k,v in bconf.get("objections", {}).items():
+            if k in prompt_text.lower():
+                obj_text = f"<div class='objection'><b>Objection:</b> {v}</div>"
+                break
+        flow_html.append(f"<div class='step-title'>{escape(step)}</div><div class='story'>{escape(sn)}</div>{obj_text}")
     return "\n".join(flow_html)
 
 # -------------------------
