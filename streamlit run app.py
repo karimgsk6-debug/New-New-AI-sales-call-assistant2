@@ -1,260 +1,218 @@
-# =========================
-# AI SALES CALL ASSISTANT
-# FULL STABLE VERSION
-# =========================
+# ======================================================
+# AI PHARMA SALES CALL SIMULATOR (ENTERPRISE VERSION)
+# ======================================================
 
 import streamlit as st
-import os, re, base64, tempfile
+import os, base64
 from html import escape
-from io import BytesIO
 
 # -------------------------
-# Optional imports
+# OPTIONAL IMPORTS
 # -------------------------
 try:
     from groq import Groq
 except:
     Groq = None
 
-try:
-    from PyPDF2 import PdfReader
-except:
-    PdfReader = None
-
-try:
-    from gtts import gTTS
-except:
-    gTTS = None
-
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import linear_kernel
-    SKLEARN = True
-except:
-    SKLEARN = False
-
 # -------------------------
 # PAGE CONFIG
 # -------------------------
 st.set_page_config(
-    page_title="AI Sales Call Assistant",
+    page_title="AI Sales Call Simulator",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # -------------------------
-# VISUAL ASSETS (UNCHANGED)
+# SESSION STATE
 # -------------------------
-BACKGROUND_IMAGE = ".devcontainer/Visuals/MR mentor final1.png"
-AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+for k, v in {
+    "chat": [],
+    "turn": "rep",
+    "stage": "Opening"
+}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # -------------------------
-# CSS
+# API CLIENT
 # -------------------------
-st.markdown("""
-<style>
-.user-bubble { background:#f2f2f2;padding:10px;border-radius:10px;margin:8px 0;max-width:80%; }
-.ai-message { display:flex;gap:12px;margin:10px 0; }
-.ai-avatar { width:48px;border-radius:50%; }
-.ai-bubble { background:rgba(0,0,0,0.75);color:#E6FBFF;padding:14px;border-radius:14px;max-width:90%; }
-.audio-btn { margin-top:6px; }
-</style>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# BACKGROUND
-# -------------------------
-if os.path.exists(BACKGROUND_IMAGE):
-    with open(BACKGROUND_IMAGE, "rb") as f:
-        bg = base64.b64encode(f.read()).decode()
-    st.markdown(f"""
-    <style>
-    [data-testid="stAppViewContainer"] {{
-        background:url("data:image/png;base64,{bg}") no-repeat right top;
-        background-size:cover;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# -------------------------
-# SESSION INIT
-# -------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-if "product" not in st.session_state:
-    st.session_state.product = "Shingrix"
-
-# -------------------------
-# GROQ CLIENT
-# -------------------------
-def load_groq():
+def get_llm():
     api_key = "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"
-    if not api_key or "ADD_GROQ" in api_key or Groq is None:
+    if "ADD_GROQ" in api_key or Groq is None:
         return None
     return Groq(api_key=api_key)
 
 # -------------------------
-# PRODUCT DATA
+# PRODUCT INTELLIGENCE
 # -------------------------
 PRODUCTS = {
     "Shingrix": {
-        "segments": ["Reach","Acquire","Convert","Engage"],
-        "personas": ["Evidence-led","Time-pressured","Skeptical","Early-adopter"],
-        "barriers": ["HZ not priority","Time constraints","Safety concerns","Cost"],
-        "refs": ".devcontainer/references/shingrix",
-        "sales": ".devcontainer/SalesModule/shingrix"
+        "indication": "Prevention of herpes zoster in adults ≥50 years",
+        "key_messages": [
+            "High efficacy across age groups",
+            "Durable protection",
+            "Strong real-world evidence"
+        ],
+        "objections": {
+            "Safety": "Reactogenicity is transient and expected",
+            "Priority": "HZ burden increases sharply with age"
+        },
+        "sales_steps": [
+            "Opening & rapport",
+            "Disease awareness",
+            "Risk identification",
+            "Value positioning",
+            "Objection handling",
+            "Commitment"
+        ],
+        "references": [
+            "ZOE-50 & ZOE-70 trials",
+            "ACIP recommendations"
+        ]
     },
     "Jemperli": {
-        "segments": ["Identify","Trial","Adopt","Advocate"],
-        "personas": ["Data-driven","Innovator","Skeptical","Late adopter"],
-        "barriers": ["Eligibility","Safety","Access"],
-        "refs": ".devcontainer/references/jemperli",
-        "sales": ".devcontainer/SalesModule/jemperli"
+        "indication": "dMMR recurrent or advanced endometrial cancer",
+        "key_messages": [
+            "Targeted for dMMR",
+            "Durable responses",
+            "Biomarker-driven precision"
+        ],
+        "objections": {
+            "Eligibility": "Clear testing pathway",
+            "Safety": "Manageable immune-related AEs"
+        },
+        "sales_steps": [
+            "Account mapping",
+            "Patient identification",
+            "Testing discussion",
+            "Clinical value",
+            "Access discussion"
+        ],
+        "references": [
+            "GARNET trial",
+            "NCCN guidelines"
+        ]
     },
     "Trelegy": {
-        "segments": ["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas": ["GP","Pulmonologist","Nurse"],
-        "barriers": ["Technique","Coverage","Side effects"],
-        "refs": ".devcontainer/references/trelegy",
-        "sales": ".devcontainer/SalesModule/trelegy"
+        "indication": "COPD & asthma maintenance therapy",
+        "key_messages": [
+            "Once-daily triple therapy",
+            "Improved adherence",
+            "Reduced exacerbations"
+        ],
+        "objections": {
+            "Technique": "Single inhaler simplicity",
+            "Cost": "Reduced exacerbation burden"
+        },
+        "sales_steps": [
+            "Patient profiling",
+            "Treatment gaps",
+            "Switch discussion",
+            "Technique confidence",
+            "Close"
+        ],
+        "references": [
+            "IMPACT study",
+            "GINA & GOLD"
+        ]
     }
 }
 
 # -------------------------
-# SIDEBAR
+# SIDEBAR (CRM-STYLE)
 # -------------------------
 with st.sidebar:
-    st.header("🔧 Call Setup")
-    product = st.selectbox("Product", PRODUCTS.keys())
-    st.session_state.product = product
-    pdata = PRODUCTS[product]
+    st.header("🧠 Call Configuration")
 
-    persona = st.selectbox("HCP Persona", pdata["personas"])
-    barrier = st.selectbox("Primary Barrier", pdata["barriers"])
-    tone = st.selectbox("Tone", ["Executive","Coaching","Persuasive","Clinical"])
-
-# -------------------------
-# SAFE FILE READ
-# -------------------------
-def read_folder(folder):
-    text = ""
-    if os.path.exists(folder):
-        for f in os.listdir(folder):
-            p = os.path.join(folder, f)
-            if f.lower().endswith(".pdf") and PdfReader:
-                r = PdfReader(p)
-                text += " ".join(pg.extract_text() or "" for pg in r.pages)
-            elif f.lower().endswith(".txt"):
-                text += open(p,encoding="utf-8",errors="ignore").read()
-    return text
+    product = st.selectbox("Brand", PRODUCTS.keys())
+    segment = st.selectbox("HCP Segment", ["Target","Growth","Maintain"])
+    specialty = st.selectbox("Specialty", ["GP","Pulmonologist","Oncologist","Gyn-Onc"])
+    persona = st.selectbox("Persona", ["Evidence-driven","Skeptical","Time-pressed"])
+    style = st.selectbox("Communication Style", ["Challenger","Supportive","Concise"])
+    barrier = st.selectbox("Primary Barrier", list(PRODUCTS[product]["objections"].keys()))
+    objective = st.selectbox("Call Objective", ["Awareness","Adoption","Switch","Commitment"])
 
 # -------------------------
-# COLLAPSIBLE SUMMARIES
+# SYSTEM PROMPT (HCP ROLE)
 # -------------------------
-with st.expander("📚 Medical References Summary"):
-    st.write(read_folder(pdata["refs"])[:2000] or "No references found.")
+def build_hcp_prompt(user_input):
+    p = PRODUCTS[product]
+    return f"""
+You are an HCP in a sales role-play.
 
-with st.expander("💼 Sales Module Summary"):
-    st.write(read_folder(pdata["sales"])[:2000] or "No sales modules found.")
-
-# -------------------------
-# DYNAMIC OBJECTION HANDLING
-# -------------------------
-def objection_reply(barrier, persona):
-    if persona.lower().startswith("evidence"):
-        return f"Acknowledge {barrier}, share 1 trial endpoint, propose pilot."
-    if persona.lower().startswith("time"):
-        return f"Acknowledge {barrier}, give 1 sentence script, nurse checklist."
-    if persona.lower().startswith("skeptical"):
-        return f"Acknowledge concern, safety data, conservative start."
-    return f"Reframe {barrier} with patient benefit and workflow ease."
-
-# -------------------------
-# ROLEPLAY (GUARDED)
-# -------------------------
-def roleplay(user_input):
-    client = load_groq()
-    guardrail = f"""
-Use ONLY information aligned with {st.session_state.product}
-Sales Modules and Medical References.
-If unsure, say you need approved material.
-"""
-
-    prompt = f"""
-You are a pharma sales rep role-playing with an HCP.
-
+Specialty: {specialty}
 Persona: {persona}
-Barrier: {barrier}
-Tone: {tone}
+Segment: {segment}
+Communication style: {style}
+Primary concern: {barrier}
 
-HCP says:
+Brand discussed: {product}
+Indication: {p["indication"]}
+
+You must:
+- Speak ONLY as HCP
+- Respond realistically
+- Raise objections when appropriate
+- Follow sales call stage: {st.session_state.stage}
+
+Medical Rep says:
 {user_input}
-
-Respond with:
-- Clear answer
-- Example phrasing (2 options)
-- Objection handling
-
-{guardrail}
 """
 
+# -------------------------
+# HCP RESPONSE
+# -------------------------
+def hcp_reply(user_input):
+    client = get_llm()
     if not client:
-        return "[API NOT SET] Replace ADD_GROQ_API_here"
+        return "[API NOT CONFIGURED – add key]"
 
     r = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role":"user","content":prompt}],
-        temperature=0.3
+        messages=[{"role":"user","content":build_hcp_prompt(user_input)}],
+        temperature=0.4
     )
     return r.choices[0].message.content
 
 # -------------------------
-# TTS
+# CHAT INPUT
 # -------------------------
-def tts_audio(text):
-    if not gTTS:
-        return None
-    t = gTTS(text=text)
-    buf = BytesIO()
-    t.write_to_fp(buf)
-    buf.seek(0)
-    return buf
+st.subheader("🗣 Rep ↔ HCP Live Simulation")
 
-# -------------------------
-# CHAT INPUT (SAFE)
-# -------------------------
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_area("💬 Simulate the HCP or ask a question", height=100)
+with st.form("chat", clear_on_submit=True):
+    user = st.text_area("You are the Medical Rep", height=90)
     send = st.form_submit_button("Send")
 
-if send and user_input.strip():
-    st.session_state.chat_history.append({"role":"user","content":user_input})
-    ai = roleplay(user_input)
-    st.session_state.chat_history.append({"role":"assistant","content":ai})
+if send and user:
+    st.session_state.chat.append(("rep", user))
+    hcp = hcp_reply(user)
+    st.session_state.chat.append(("hcp", hcp))
 
 # -------------------------
 # CHAT RENDER
 # -------------------------
-for i, msg in enumerate(st.session_state.chat_history):
-    if msg["role"]=="user":
-        st.markdown(f'<div class="user-bubble">{escape(msg["content"])}</div>',unsafe_allow_html=True)
+for role, msg in st.session_state.chat:
+    if role == "rep":
+        st.markdown(f"<div style='background:#eee;padding:10px;border-radius:10px'>{escape(msg)}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div class="ai-message">
-            <img src="{AI_AVATAR}" class="ai-avatar">
-            <div class="ai-bubble">{escape(msg["content"])}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        audio = tts_audio(msg["content"])
-        if audio:
-            st.audio(audio, format="audio/mp3")
+        st.markdown(f"<div style='background:#0b3c49;color:#d9faff;padding:12px;border-radius:12px'>{escape(msg)}</div>", unsafe_allow_html=True)
 
 # -------------------------
-# FOOTER
+# STRUCTURED SALES CALL GENERATOR
 # -------------------------
-st.markdown(
-    "<small>Internal training tool. Medical decisions require approved sources.</small>",
-    unsafe_allow_html=True
-)
+with st.expander("📋 Generate Full Brand Sales Call"):
+    p = PRODUCTS[product]
+    st.markdown("### Structured Sales Call")
+    for step in p["sales_steps"]:
+        st.markdown(f"**{step}**")
+        st.write(f"Suggested messaging aligned with {product} value & {p['references'][0]}")
+
+# -------------------------
+# REFERENCES
+# -------------------------
+with st.expander("📚 Medical References"):
+    for r in PRODUCTS[product]["references"]:
+        st.write(f"• {r}")
+
+st.caption("Internal training simulation – not for promotional use.")
