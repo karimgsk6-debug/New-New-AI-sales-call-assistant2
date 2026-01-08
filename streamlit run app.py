@@ -1,13 +1,12 @@
 # ======================================================
-# AI PHARMA SALES CALL SIMULATOR (ENTERPRISE VERSION)
+# AI PHARMA SALES CALL SIMULATOR – STABLE VERSION
 # ======================================================
 
 import streamlit as st
-import os, base64
 from html import escape
 
 # -------------------------
-# OPTIONAL IMPORTS
+# OPTIONAL GROQ IMPORT
 # -------------------------
 try:
     from groq import Groq
@@ -24,18 +23,16 @@ st.set_page_config(
 )
 
 # -------------------------
-# SESSION STATE
+# SESSION STATE INIT
 # -------------------------
-for k, v in {
-    "chat": [],
-    "turn": "rep",
-    "stage": "Opening"
-}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+if "rep_input" not in st.session_state:
+    st.session_state.rep_input = ""
 
 # -------------------------
-# API CLIENT
+# LLM CLIENT
 # -------------------------
 def get_llm():
     api_key = "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"
@@ -49,15 +46,6 @@ def get_llm():
 PRODUCTS = {
     "Shingrix": {
         "indication": "Prevention of herpes zoster in adults ≥50 years",
-        "key_messages": [
-            "High efficacy across age groups",
-            "Durable protection",
-            "Strong real-world evidence"
-        ],
-        "objections": {
-            "Safety": "Reactogenicity is transient and expected",
-            "Priority": "HZ burden increases sharply with age"
-        },
         "sales_steps": [
             "Opening & rapport",
             "Disease awareness",
@@ -66,45 +54,29 @@ PRODUCTS = {
             "Objection handling",
             "Commitment"
         ],
-        "references": [
-            "ZOE-50 & ZOE-70 trials",
-            "ACIP recommendations"
-        ]
+        "objections": {
+            "Safety": "Reactogenicity is transient and expected",
+            "Priority": "HZ risk increases with age"
+        },
+        "references": ["ZOE-50", "ZOE-70", "ACIP"]
     },
     "Jemperli": {
-        "indication": "dMMR recurrent or advanced endometrial cancer",
-        "key_messages": [
-            "Targeted for dMMR",
-            "Durable responses",
-            "Biomarker-driven precision"
-        ],
-        "objections": {
-            "Eligibility": "Clear testing pathway",
-            "Safety": "Manageable immune-related AEs"
-        },
+        "indication": "dMMR advanced or recurrent endometrial cancer",
         "sales_steps": [
             "Account mapping",
             "Patient identification",
             "Testing discussion",
             "Clinical value",
-            "Access discussion"
-        ],
-        "references": [
-            "GARNET trial",
-            "NCCN guidelines"
-        ]
-    },
-    "Trelegy": {
-        "indication": "COPD & asthma maintenance therapy",
-        "key_messages": [
-            "Once-daily triple therapy",
-            "Improved adherence",
-            "Reduced exacerbations"
+            "Access"
         ],
         "objections": {
-            "Technique": "Single inhaler simplicity",
-            "Cost": "Reduced exacerbation burden"
+            "Eligibility": "Clear biomarker pathway",
+            "Safety": "Manageable immune AEs"
         },
+        "references": ["GARNET", "NCCN"]
+    },
+    "Trelegy": {
+        "indication": "COPD and asthma maintenance",
         "sales_steps": [
             "Patient profiling",
             "Treatment gaps",
@@ -112,107 +84,119 @@ PRODUCTS = {
             "Technique confidence",
             "Close"
         ],
-        "references": [
-            "IMPACT study",
-            "GINA & GOLD"
-        ]
+        "objections": {
+            "Technique": "Single inhaler simplicity",
+            "Cost": "Reduced exacerbations"
+        },
+        "references": ["IMPACT", "GOLD", "GINA"]
     }
 }
 
 # -------------------------
-# SIDEBAR (CRM-STYLE)
+# SIDEBAR
 # -------------------------
 with st.sidebar:
     st.header("🧠 Call Configuration")
 
     product = st.selectbox("Brand", PRODUCTS.keys())
-    segment = st.selectbox("HCP Segment", ["Target","Growth","Maintain"])
-    specialty = st.selectbox("Specialty", ["GP","Pulmonologist","Oncologist","Gyn-Onc"])
-    persona = st.selectbox("Persona", ["Evidence-driven","Skeptical","Time-pressed"])
-    style = st.selectbox("Communication Style", ["Challenger","Supportive","Concise"])
-    barrier = st.selectbox("Primary Barrier", list(PRODUCTS[product]["objections"].keys()))
-    objective = st.selectbox("Call Objective", ["Awareness","Adoption","Switch","Commitment"])
+    specialty = st.selectbox("Specialty", ["GP", "Pulmonologist", "Oncologist"])
+    segment = st.selectbox("HCP Segment", ["Target", "Growth", "Maintain"])
+    persona = st.selectbox("Persona", ["Evidence-driven", "Skeptical", "Time-pressed"])
+    style = st.selectbox("Communication Style", ["Concise", "Challenger", "Supportive"])
+    barrier = st.selectbox("Primary Barrier", PRODUCTS[product]["objections"].keys())
+    objective = st.selectbox("Call Objective", ["Awareness", "Adoption", "Commitment"])
 
 # -------------------------
-# SYSTEM PROMPT (HCP ROLE)
+# HCP PROMPT
 # -------------------------
-def build_hcp_prompt(user_input):
+def hcp_prompt(rep_text):
     p = PRODUCTS[product]
     return f"""
-You are an HCP in a sales role-play.
+You are an HCP in a role-play with a pharma rep.
 
 Specialty: {specialty}
 Persona: {persona}
 Segment: {segment}
-Communication style: {style}
+Style: {style}
 Primary concern: {barrier}
 
-Brand discussed: {product}
-Indication: {p["indication"]}
+Brand: {product}
+Indication: {p['indication']}
 
-You must:
-- Speak ONLY as HCP
-- Respond realistically
+Rules:
+- Respond ONLY as the HCP
+- Be realistic and challenging
 - Raise objections when appropriate
-- Follow sales call stage: {st.session_state.stage}
 
 Medical Rep says:
-{user_input}
+{rep_text}
 """
 
 # -------------------------
 # HCP RESPONSE
 # -------------------------
-def hcp_reply(user_input):
+def hcp_reply(rep_text):
     client = get_llm()
     if not client:
         return "[API NOT CONFIGURED – add key]"
 
     r = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role":"user","content":build_hcp_prompt(user_input)}],
+        messages=[{"role": "user", "content": hcp_prompt(rep_text)}],
         temperature=0.4
     )
     return r.choices[0].message.content
 
 # -------------------------
-# CHAT INPUT
+# MAIN UI
 # -------------------------
 st.subheader("🗣 Rep ↔ HCP Live Simulation")
 
-with st.form("chat", clear_on_submit=True):
-    user = st.text_area("You are the Medical Rep", height=90)
-    send = st.form_submit_button("Send")
+st.text_area(
+    "You are the Medical Rep",
+    key="rep_input",
+    height=100,
+    placeholder="Start the call..."
+)
 
-if send and user:
-    st.session_state.chat.append(("rep", user))
-    hcp = hcp_reply(user)
-    st.session_state.chat.append(("hcp", hcp))
+if st.button("Send"):
+    if st.session_state.rep_input.strip():
+        rep_msg = st.session_state.rep_input
+        st.session_state.chat.append(("rep", rep_msg))
+
+        hcp_msg = hcp_reply(rep_msg)
+        st.session_state.chat.append(("hcp", hcp_msg))
+
+        st.session_state.rep_input = ""
 
 # -------------------------
-# CHAT RENDER
+# CHAT DISPLAY
 # -------------------------
 for role, msg in st.session_state.chat:
     if role == "rep":
-        st.markdown(f"<div style='background:#eee;padding:10px;border-radius:10px'>{escape(msg)}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='background:#eee;padding:10px;border-radius:10px;margin:6px 0'>{escape(msg)}</div>",
+            unsafe_allow_html=True
+        )
     else:
-        st.markdown(f"<div style='background:#0b3c49;color:#d9faff;padding:12px;border-radius:12px'>{escape(msg)}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='background:#0b3c49;color:#d9faff;padding:12px;border-radius:12px;margin:6px 0'>{escape(msg)}</div>",
+            unsafe_allow_html=True
+        )
 
 # -------------------------
-# STRUCTURED SALES CALL GENERATOR
+# STRUCTURED SALES CALL
 # -------------------------
-with st.expander("📋 Generate Full Brand Sales Call"):
-    p = PRODUCTS[product]
-    st.markdown("### Structured Sales Call")
-    for step in p["sales_steps"]:
-        st.markdown(f"**{step}**")
-        st.write(f"Suggested messaging aligned with {product} value & {p['references'][0]}")
+with st.expander("📋 Structured Brand Sales Call"):
+    st.markdown(f"### {product} Sales Call Flow")
+    for step in PRODUCTS[product]["sales_steps"]:
+        st.markdown(f"**{step}** – Aligned messaging and evidence")
 
 # -------------------------
 # REFERENCES
 # -------------------------
 with st.expander("📚 Medical References"):
-    for r in PRODUCTS[product]["references"]:
-        st.write(f"• {r}")
+    for ref in PRODUCTS[product]["references"]:
+        st.write(f"• {ref}")
 
-st.caption("Internal training simulation – not for promotional use.")
+st.caption("Internal training simulator – not for promotional use.")
