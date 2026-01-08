@@ -89,7 +89,7 @@ if "product" not in st.session_state:
 # GROQ CLIENT
 # -------------------------
 def load_groq():
-    api_key = "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"
+    api_key = "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"
     if not api_key or "ADD_GROQ" in api_key or Groq is None:
         return None
     return Groq(api_key=api_key)
