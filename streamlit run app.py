@@ -45,7 +45,7 @@ except:
     PYTTSX3_AVAILABLE = False
 
 # -------------------------
-# Page config & background
+# Page config
 # -------------------------
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
@@ -54,7 +54,7 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
-BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/MR mentor final.png"
+BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
@@ -65,60 +65,69 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.75,
+    "temperature": 0.95,
     "search_mode": "deep",
     "medical_summary": "",
     "sales_summary": "",
     "uploaded_pdf_text": "",
     "pdf_summary": "",
     "feedback": {},
+    "dislike_state": None,   # Track multi-turn dislike
     "language": "English",
 }
 for k,v in defaults.items():
     st.session_state.setdefault(k,v)
 
 # -------------------------
-# CSS & background
+# Dynamic background (cover + slide with sidebar)
 # -------------------------
-CSS = f"""
-<style>
-[data-testid="stAppViewContainer"] {{
-  background-image: url('{BACKGROUND_URL}');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-}}
-.title-box {{
-  background: rgba(250,250,250,0.6);
-  padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 12px;
-  position: relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}}
-.title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
-.title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:fix; padding:12px; background: rgba(255,255,255,0.7); border-radius:8px; margin-bottom:160px; }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:fix; }}
-.chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
-.suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
-.suggestion-pill:hover {{ background:#f0f8ff; }}
-.citation-box {{ background:#fbfbff; border-left:4px solid #0078D7; padding:8px; margin-top:8px; border-radius:6px; font-size:13px; white-space:pre-wrap; }}
-.input-area {{ position: fixed; left:20px; right:20px; bottom:18px; z-index:9999; display:flex; gap:8px; align-items:flex-end; }}
-.input-area textarea {{ width:100%; min-height:72px; max-height:250px; padding:10px; border-radius:8px; border:1px solid #ccc; resize:vertical; }}
-.send-button {{ height:44px; padding:0 14px; border-radius:8px; border:none; background:#FF6F00; color:white; cursor:pointer; font-weight:600; }}
-.feedback-buttons button {{ margin-right:6px; }}
-.fixed-disclaimer {{ position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,0.95); padding:8px; border-top:2px solid #FF6F00; text-align:center; font-size:12px; z-index:9997; }}
-</style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
+def set_dynamic_background(image_path):
+    if not os.path.exists(image_path):
+        return
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+
+    st.markdown(
+        f"""
+        <style>
+        [data-testid="stAppViewContainer"] {{
+            background: linear-gradient(90deg, rgba(255,140,0,0.25), rgba(255,165,0,0.15)),
+                        url("data:image/png;base64,{encoded}");
+            background-repeat: no-repeat;
+            background-position: right top;
+            background-size: cover;
+            transition: all 0.5s ease;
+        }}
+        /* Slide background when sidebar toggles */
+        [data-testid="stSidebar"][aria-expanded="true"] ~ [data-testid="stAppViewContainer"] {{
+            background-position: right 200px top;
+        }}
+        [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] {{
+            background-position: right 0px top;
+        }}
+
+        .title-box {{
+            background: rgba(255,255,255,0.7);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            position: relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }}
+        .title-box img.left-logo {{ position:absolute; left:12px; height:48px; }}  /* updated size */
+        .title-box img.right-logo {{ position:absolute; right:12px; height:48px; }} /* updated size */
+        </style>
+        """, unsafe_allow_html=True
+    )
+
+set_dynamic_background(BACKGROUND_PATH)
 
 # -------------------------
 # Initialize GROQ client
 # -------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"  # <--- safe placeholder
 client = None
 if Groq and GROQ_API_KEY:
     try:
@@ -274,7 +283,9 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.temperature = st.slider("Temperature",0.0,1.0,st.session_state.temperature,0.05)
     st.session_state.search_mode = st.selectbox("Search mode", ["deep","shallow"])
     st.session_state.language = st.radio("Language", ["English","Arabic"])
-    if st.button("🗑️ Clear Chat"): st.session_state.chat_history=[]
+    if st.button("🗑️ Clear Chat"): 
+        st.session_state.chat_history=[]
+        st.rerun()
 
 with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
@@ -352,12 +363,11 @@ def make_suggestions(brand_key, persona_val, barriers_list, segment_val, special
     return s
 
 # -------------------------
-# AI Response with APACT + humanized + interactive feedback
+# AI Response with APACT + humanized + multi-turn feedback
 # -------------------------
-def add_ai_response(prompt, follow_up=False):
+def add_ai_response(prompt, follow_up=False, dislike_choice=None):
     snippets = local_search_snippets(prompt, chunks, chunk_meta, top_n=5)
     citation = "\n".join([f"{s['meta']['filename']} ({s['score']:.2f})" for s in snippets])
-
     response_lines = []
 
     if not follow_up:
@@ -376,12 +386,20 @@ def add_ai_response(prompt, follow_up=False):
         response_lines.append("**Confirm:** Does this approach address your concern sufficiently?")
         response_lines.append("**Transition:** If yes, we can move on to the next discussion point or objective.")
         response_lines.append("\n*Note: Tailored using sales module and uploaded references.*")
+        st.session_state.dislike_state = None
     else:
-        # Follow-up for feedback
-        response_lines.append("I noticed you disliked the previous answer. Could you help me understand better?")
-        response_lines.append("- What specific part was unclear or insufficient?")
-        response_lines.append("- Are you looking for more examples, data, or step-by-step guidance?")
-        response_lines.append("- Any particular objection you want me to focus on next?")
+        # Multi-turn dislike feedback
+        if st.session_state.dislike_state is None:
+            response_lines.append("I noticed you disliked the previous answer. Could you tell me why?")
+            st.session_state.dislike_state = "waiting_reason"
+        elif st.session_state.dislike_state == "waiting_reason" and dislike_choice:
+            if dislike_choice=="Unclear":
+                response_lines.append("Thanks! Let's clarify the points. Here is a refined answer focusing on clarity...")
+            elif dislike_choice=="Too long":
+                response_lines.append("Thanks! I'll shorten the response for easier reading...")
+            elif dislike_choice=="Not relevant":
+                response_lines.append("Thanks! Let's focus on the points most relevant to your needs...")
+            st.session_state.dislike_state = None  # End of multi-turn for now
 
     ai_text = "\n".join(response_lines)
     st.session_state.chat_history.append({"role":"assistant","content":ai_text,"citation":citation})
@@ -418,18 +436,23 @@ with chat_container:
             st.markdown(f'<div class="chat-bubble-ai">{escape(entry["content"])}</div>',unsafe_allow_html=True)
             if "citation" in entry and entry["citation"]:
                 st.markdown(f'<div class="citation-box">{escape(entry["citation"])}</div>',unsafe_allow_html=True)
-            # Audio playback
             audio_b64 = generate_audio(entry["content"])
             if audio_b64:
                 st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
+
             # Feedback buttons
             fb_cols = st.columns(3)
             if entry["content"] not in st.session_state.feedback:
                 if fb_cols[0].button("👍 Like", key=f"like_{idx}"): st.session_state.feedback[entry["content"]]="like"
-                if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"): 
+                if fb_cols[1].button("👎 Dislike", key=f"dislike_{idx}"):
                     st.session_state.feedback[entry["content"]]="dislike"
-                    add_ai_response("Follow-up based on user dislike", follow_up=True)
-                if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"): 
+                    # show multi-turn buttons
+                    choices = ["Unclear","Too long","Not relevant"]
+                    choice_cols = st.columns(len(choices))
+                    for i,ch in enumerate(choices):
+                        if choice_cols[i].button(ch,key=f"dislike_choice_{idx}_{i}"):
+                            add_ai_response("Follow-up based on user dislike", follow_up=True, dislike_choice=ch)
+                if fb_cols[2].button("ℹ️ Need More", key=f"needmore_{idx}"):
                     st.session_state.feedback[entry["content"]]="need_more"
                     add_ai_response("The user requested more information; expand the previous answer.", follow_up=True)
 
