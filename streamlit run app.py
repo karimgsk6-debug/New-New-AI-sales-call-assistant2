@@ -118,7 +118,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 # -------------------------
 # Initialize GROQ client
 # -------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = None
 if Groq and GROQ_API_KEY:
     try:
