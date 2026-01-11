@@ -1,436 +1,273 @@
 import streamlit as st
-import os
-import re
-import tempfile
-import base64
-import io
-from datetime import datetime
+import os, re, tempfile, base64, io
 from html import escape
+from datetime import datetime
 
-# Soft imports
+# =============================
+# OPTIONAL IMPORTS
+# =============================
 try:
     from groq import Groq
-except Exception:
+except:
     Groq = None
 
 try:
     from PyPDF2 import PdfReader
-except Exception:
+except:
     PdfReader = None
 
 try:
     from gtts import gTTS
-except Exception:
+except:
     gTTS = None
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
-except Exception:
+except:
     SKLEARN_AVAILABLE = False
 
-try:
-    import elevenlabs
-    ELEVENLABS_AVAILABLE = True
-except Exception:
-    ELEVENLABS_AVAILABLE = False
+# =============================
+# PAGE CONFIG
+# =============================
+st.set_page_config(
+    page_title="AI Sales Call Assistant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# -------------------------
-# Page config
-# -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
+# =============================
+# SESSION INIT
+# =============================
+defaults = {
+    "chat_history": [],
+    "roleplay_history": [],
+    "main_input": "",
+    "selected_brand": "shingrix",
+    "persona": "Skeptical Specialist",
+    "tone": "consultative",
+    "barrier": [],
+    "specialty": "",
+    "temperature": 0.4,
+    "language": "English",
+    "audio_enabled": False,
+    "live_roleplay": False,
+    "current_step": "Engage",
+    "uploaded_pdf_text": "",
+    "pdf_summary": ""
+}
+for k, v in defaults.items():
+    st.session_state.setdefault(k, v)
 
-# -------------------------
-# Resources
-# -------------------------
-REPO_USER = "karimgsk6-debug"
-REPO_NAME = "New-New-AI-sales-call-assistant2"
-GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
-AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
-BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-
-# -------------------------
-# Session defaults
-# -------------------------
-def _init_session():
-    defaults = {
-        "chat_history": [],
-        "main_input": "",
-        "selected_brand": "shingrix",
-        "temperature": 0.95,
-        "search_mode": "deep",
-        "medical_summary": "",
-        "sales_summary": "",
-        "uploaded_pdf_text": "",
-        "pdf_summary": "",
-        "feedback": {},
-        "dislike_state": None,
-        "language": "English",
-        "prompt_suggestions": ["Handle objection", "Summarize key points", "Prepare sales script", "Follow-up strategy"],
-        "persona": "Doctor",
-        "tone": "executive",
-        "objection": "",
-        "audio_enabled": False
-    }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-
-_init_session()
-
-# -------------------------
-# CSS
-# -------------------------
-st.markdown("""
-<style>
-.title-box{ background: rgba(255,255,255,0.75); padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
-.title-box img.left-logo{ position:absolute; left:12px; height:48px; }
-.title-box img.right-logo{ position:absolute; right:12px; height:48px; }
-
-.chat-bubble-user{ background: rgba(0,0,0,0.08); color:#1111; padding:10px 14px; border-radius:12px; margin:8px 0; max-width:80%; }
-.chat-bubble-ai{ background: #ffffff; color:#000; padding:12px 16px; border-radius:12px; box-shadow: 0 1px 6px rgba(0,0,0,0.085); margin:8px 0; max-width:90%; white-space:pre-wrap; }
-.citation-box{ font-size:12px; color:#666; margin-left:6px; margin-bottom:6px; }
-.fixed-disclaimer{ font-size:12px; color:#444; margin-top:16px; opacity:0.9; }
-.step-title{ font-weight:700; margin-top:8px; }
-.story{ font-style:italic; margin:6px 0 10px 0; }
-ul.assist-list{ margin:6px 0 6px 18px; padding:0; }
-.objection{ background:#fff8f0; padding:8px; border-radius:8px; margin:6px 0; border:1px solid #ffe0c6;}
-.prompt-suggestion{ display:inline-block; background:#f0f0f0; padding:4px 8px; margin:2px; border-radius:6px; cursor:pointer; font-size:13px; }
-</style>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# Background helper
-# -------------------------
-def set_dynamic_background(image_path):
-    if not os.path.exists(image_path):
-        return
-    try:
-        with open(image_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-        st.markdown(f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background: linear-gradient(90deg, rgba(255,140,0,0.08), rgba(255,165,0,0.03)),
-                        url("data:image/png;base64,{encoded}");
-            background-repeat: no-repeat;
-            background-position: right top;
-            background-size: cover;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
-
-set_dynamic_background(BACKGROUND_PATH)
-
-# -------------------------
-# GROQ client
-# -------------------------
-def load_groq_client():
-    api_key = os.getenv("GROQ_API_KEY", "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") or (st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else "")
-    if not api_key or Groq is None:
+# =============================
+# GROQ CLIENT
+# =============================
+def load_groq():
+    key = os.getenv("GROQ_API_KEY", "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")
+    if not key or Groq is None:
         return None
-    try:
-        return Groq(api_key=api_key)
-    except Exception:
-        return None
+    return Groq(api_key=key)
 
-# -------------------------
-# Brand data
-# -------------------------
+# =============================
+# BRAND CONFIG
+# =============================
 brand_data = {
     "shingrix": {
         "display": "Shingrix",
-        "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
-        "personas": ["Uncommitted Vaccinator", "Reluctant Efficiency", "Patient Influenced", "Committed Vaccinator"],
-        "barriers": ["HCP does not consider HZ a risk", "No time for discussion", "Cost concerns", "Not convinced of efficacy"],
-        "specialties": ["GP", "Dermatologist", "Cardiology", "Endocrinology", "Immunology", "Internal Medicine", "Rheumatology"],
-        "references_path": ".devcontainer/references/shingrix/",
-        "sales_path": ".devcontainer/SalesModule/shingrix/",
         "call_flow": ["Prepare", "Engage", "Create Opportunities", "Influence", "Impact GSO", "Analyze"],
-        "objections": {"efficacy":"Focus on durable protection and age-agnostic efficacy evidence.",
-                       "safety":"Acknowledge common AEs, then contrast with risk of complications from shingles.",
-                       "cost":"Frame cost as prevention of downstream complications and reduce clinic workload."}
-    },
-    "jemperli": {
-        "display": "Jemperli",
-        "segments": ["Target Identification", "Trial Adoption", "Routine Use", "Advocacy"],
-        "personas": ["Data-Driven Oncologist", "Skeptical Specialist", "Innovator Prescriber", "Late Adopter"],
-        "barriers": ["Unfamiliar with immunotherapy", "Safety concerns", "Limited eligibility", "Access/reimbursement issues"],
-        "specialties": ["Oncologist", "Medical Oncologist"],
-        "references_path": ".devcontainer/references/jemperli/",
-        "sales_path": ".devcontainer/SalesModule/jemperli/",
-        "call_flow": ["COCO", "Anchor", "Engage", "Close"],
-        "objections": {"efficacy":"Discuss durable responses in dMMR/MSI-H and appropriate patient selection.",
-                       "safety":"Share safety profile and monitoring guidance to reduce perceived risk.",
-                       "access":"Offer starter kits or initiation support and reimbursement pathways."}
-    },
-    "trelegy": {
-        "display": "Trelegy",
-        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
-        "personas": ["Primary Care COPD Prescriber", "Pulmonologist", "Respiratory Nurse"],
-        "barriers": ["Formulary access", "Inhaler technique", "Side effect concerns", "Cost/coverage"],
-        "specialties": ["GP", "Pulmonologist", "Internal Medicine", "Respiratory Specialist"],
-        "references_path": ".devcontainer/references/trelegy/",
-        "sales_path": ".devcontainer/SalesModule/trelegy/",
-        "call_flow": ["Prepare", "Engage", "Demonstrate", "Address Access", "Close"],
-        "objections": {"device":"Offer quick practical coaching and demo materials.",
-                       "coverage":"Explain access options and patient support programs.",
-                       "effectiveness":"Share comparative outcomes framed for real-world practice."}
+        "personas": ["Skeptical Specialist", "Committed Vaccinator", "Time-Pressured"],
+        "barriers": ["Efficacy doubts", "Safety concerns", "Cost", "No time"],
+        "specialties": ["GP", "IM", "Rheumatology"],
+        "references_path": ".devcontainer/references/shingrix/",
+        "sales_path": ".devcontainer/SalesModule/shingrix/"
     }
 }
 
-EXTRA_PERSONAS = ["Evidence-led", "Time-pressured", "Skeptical", "Early-adopter"]
-def get_persona_options(brand_key):
-    base = brand_data.get(brand_key, {}).get("personas", [])
-    combined = base + [p for p in EXTRA_PERSONAS if p not in base]
-    return combined
+bconf = brand_data[st.session_state.selected_brand]
 
-# -------------------------
-# Helpers
-# -------------------------
-def clean_text(text):
-    if not text: return ""
-    text = ''.join(c if c.isprintable() else ' ' for c in text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+# =============================
+# UTILS
+# =============================
+def clean_text(t):
+    return re.sub(r"\s+", " ", "".join(c if c.isprintable() else " " for c in t)).strip()
 
-def read_file_text(path):
-    if not os.path.exists(path):
+def read_pdf(file):
+    if not PdfReader:
         return ""
-    try:
-        if path.lower().endswith(".pdf") and PdfReader:
-            reader = PdfReader(path)
-            return "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                return fh.read()
-    except:
-        return ""
+    reader = PdfReader(file)
+    return " ".join(p.extract_text() or "" for p in reader.pages)
 
-def build_corpus_for_folders(folders, chunk_size_sentences=3):
-    chunks, metas = [], []
-    for folder in folders:
-        if not folder or not os.path.exists(folder):
-            continue
-        files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith((".pdf", ".txt"))]
-        for fname in files:
-            p = os.path.join(folder, fname)
-            text = read_file_text(p)
-            if not text: continue
-            sents = re.split(r'(?<=[\.\?\!])\s+', text)
-            for i in range(0, max(1,len(sents)), chunk_size_sentences):
-                chunk = " ".join(sents[i:i+chunk_size_sentences]).strip()
-                if chunk:
-                    chunks.append(chunk)
-                    metas.append({"filename": fname, "folder": folder, "start": i})
-    return chunks, metas
+def summarize(text):
+    client = load_groq()
+    if not client or not text:
+        return text[:500]
+    resp = client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[{"role": "user", "content": f"Summarize in 5 bullets:\n{text[:8000]}"}],
+        temperature=0.2,
+        max_tokens=400
+    )
+    return clean_text(resp.choices[0].message.content)
 
-def local_search_snippets(query, chunks, metas, top_n=3):
-    if not chunks: return []
-    if SKLEARN_AVAILABLE:
-        try:
-            vectorizer = TfidfVectorizer(stop_words="english").fit(chunks + [query])
-            chunk_vecs = vectorizer.transform(chunks)
-            q_vec = vectorizer.transform([query])
-            sims = linear_kernel(q_vec, chunk_vecs).flatten()
-            top_idxs = sims.argsort()[::-1][:top_n]
-            results = []
-            for idx in top_idxs:
-                if sims[idx] <= 0: continue
-                results.append({"score": float(sims[idx]), "text": chunks[idx], "meta": metas[idx]})
-            return results
-        except:
-            pass
-    out = []
-    q = query.lower()
-    for i, c in enumerate(chunks):
-        if q in c.lower():
-            out.append({"score":1.0, "text": c, "meta": metas[i]})
-            if len(out)>=top_n: break
-    return out
+def audio(text):
+    if not gTTS or not text:
+        return None
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    gTTS(text=text, lang="en").save(tmp.name)
+    with open(tmp.name, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
-def simple_summary(text, bullets=6):
-    if not text: return ""
-    sents = re.split(r'(?<=[\.\?\!])\s+', text)
-    selected = [s.strip() for s in sents if s.strip()][:bullets]
-    return "\n".join(["- "+s for s in selected])
+# =============================
+# AI COACH (NON ROLE-PLAY)
+# =============================
+def generate_ai_response(prompt):
+    client = load_groq()
+    if not client:
+        return "Groq unavailable."
 
-def model_summarize(text, bullets=6):
-    if not text: return ""
-    client = load_groq_client()
-    if client:
-        try:
-            prompt = f"Summarize into {bullets} concise bullet points:\n\n{text[:12000]}"
-            resp = client.chat.completions.create(model="llama-3.3-70b-versatile",
-                                                 messages=[{"role":"user","content":prompt}],
-                                                 temperature=0.2)
-            content = getattr(resp.choices[0].message,"content", None) or getattr(resp.choices[0],"text","")
-            return clean_text(content)
-        except:
-            return simple_summary(text, bullets)
-    else:
-        return simple_summary(text, bullets)
+    system = f"""
+You are a senior pharma sales trainer.
 
-def generate_audio(text):
-    if not text: return ""
-    if ELEVENLABS_AVAILABLE:
-        try:
-            elevenlabs.api_key = st.secrets.get("ELEVENLABS_API_KEY", "")
-            audio_stream = elevenlabs.generate(text=text, voice="alloy", model="eleven_multilingual_v1", stream=True)
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-            with open(tmp.name, "wb") as f:
-                for chunk in audio_stream: f.write(chunk)
-            with open(tmp.name,"rb") as fh:
-                return base64.b64encode(fh.read()).decode()
-        except: pass
-    if gTTS:
-        try:
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-            gTTS(text=text, lang="en", slow=False).save(tmp.name)
-            with open(tmp.name,"rb") as fh:
-                return base64.b64encode(fh.read()).decode()
-        except: pass
-    return ""
+For EACH call step generate:
+- Objective
+- Exact wording
+- 3 micro-actions
+- Success indicator
 
-# -------------------------
-# Sidebar: Filters & Persona
-# -------------------------
-with st.sidebar.expander("Filters & Options", expanded=True):
-    brand_options = list(brand_data.keys())
-    sel_brand = st.selectbox("Brand", brand_options, index=brand_options.index(st.session_state.selected_brand))
-    st.session_state.selected_brand = sel_brand
-    bconf = brand_data[sel_brand]
+Brand: {bconf['display']}
+Persona: {st.session_state.persona}
+Tone: {st.session_state.tone}
+Barriers: {", ".join(st.session_state.barrier)}
+Steps: {", ".join(bconf['call_flow'])}
 
-    segment = st.selectbox("Segment", bconf["segments"])
-    persona_options = get_persona_options(sel_brand)
-    persona = st.selectbox("HCP Persona", persona_options, key="persona")
-    barrier = st.multiselect("Doctor Barrier", bconf["barriers"])
-    specialty = st.selectbox("Specialty", bconf["specialties"])
-    objective = st.selectbox("Objective", ["Awareness","Adoption","Retention"])
-    st.session_state.temperature = st.slider("Temperature", 0.0,1.0, st.session_state.temperature, 0.05)
-    st.session_state.search_mode = st.selectbox("Search mode", ["deep","shallow"])
-    st.session_state.language = st.radio("Language", ["English","Arabic"])
-    tone = st.selectbox("Tone", ["executive","coaching","persuasive","clinical"], index=0, key="tone")
-    st.session_state.audio_enabled = st.checkbox("Enable Audio", value=st.session_state.audio_enabled)
-    if st.button("🗑️ Clear Chat"):
+NO placeholders. NO generic advice.
+"""
+
+    resp = client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=st.session_state.temperature,
+        max_tokens=1500
+    )
+
+    text = clean_text(resp.choices[0].message.content)
+    blocks = re.split(r"\n(?=[A-Z][A-Za-z ]+:)", text)
+
+    html = ""
+    for b in blocks:
+        lines = b.split("\n")
+        html += f"<div class='step-title'>{escape(lines[0])}</div><ul>"
+        for l in lines[1:]:
+            html += f"<li>{escape(l)}</li>"
+        html += "</ul>"
+    return html
+
+# =============================
+# 🎤 LIVE ROLE-PLAY ENGINE
+# =============================
+def roleplay_response(rep_text):
+    client = load_groq()
+    history = "\n".join(
+        f"{m['role']}: {m['content']}"
+        for m in st.session_state.roleplay_history[-6:]
+    )
+
+    system = f"""
+You are a REAL doctor in a live sales call.
+
+Rules:
+- You are the HCP
+- Be busy, realistic, sometimes resistant
+- Respond naturally (1–3 short paragraphs)
+- No coaching explanations
+
+Context:
+Brand: {bconf['display']}
+Persona: {st.session_state.persona}
+Barriers: {", ".join(st.session_state.barrier)}
+Step: {st.session_state.current_step}
+
+Conversation:
+{history}
+"""
+
+    resp = client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": rep_text}
+        ],
+        temperature=0.6,
+        max_tokens=400
+    )
+
+    return clean_text(resp.choices[0].message.content)
+
+# =============================
+# SIDEBAR
+# =============================
+with st.sidebar:
+    st.header("⚙️ Configuration")
+
+    st.session_state.live_roleplay = st.toggle("🎤 Live Role-Play Mode")
+
+    st.session_state.persona = st.selectbox("Persona", bconf["personas"])
+    st.session_state.current_step = st.selectbox("Call Step", bconf["call_flow"])
+    st.session_state.barrier = st.multiselect("Barriers", bconf["barriers"])
+    st.session_state.tone = st.selectbox("Tone", ["consultative","confident","clinical"])
+    st.session_state.audio_enabled = st.checkbox("🔊 Audio")
+
+    if st.button("🗑️ Reset"):
         st.session_state.chat_history = []
+        st.session_state.roleplay_history = []
         st.experimental_rerun()
 
-# -------------------------
-# Title box
-# -------------------------
-st.markdown(f"""
-<div class="title-box">
-    <img src="{GSK_LOGO_RAW}" class="left-logo">
-    <h2>💡 AI Sales Call Assistant — {bconf['display']}</h2>
-    <img src="{AI_LOGO_RAW}" class="right-logo">
-</div>
-""", unsafe_allow_html=True)
+# =============================
+# UI
+# =============================
+st.title("🤖 AI Sales Call Assistant")
 
-# -------------------------
-# Prompt suggestions UI
-# -------------------------
-with st.expander("💡 Prompt Suggestions", expanded=False):
-    for i, p in enumerate(st.session_state.prompt_suggestions):
-        if st.button(p, key=f"sugg_{i}"):
-            st.session_state.main_input = p
+# -------- ROLE PLAY MODE --------
+if st.session_state.live_roleplay:
+    st.info("You are the **Sales Rep**. AI is the **Doctor**.")
 
-# -------------------------
-# PDF upload & summary
-# -------------------------
-uploaded_file = st.file_uploader("Upload PDF/Text for reference", type=["pdf","txt"])
-if uploaded_file:
-    if uploaded_file.type=="application/pdf" and PdfReader:
-        reader = PdfReader(uploaded_file)
-        pdf_text = "".join([p.extract_text() or "" for p in reader.pages])
-    else:
-        pdf_text = clean_text(uploaded_file.getvalue().decode("utf-8",errors="ignore"))
-    st.session_state.uploaded_pdf_text = pdf_text
-    st.session_state.pdf_summary = model_summarize(pdf_text, bullets=6)
-    st.success("PDF summarized successfully!")
+    for m in st.session_state.roleplay_history:
+        label = "🧑‍💼 You" if m["role"] == "rep" else "🩺 Doctor"
+        st.markdown(f"**{label}:** {escape(m['content'])}")
 
-if st.session_state.pdf_summary:
-    with st.expander("📄 Uploaded PDF Summary", expanded=False):
-        st.markdown(st.session_state.pdf_summary)
+    rep_input = st.text_input("What do you say?")
+    if st.button("Send") and rep_input:
+        st.session_state.roleplay_history.append({"role":"rep","content":rep_input})
+        reply = roleplay_response(rep_input)
+        st.session_state.roleplay_history.append({"role":"hcp","content":reply})
 
-# -------------------------
-# Build corpus for local search
-# -------------------------
-corpus_folders = [bconf.get("references_path",""), bconf.get("sales_path","")]
-chunks, chunk_meta = build_corpus_for_folders(corpus_folders, chunk_size_sentences=3)
-
-# -------------------------
-# ... [all imports, session init, CSS, sidebar, PDF upload, corpus build remain unchanged]
-
-# -------------------------
-# AI response helper with micro-actions
-# -------------------------
-def generate_ai_response(prompt_text):
-    snippets = local_search_snippets(prompt_text, chunks, chunk_meta, top_n=6)
-    response_html = []
-    for i, step in enumerate(bconf.get("call_flow", ["Prepare","Engage","Create Opportunities","Influence","Close"])):
-        snippet_text = snippets[i]["text"] if i < len(snippets) else "Refer to sales materials for guidance."
-        
-        # Suggested phrasing (dynamic)
-        phrasing = f"Try saying: 'Here’s how we can approach this step: {step.lower()} with the HCP...'"
-
-        # Micro-actions / next steps
-        micro_actions = [
-            f"Review relevant data or references for {step}",
-            f"Identify HCP persona concerns for this step",
-            f"Prepare 1-2 key questions or prompts to engage",
-            f"Anticipate potential objections and have responses ready"
-        ]
-
-        # Objection handling
-        obj_text = ""
-        for k, v in bconf.get("objections", {}).items():
-            if k in prompt_text.lower():
-                obj_text = f"<div class='objection'><b>Objection:</b> {v}</div>"
-                break
-
-        # Build HTML for step
-        step_html = f"""
-        <div class='step-title'>{escape(step)}</div>
-        <div class='story'>{escape(snippet_text)}</div>
-        <div><b>Suggested Phrasing:</b> {escape(phrasing)}</div>
-        <div><b>Next Actions:</b>
-            <ul class='assist-list'>
-                {''.join([f'<li>{escape(a)}</li>' for a in micro_actions])}
-            </ul>
-        </div>
-        {obj_text}
-        """
-        response_html.append(step_html)
-    
-    return "\n".join(response_html)
-
-# -------------------------
-# Chat input form remains the same
-# -------------------------
-with st.form("main_input_form", clear_on_submit=True):
-    user_input = st.text_area("Your Message:", st.session_state.main_input, height=80)
-    submitted = st.form_submit_button("Send")
-    if submitted and user_input.strip():
-        st.session_state.chat_history.append({"role":"user","content":user_input.strip()})
-        ai_resp = generate_ai_response(user_input.strip())
-        st.session_state.chat_history.append({"role":"assistant","content":ai_resp})
-        st.session_state.main_input = ""
-
-# -------------------------
-# Display chat
-# -------------------------
-for entry in st.session_state.chat_history:
-    if entry.get("role")=="user":
-        st.markdown(f'<div class="chat-bubble-user">{escape(entry.get("content",""))}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div class="chat-bubble-ai">{entry.get("content","")}</div>', unsafe_allow_html=True)
         if st.session_state.audio_enabled:
-            plain = re.sub(r"<[^>]+>","",entry.get("content",""))[:1500]
-            audio_b64 = generate_audio(plain)
-            if audio_b64: st.audio(io.BytesIO(base64.b64decode(audio_b64)), format="audio/mp3")
+            a = audio(reply)
+            if a:
+                st.audio(io.BytesIO(base64.b64decode(a)), format="audio/mp3")
 
-# Footer disclaimer
-st.markdown('<div class="fixed-disclaimer">💡 This tool is for internal sales support purposes only. Verify medical info from official sources.</div>', unsafe_allow_html=True)
+        st.experimental_rerun()
+
+# -------- COACH MODE --------
+else:
+    with st.form("chat"):
+        user_input = st.text_area("Describe the situation or objection", height=80)
+        submitted = st.form_submit_button("Generate Coaching")
+
+    if submitted and user_input:
+        st.session_state.chat_history.append({"role":"user","content":user_input})
+        resp = generate_ai_response(user_input)
+        st.session_state.chat_history.append({"role":"ai","content":resp})
+        st.experimental_rerun()
+
+    for c in st.session_state.chat_history:
+        if c["role"] == "user":
+            st.markdown(f"<div class='chat-bubble-user'>{escape(c['content'])}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='chat-bubble-ai'>{c['content']}</div>", unsafe_allow_html=True)
+
+st.markdown("<small>For internal sales training only.</small>", unsafe_allow_html=True)
