@@ -596,7 +596,7 @@ with st.sidebar.expander("Filters & Options", expanded=True):
     st.session_state.tone = st.selectbox("Tone", ["executive", "coaching", "persuasive", "clinical"], index=0)
     if st.button("🗑️ Clear Chat"):
         st.session_state.chat_history = []
-        st.experimental_rerun()
+        
 
 with st.sidebar.expander("🌐 Add External Reference URLs (one per line)", expanded=False):
     external_urls = st.text_area("Enter URLs (one per line)").splitlines()
