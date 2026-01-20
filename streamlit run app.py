@@ -1,9 +1,10 @@
-# app.py — AI Sales Call Assistant (Simulation Call Mode)
+# app.py — AI Sales Call Assistant (Simulation Call with Safe Fallback)
 
 import streamlit as st
 import os, re
 from html import escape
 
+# Optional AI
 try:
     from groq import Groq
 except:
@@ -21,6 +22,7 @@ try:
 except:
     SKLEARN_AVAILABLE = False
 
+
 # -------------------------
 # Page config
 # -------------------------
@@ -32,16 +34,20 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 defaults = {
     "chat_history": [],
     "selected_brand": "shingrix",
-    "temperature": 0.6,
 }
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
 
 # -------------------------
-# GROQ init
+# GROQ init (SAFE)
 # -------------------------
-GROQ_API_KEY = "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"
-client = Groq(api_key=GROQ_API_KEY) if Groq and GROQ_API_KEY else None
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+client = None
+if Groq and GROQ_API_KEY and "ADD_" not in GROQ_API_KEY:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except:
+        client = None
 
 # -------------------------
 # Brand config
@@ -85,9 +91,8 @@ def read_file_text(path):
         if path.endswith(".pdf") and PdfReader:
             reader = PdfReader(path)
             return "".join([p.extract_text() or "" for p in reader.pages])
-        else:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
     except:
         return ""
 
@@ -99,8 +104,7 @@ def build_corpus(folders):
         for f in os.listdir(folder):
             if f.endswith((".pdf", ".txt")):
                 text = read_file_text(os.path.join(folder, f))
-                sentences = re.split(r'(?<=[.!?])\s+', text)
-                for s in sentences:
+                for s in re.split(r'(?<=[.!?])\s+', text):
                     if len(s.strip()) > 40:
                         chunks.append(s.strip())
                         metas.append({"filename": f})
@@ -109,9 +113,9 @@ def build_corpus(folders):
 def search_snippets(query, chunks, metas, top_n=5):
     if not SKLEARN_AVAILABLE or not chunks:
         return []
-    vectorizer = TfidfVectorizer(stop_words="english")
-    vectors = vectorizer.fit_transform(chunks + [query])
-    sims = linear_kernel(vectors[-1], vectors[:-1]).flatten()
+    vec = TfidfVectorizer(stop_words="english")
+    X = vec.fit_transform(chunks + [query])
+    sims = linear_kernel(X[-1], X[:-1]).flatten()
     idxs = sims.argsort()[::-1][:top_n]
     return [
         {"text": chunks[i], "meta": metas[i], "score": sims[i]}
@@ -142,67 +146,78 @@ chunks, metas = build_corpus([
 ])
 
 # -------------------------
-# AI RESPONSE — SIMULATION CALL ONLY
+# FALLBACK SIMULATION (NO AI)
+# -------------------------
+def fallback_simulation():
+    lines = []
+    for step in bconf["call_flow"]:
+        lines.append(f"**{step}**")
+        lines.append(f"- \"Doctor, based on your experience with patients above 50, I wanted to focus today on prevention.\"")
+        lines.append(f"- \"Can I quickly align with you on how shingles usually comes up in your practice?\"")
+        lines.append("")
+    return "\n".join(lines)
+
+# -------------------------
+# AI RESPONSE — SAFE MODE
 # -------------------------
 def add_ai_response(user_prompt):
     snippets = search_snippets(user_prompt, chunks, metas)
-
     citations = [
         f"- {s['meta']['filename']} (score {s['score']:.2f})"
         for s in snippets
     ]
 
-    system_prompt = f"""
+    ai_text = None
+
+    if client:
+        try:
+            system_prompt = f"""
 You are a pharmaceutical sales representative.
 
-TASK:
 Generate a REALISTIC SALES CALL SIMULATION.
 
-STRICT RULES (MANDATORY):
+RULES:
 - Use ONLY these step titles:
 {', '.join(bconf['call_flow'])}
 
-- Under EACH step:
-  - Write bullet points
-  - Each bullet is a SENTENCE THE REP SAYS to the HCP
-  - Spoken, natural, field-ready language
+- Each step:
+  - Bold title
+  - Bullet points
+  - Spoken sentences ONLY
 
-ABSOLUTELY FORBIDDEN:
-- Selling model explanations
-- Training or coaching language
-- Step definitions
-- Framework names
-- Pharma vs vaccine comparisons
-- Background theory
-
-DO NOT explain anything.
-DO NOT educate the reader.
-ONLY simulate the call dialogue.
+FORBIDDEN:
+- Selling models
+- Definitions
+- Training language
+- Theory
 """
 
-    user_context = f"""
+            user_context = f"""
 Brand: {bconf['display']}
 Persona: {persona}
 Specialty: {specialty}
 Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 
-User request:
+Request:
 {user_prompt}
 """
 
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_context}
-            ],
-            temperature=0.6
-        )
-        ai_text = response.choices[0].message.content
-    except:
-        ai_text = "⚠️ Unable to generate simulation."
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_context}
+                ],
+                temperature=0.6
+            )
+            ai_text = response.choices[0].message.content
+        except:
+            ai_text = None
+
+    # 🔒 SAFE FALLBACK
+    if not ai_text:
+        ai_text = fallback_simulation()
 
     st.session_state.chat_history.append({
         "role": "assistant",
