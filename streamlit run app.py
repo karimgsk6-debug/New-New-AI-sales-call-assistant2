@@ -1,183 +1,237 @@
-# app_ai_sales_roleplay_final.py
-
 import streamlit as st
-import random
-import os
-import re
+import os, io, re, math
+from datetime import datetime
 from html import escape
+from typing import List
 
-# ======================
-# CONFIG
-# ======================
-st.set_page_config(page_title="AI Sales Role-Play Trainer", layout="wide")
-
+# =========================
+# GROQ API PLACEHOLDER
+# =========================
 GROQ_API_KEY = "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"
 
-# ======================
-# STATE
-# ======================
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+# =========================
+# OPTIONAL IMPORTS
+# =========================
+try:
+    from PyPDF2 import PdfReader
+except:
+    PdfReader = None
 
-# ======================
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="AI Sales Call Assistant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# =========================
+# SESSION STATE INIT
+# =========================
+def init_session():
+    defaults = {
+        "chat": [],
+        "brand": "shingrix",
+        "persona": "Friendly",
+        "specialty": "",
+        "segment": "",
+        "objective": "Awareness",
+        "roleplay": False,
+        "pdf_chunks": [],
+        "pdf_sources": [],
+        "temperature": 0.8
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+
+init_session()
+
+# =========================
 # BRAND DATA
-# ======================
+# =========================
 brand_data = {
     "shingrix": {
-        "display": "Shingrix (Herpes Zoster Vaccine)",
+        "display": "Shingrix – Herpes Zoster Vaccine",
         "segments": ["GP", "Dermatologist", "Geriatrician"],
-        "barriers": ["Efficacy doubts", "Safety concerns", "Low demand"],
-        "references_path": "./references/shingrix"
+        "personas": ["Uncommitted Vaccinator", "Skeptical", "Evidence-led"],
+        "specialties": ["Dermatologist", "GP", "Geriatrics"],
+        "barriers": ["Safety", "Efficacy", "Patient demand"],
     },
     "trelegy": {
-        "display": "Trelegy Ellipta",
+        "display": "Trelegy Ellipta – COPD / Asthma",
         "segments": ["Pulmonologist", "GP"],
-        "barriers": ["Adherence", "Inhaler technique", "Cost"],
-        "references_path": "./references/trelegy"
+        "personas": ["Time-pressured", "Guideline-driven"],
+        "specialties": ["Pulmonologist", "GP"],
+        "barriers": ["Adherence", "Device complexity", "Cost"],
+    },
+    "jemperli": {
+        "display": "Jemperli – Immuno-Oncology",
+        "segments": ["Oncologist"],
+        "personas": ["Early adopter", "Skeptical"],
+        "specialties": ["Oncologist"],
+        "barriers": ["Eligibility", "Safety", "Reimbursement"],
     }
 }
 
-# ======================
-# RAG UTILITIES
-# ======================
-def chunk_text(text, size=300):
-    sents = re.split(r'(?<=[.!?])\s+', text)
-    chunks, buf = [], ""
-    for s in sents:
-        if len(buf) + len(s) < size:
-            buf += " " + s
-        else:
-            chunks.append(buf.strip())
-            buf = s
-    if buf:
-        chunks.append(buf.strip())
-    return chunks
+# =========================
+# PDF INGESTION (RAG)
+# =========================
+def extract_pdf_text(uploaded_files):
+    text, sources = [], []
+    if not PdfReader:
+        return [], []
+    for f in uploaded_files:
+        reader = PdfReader(f)
+        raw = ""
+        for p in reader.pages:
+            raw += p.extract_text() or ""
+        chunks = chunk_text(raw)
+        for c in chunks:
+            text.append(c)
+            sources.append(f.name)
+    return text, sources
 
-def similarity(a, b):
-    a, b = set(a.lower().split()), set(b.lower().split())
-    return len(a & b) / max(len(a), 1)
+def chunk_text(text, size=600):
+    words = text.split()
+    return [" ".join(words[i:i+size]) for i in range(0, len(words), size)]
 
-def load_corpus(brand):
-    folder = brand_data[brand]["references_path"]
-    text = ""
-    if os.path.exists(folder):
-        for f in os.listdir(folder):
-            if f.endswith(".txt"):
-                with open(os.path.join(folder, f), encoding="utf-8") as file:
-                    text += file.read()
-    return chunk_text(text)
+def retrieve_context(query, chunks, k=3):
+    scored = []
+    q_words = set(query.lower().split())
+    for c in chunks:
+        score = sum(1 for w in q_words if w in c.lower())
+        scored.append((score, c))
+    scored.sort(reverse=True)
+    return [c for s, c in scored[:k] if s > 0]
 
-def retrieve(query, chunks, k=2):
-    ranked = sorted(chunks, key=lambda c: similarity(query, c), reverse=True)
-    return ranked[:k]
+# =========================
+# SALES CALL FLOW GENERATOR
+# =========================
+def generate_sales_call_flow():
+    b = brand_data[st.session_state.brand]
+    return f"""
+Here is a tailored sales call flow for **{b['display']}**, targeting an **{st.session_state.persona}**, specifically a **{st.session_state.specialty}**, with the objective of **{st.session_state.objective}**:
 
-# ======================
-# ROLE-PLAY ENGINE
-# ======================
-def hcp_response(user_msg, persona, difficulty, corpus):
-    difficulty_map = {
-        "Easy": [
-            "That sounds reasonable.",
-            "I’m open to hearing more."
-        ],
-        "Medium": [
-            "I’m not fully convinced.",
-            "How is this different from alternatives?"
-        ],
-        "Brutal": [
-            "I don’t see the clinical necessity.",
-            "Show me guideline-level evidence or this goes nowhere."
-        ]
-    }
+---
 
-    persona_edge = {
-        "Skeptical": "I’ve heard similar claims before.",
-        "Time-pressured": "You have 30 seconds.",
-        "Evidence-led": "What does the data actually show?"
-    }
+### **Prepare**
+- Persona: {st.session_state.persona}
+- Specialty: {st.session_state.specialty}
+- Objective: {st.session_state.objective}
+- Key insight: High unmet need and under-recognition of disease burden
 
-    base = random.choice(difficulty_map[difficulty])
-    persona_add = persona_edge.get(persona, "")
-    refs = retrieve(user_msg, corpus)
+---
 
-    response = f"""
-👨‍⚕️ **HCP ({persona}, {difficulty})**
+### **Engage**
+- Opening: *"Good morning Doctor, thank you for your time."*
+- Attention grabber: *"Many patients underestimate the long-term burden of this condition."*
 
-{base}  
-{persona_add}
+---
 
-{"📚 Guideline insight:" if refs else ""}
-{" ".join(refs)}
+### **Create Opportunities**
+- Questioning: *"How often do you encounter eligible patients?"*
+- Data introduction: Clinical efficacy, guideline alignment
+
+---
+
+### **Influence**
+- Evidence: Guidelines, RCTs, real-world data
+- Objection handling: Address safety, efficacy, eligibility
+- Value framing: Patient outcomes & practice efficiency
+
+---
+
+### **Impact GSO**
+- Agreement: Small next step (trial patients, education)
+- Support: Materials, reminders, nurse education
+
+---
+
+### **Post-Call Analysis**
+- CRM documentation
+- Objection tracking
+- Follow-up planning
 """
-    return response.strip()
 
-# ======================
-# VOICE (BROWSER TTS)
-# ======================
-def speak(text):
-    st.markdown(
-        f"""
-        <script>
-        var msg = new SpeechSynthesisUtterance({text!r});
-        msg.rate = 0.95;
-        msg.pitch = 1;
-        window.speechSynthesis.speak(msg);
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+# =========================
+# ROLE PLAY RESPONSE
+# =========================
+def roleplay_hcp_response(user_input, context):
+    persona = st.session_state.persona
+    tone = {
+        "Uncommitted Vaccinator": "cautious, curious but hesitant",
+        "Skeptical": "challenging and data-focused",
+        "Evidence-led": "scientific and guideline-driven"
+    }.get(persona, "neutral")
 
-# ======================
-# SIDEBAR
-# ======================
+    return f"""
+*(Speaking as a {persona} HCP, {tone})*
+
+I hear what you're saying, but I still have concerns.
+
+From my experience, patients often hesitate, and I want to clearly understand:
+- Long-term benefit
+- Safety profile
+- Real guideline support
+
+Can you clarify how this applies specifically to my patients?
+"""
+
+# =========================
+# MAIN UI
+# =========================
+st.title("🧠 AI Sales Call Assistant")
+
+# ---------- SIDEBAR ----------
 with st.sidebar:
-    st.header("🎯 Role-Play Setup")
+    st.header("Configuration")
+    st.session_state.brand = st.selectbox(
+        "Brand", brand_data.keys(),
+        format_func=lambda x: brand_data[x]["display"]
+    )
+    st.session_state.segment = st.selectbox(
+        "Segment", brand_data[st.session_state.brand]["segments"]
+    )
+    st.session_state.specialty = st.selectbox(
+        "Specialty", brand_data[st.session_state.brand]["specialties"]
+    )
+    st.session_state.persona = st.selectbox(
+        "Persona", brand_data[st.session_state.brand]["personas"]
+    )
+    st.session_state.objective = st.selectbox(
+        "Objective", ["Awareness", "Adoption", "Retention"]
+    )
+    st.session_state.roleplay = st.checkbox("🎭 Role-Play Mode (AI = HCP)")
+    st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.8)
 
-    brand = st.selectbox("Brand", brand_data.keys(),
-                         format_func=lambda x: brand_data[x]["display"])
-    segment = st.selectbox("Segment", brand_data[brand]["segments"])
-    persona = st.selectbox("Persona", ["Friendly", "Skeptical", "Evidence-led", "Time-pressured"])
-    difficulty = st.radio("Objection Difficulty", ["Easy", "Medium", "Brutal"])
+    st.divider()
+    uploaded = st.file_uploader("Upload PDFs (Guidelines, Studies)", accept_multiple_files=True)
+    if uploaded:
+        chunks, sources = extract_pdf_text(uploaded)
+        st.session_state.pdf_chunks.extend(chunks)
+        st.session_state.pdf_sources.extend(sources)
+        st.success(f"{len(chunks)} knowledge chunks loaded")
 
-    if st.button("🧹 Reset"):
-        st.session_state.chat = []
-        st.experimental_rerun()
+# ---------- CHAT ----------
+for c in st.session_state.chat:
+    st.markdown(f"**{c['role']}**: {c['content']}")
 
-# ======================
-# TITLE
-# ======================
-st.title(f"🎙 AI HCP Role-Play — {brand_data[brand]['display']}")
+user_input = st.chat_input("Type here…")
 
-# ======================
-# LOAD CORPUS
-# ======================
-corpus = load_corpus(brand)
+if user_input:
+    st.session_state.chat.append({"role": "User", "content": user_input})
 
-# ======================
-# CHAT INPUT
-# ======================
-user_input = st.text_input("You (Sales Rep):")
+    if "generate sales call flow" in user_input.lower():
+        reply = generate_sales_call_flow()
 
-if st.button("Send"):
-    if user_input:
-        st.session_state.chat.append(("user", user_input))
-        reply = hcp_response(user_input, persona, difficulty, corpus)
-        st.session_state.chat.append(("hcp", reply))
-        speak(reply)
+    elif st.session_state.roleplay:
+        context = retrieve_context(user_input, st.session_state.pdf_chunks)
+        reply = roleplay_hcp_response(user_input, context)
 
-# ======================
-# CHAT DISPLAY
-# ======================
-for role, msg in st.session_state.chat:
-    if role == "user":
-        st.markdown(f"<div style='background:#eee;padding:10px;border-radius:10px'>{escape(msg)}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div style='background:#002b36;color:#0ff;padding:14px;border-radius:12px'>{msg}</div>", unsafe_allow_html=True)
+        context = retrieve_context(user_input, st.session_state.pdf_chunks)
+        reply = "Based on available data:\n\n" + "\n".join(context[:2]) if context else "Please upload guidelines for grounded answers."
 
-# ======================
-# FOOTER
-# ======================
-st.markdown(
-    "<small>⚠️ Internal training simulation only. Not for promotional use.</small>",
-    unsafe_allow_html=True
-)
+    st.session_state.chat.append({"role": "Assistant", "content": reply})
+    st.rerun()
