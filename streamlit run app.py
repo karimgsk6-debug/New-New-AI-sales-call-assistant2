@@ -1,10 +1,13 @@
-# app.py — AI Sales Call Assistant (Simulation Call with Safe Fallback)
+# app.py - AI Sales Call Assistant (Structured Steps + Citations at Bottom)
 
 import streamlit as st
-import os, re
+import os, re, tempfile, base64, io
+from datetime import datetime
 from html import escape
 
-# Optional AI
+# -------------------------
+# Optional Libraries
+# -------------------------
 try:
     from groq import Groq
 except:
@@ -16,17 +19,25 @@ except:
     PdfReader = None
 
 try:
+    from gtts import gTTS
+except:
+    gTTS = None
+
+try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
 except:
     SKLEARN_AVAILABLE = False
 
-
 # -------------------------
 # Page config
 # -------------------------
-st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
+st.set_page_config(
+    page_title="AI Sales Call Assistant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # -------------------------
 # Session defaults
@@ -34,50 +45,34 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 defaults = {
     "chat_history": [],
     "selected_brand": "shingrix",
+    "temperature": 0.6,
+    "language": "English",
 }
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
 
 # -------------------------
-# GROQ init (SAFE)
+# Initialize GROQ
 # -------------------------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-client = None
-if Groq and GROQ_API_KEY and "ADD_" not in GROQ_API_KEY:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-    except:
-        client = None
+GROQ_API_KEY = "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"
+client = Groq(api_key=GROQ_API_KEY) if Groq and GROQ_API_KEY else None
 
 # -------------------------
-# Brand config
+# Brand configuration
 # -------------------------
 brand_data = {
     "shingrix": {
         "display": "Shingrix",
-        "personas": [
-            "Uncommitted Vaccinator",
-            "Reluctant Efficiency",
-            "Patient Influenced",
-            "Committed Vaccinator"
-        ],
-        "barriers": [
-            "HCP does not consider HZ a risk",
-            "No time for discussion",
-            "Cost concerns",
-            "Not convinced of efficacy"
-        ],
-        "specialties": ["GP", "Dermatologist", "Geriatrician"],
-        "references_path": ".devcontainer/references/shingrix/",
-        "sales_path": ".devcontainer/SalesModule/shingrix/",
         "call_flow": [
             "Prepare",
             "Engage",
             "Create Opportunities",
             "Influence",
             "Impact GSO",
-            "Post-call Close"
-        ]
+            "Post-call Analysis"
+        ],
+        "references_path": ".devcontainer/references/shingrix/",
+        "sales_path": ".devcontainer/SalesModule/shingrix/"
     }
 }
 
@@ -88,9 +83,9 @@ def read_file_text(path):
     if not os.path.exists(path):
         return ""
     try:
-        if path.endswith(".pdf") and PdfReader:
+        if path.lower().endswith(".pdf") and PdfReader:
             reader = PdfReader(path)
-            return "".join([p.extract_text() or "" for p in reader.pages])
+            return "".join(p.extract_text() or "" for p in reader.pages)
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
     except:
@@ -101,136 +96,90 @@ def build_corpus(folders):
     for folder in folders:
         if not os.path.exists(folder):
             continue
-        for f in os.listdir(folder):
-            if f.endswith((".pdf", ".txt")):
-                text = read_file_text(os.path.join(folder, f))
-                for s in re.split(r'(?<=[.!?])\s+', text):
-                    if len(s.strip()) > 40:
-                        chunks.append(s.strip())
-                        metas.append({"filename": f})
+        for file in os.listdir(folder):
+            if not file.lower().endswith((".txt", ".pdf")):
+                continue
+            text = read_file_text(os.path.join(folder, file))
+            sentences = re.split(r'(?<=[.!?])\s+', text)
+            for s in sentences:
+                if len(s.strip()) > 40:
+                    chunks.append(s.strip())
+                    metas.append(file)
     return chunks, metas
 
 def search_snippets(query, chunks, metas, top_n=5):
-    if not SKLEARN_AVAILABLE or not chunks:
-        return []
-    vec = TfidfVectorizer(stop_words="english")
-    X = vec.fit_transform(chunks + [query])
-    sims = linear_kernel(X[-1], X[:-1]).flatten()
-    idxs = sims.argsort()[::-1][:top_n]
-    return [
-        {"text": chunks[i], "meta": metas[i], "score": sims[i]}
-        for i in idxs if sims[i] > 0
-    ]
+    results = []
+    if SKLEARN_AVAILABLE and chunks:
+        vectorizer = TfidfVectorizer(stop_words="english")
+        X = vectorizer.fit_transform(chunks + [query])
+        scores = linear_kernel(X[-1], X[:-1]).flatten()
+        top_idx = scores.argsort()[::-1][:top_n]
+        for i in top_idx:
+            if scores[i] > 0:
+                results.append((chunks[i], metas[i], scores[i]))
+    return results
 
 # -------------------------
-# Sidebar
+# AI RESPONSE (REWRITTEN)
 # -------------------------
-with st.sidebar:
-    sel_brand = st.selectbox("Brand", list(brand_data.keys()))
-    bconf = brand_data[sel_brand]
+def add_ai_response(user_prompt, follow_up=False):
 
-    persona = st.selectbox("HCP Persona", bconf["personas"])
-    specialty = st.selectbox("Specialty", bconf["specialties"])
-    barrier = st.multiselect("Barriers", bconf["barriers"])
-    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Activation"])
+    brand = brand_data[st.session_state.selected_brand]
+    call_flow = brand["call_flow"]
 
-    if st.button("Clear Chat"):
-        st.session_state.chat_history = []
-
-# -------------------------
-# Load knowledge
-# -------------------------
-chunks, metas = build_corpus([
-    bconf["references_path"],
-    bconf["sales_path"]
-])
-
-# -------------------------
-# FALLBACK SIMULATION (NO AI)
-# -------------------------
-def fallback_simulation():
-    lines = []
-    for step in bconf["call_flow"]:
-        lines.append(f"**{step}**")
-        lines.append(f"- \"Doctor, based on your experience with patients above 50, I wanted to focus today on prevention.\"")
-        lines.append(f"- \"Can I quickly align with you on how shingles usually comes up in your practice?\"")
-        lines.append("")
-    return "\n".join(lines)
-
-# -------------------------
-# AI RESPONSE — SAFE MODE
-# -------------------------
-def add_ai_response(user_prompt):
+    # Retrieve knowledge
+    folders = [brand["references_path"], brand["sales_path"]]
+    chunks, metas = build_corpus(folders)
     snippets = search_snippets(user_prompt, chunks, metas)
-    citations = [
-        f"- {s['meta']['filename']} (score {s['score']:.2f})"
-        for s in snippets
-    ]
 
-    ai_text = None
+    # Prepare citations
+    citation_files = sorted(set(m for _, m, _ in snippets))
 
-    if client:
-        try:
-            system_prompt = f"""
-You are a pharmaceutical sales representative.
+    # -------------------------
+    # Build structured response
+    # -------------------------
+    response = []
 
-Generate a REALISTIC SALES CALL SIMULATION.
+    response.append("**Structured Call Guidance**")
+    response.append("")
 
-RULES:
-- Use ONLY these step titles:
-{', '.join(bconf['call_flow'])}
+    for step in call_flow:
+        response.append(f"**{step}**")
+        matched = [
+            s for s, _, _ in snippets
+            if step.lower() in s.lower()
+        ]
 
-- Each step:
-  - Bold title
-  - Bullet points
-  - Spoken sentences ONLY
-
-FORBIDDEN:
-- Selling models
-- Definitions
-- Training language
-- Theory
-"""
-
-            user_context = f"""
-Brand: {bconf['display']}
-Persona: {persona}
-Specialty: {specialty}
-Barriers: {', '.join(barrier) if barrier else 'None'}
-Objective: {objective}
-
-Request:
-{user_prompt}
-"""
-
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_context}
-                ],
-                temperature=0.6
+        if matched:
+            for m in matched[:2]:
+                response.append(f"- {m}")
+        else:
+            response.append(
+                "- Apply standard brand-aligned messaging and adapt based on HCP reaction."
             )
-            ai_text = response.choices[0].message.content
-        except:
-            ai_text = None
 
-    # 🔒 SAFE FALLBACK
-    if not ai_text:
-        ai_text = fallback_simulation()
+        response.append("")
 
+    response.append("**Next Step**")
+    response.append(
+        "- Confirm alignment with the HCP and transition to the agreed objective."
+    )
+
+    # -------------------------
+    # Save to chat history
+    # -------------------------
     st.session_state.chat_history.append({
         "role": "assistant",
-        "content": ai_text,
-        "citation": "\n".join(citations)
+        "content": "\n".join(response),
+        "citations": citation_files
     })
 
 # -------------------------
 # UI
 # -------------------------
-st.title(f"AI Sales Call Simulation — {bconf['display']}")
+st.title("💡 AI Sales Call Assistant")
 
-user_input = st.text_area("What do you want to simulate?")
+user_input = st.text_area("Ask your question")
 if st.button("Send") and user_input.strip():
     st.session_state.chat_history.append({
         "role": "user",
@@ -239,21 +188,27 @@ if st.button("Send") and user_input.strip():
     add_ai_response(user_input)
 
 # -------------------------
-# Chat display
+# Chat rendering
 # -------------------------
 for entry in st.session_state.chat_history:
     if entry["role"] == "user":
-        st.markdown(f"🧑‍💼 **You:** {escape(entry['content'])}")
+        st.markdown(
+            f"<div style='background:#0078D7;color:white;padding:10px;border-radius:10px;margin:6px 0;'>"
+            f"{escape(entry['content'])}</div>",
+            unsafe_allow_html=True
+        )
     else:
-        st.markdown(entry["content"])
-        if entry.get("citation"):
-            st.markdown("📚 **References**")
-            st.markdown(entry["citation"])
+        st.markdown(
+            f"<div style='background:#eef9ff;padding:12px;border-radius:10px;margin:6px 0;'>"
+            f"{escape(entry['content'])}</div>",
+            unsafe_allow_html=True
+        )
 
-# -------------------------
-# Footer
-# -------------------------
-st.markdown(
-    "<hr><small>Internal use only – promotional content must follow local compliance.</small>",
-    unsafe_allow_html=True
-)
+        if entry.get("citations"):
+            st.markdown(
+                "<div style='font-size:13px;margin-top:6px;border-left:4px solid #0078D7;padding-left:8px;'>"
+                "<b>Sources & References</b><br>"
+                + "<br>".join(entry["citations"])
+                + "</div>",
+                unsafe_allow_html=True
+            )
