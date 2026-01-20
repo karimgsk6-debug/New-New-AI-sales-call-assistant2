@@ -436,8 +436,3 @@ with chat_container:
 
 # -------------------------
 # Footer disclaimer
-# -------------------------
-st.markdown("""
-<div class="fixed-disclaimer">
-💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
-</div>
