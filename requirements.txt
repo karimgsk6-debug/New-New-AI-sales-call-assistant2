@@ -15,4 +15,5 @@ gTTS
 Pillow
 python-docx
 requests
+edge-tts
 
