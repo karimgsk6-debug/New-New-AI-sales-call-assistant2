@@ -1,11 +1,9 @@
-# app.py — AI Sales Call Assistant (Structured Call Flow + Citations)
+# app.py — AI Sales Call Assistant (Simulation Call Mode)
 
 import streamlit as st
-import os, re, tempfile, base64, io
-from datetime import datetime
+import os, re
 from html import escape
 
-# Optional libraries
 try:
     from groq import Groq
 except:
@@ -17,53 +15,40 @@ except:
     PdfReader = None
 
 try:
-    from gtts import gTTS
-except:
-    gTTS = None
-
-try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import linear_kernel
     SKLEARN_AVAILABLE = True
 except:
     SKLEARN_AVAILABLE = False
 
-
 # -------------------------
-# Page configuration
+# Page config
 # -------------------------
-st.set_page_config(
-    page_title="AI Sales Call Assistant",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide")
 
 # -------------------------
 # Session defaults
 # -------------------------
 defaults = {
     "chat_history": [],
-    "main_input": "",
     "selected_brand": "shingrix",
     "temperature": 0.6,
-    "language": "English",
 }
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
 
 # -------------------------
-# Initialize GROQ
+# GROQ init
 # -------------------------
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY) if Groq and GROQ_API_KEY else None
 
 # -------------------------
-# Brand configuration
+# Brand config
 # -------------------------
 brand_data = {
     "shingrix": {
         "display": "Shingrix",
-        "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": [
             "Uncommitted Vaccinator",
             "Reluctant Efficiency",
@@ -85,7 +70,7 @@ brand_data = {
             "Create Opportunities",
             "Influence",
             "Impact GSO",
-            "Post-call Analysis"
+            "Post-call Close"
         ]
     }
 }
@@ -97,7 +82,7 @@ def read_file_text(path):
     if not os.path.exists(path):
         return ""
     try:
-        if path.lower().endswith(".pdf") and PdfReader:
+        if path.endswith(".pdf") and PdfReader:
             reader = PdfReader(path)
             return "".join([p.extract_text() or "" for p in reader.pages])
         else:
@@ -112,7 +97,7 @@ def build_corpus(folders):
         if not os.path.exists(folder):
             continue
         for f in os.listdir(folder):
-            if f.lower().endswith((".pdf", ".txt")):
+            if f.endswith((".pdf", ".txt")):
                 text = read_file_text(os.path.join(folder, f))
                 sentences = re.split(r'(?<=[.!?])\s+', text)
                 for s in sentences:
@@ -127,10 +112,10 @@ def search_snippets(query, chunks, metas, top_n=5):
     vectorizer = TfidfVectorizer(stop_words="english")
     vectors = vectorizer.fit_transform(chunks + [query])
     sims = linear_kernel(vectors[-1], vectors[:-1]).flatten()
-    top_idx = sims.argsort()[::-1][:top_n]
+    idxs = sims.argsort()[::-1][:top_n]
     return [
         {"text": chunks[i], "meta": metas[i], "score": sims[i]}
-        for i in top_idx if sims[i] > 0
+        for i in idxs if sims[i] > 0
     ]
 
 # -------------------------
@@ -138,71 +123,71 @@ def search_snippets(query, chunks, metas, top_n=5):
 # -------------------------
 with st.sidebar:
     sel_brand = st.selectbox("Brand", list(brand_data.keys()))
-    st.session_state.selected_brand = sel_brand
     bconf = brand_data[sel_brand]
 
     persona = st.selectbox("HCP Persona", bconf["personas"])
     specialty = st.selectbox("Specialty", bconf["specialties"])
-    segment = st.selectbox("Segment", bconf["segments"])
     barrier = st.multiselect("Barriers", bconf["barriers"])
-    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
-
-    st.session_state.temperature = st.slider("Creativity", 0.0, 1.0, 0.6)
+    objective = st.selectbox("Objective", ["Awareness", "Adoption", "Activation"])
 
     if st.button("Clear Chat"):
         st.session_state.chat_history = []
 
 # -------------------------
-# Load knowledge base
+# Load knowledge
 # -------------------------
-refs_folder = bconf["references_path"]
-sales_folder = bconf["sales_path"]
-chunks, metas = build_corpus([refs_folder, sales_folder])
+chunks, metas = build_corpus([
+    bconf["references_path"],
+    bconf["sales_path"]
+])
 
 # -------------------------
-# CORE AI RESPONSE (STRICT STRUCTURE)
+# AI RESPONSE — SIMULATION CALL ONLY
 # -------------------------
 def add_ai_response(user_prompt):
     snippets = search_snippets(user_prompt, chunks, metas)
 
-    citations = []
-    for s in snippets:
-        citations.append(f"- {s['meta']['filename']} (score {s['score']:.2f})")
+    citations = [
+        f"- {s['meta']['filename']} (score {s['score']:.2f})"
+        for s in snippets
+    ]
 
     system_prompt = f"""
-You are a pharmaceutical sales excellence coach.
+You are a pharmaceutical sales representative.
 
-ABSOLUTE RULES (DO NOT BREAK):
-- Use ONLY these call steps:
+TASK:
+Generate a REALISTIC SALES CALL SIMULATION.
+
+STRICT RULES (MANDATORY):
+- Use ONLY these step titles:
 {', '.join(bconf['call_flow'])}
 
-FOR EACH STEP:
-- Show the step title in **bold**
-- Use bullet points
-- Write ONLY what the sales rep should SAY to the HCP
-- DO NOT explain, define, or describe the step
-- DO NOT restate selling models, frameworks, or background theory
+- Under EACH step:
+  - Write bullet points
+  - Each bullet is a SENTENCE THE REP SAYS to the HCP
+  - Spoken, natural, field-ready language
 
-CONTENT STYLE:
-- Spoken language
-- First-person sales rep voice
-- Ready to use in a live call
-- Short, clear sentences
+ABSOLUTELY FORBIDDEN:
+- Selling model explanations
+- Training or coaching language
+- Step definitions
+- Framework names
+- Pharma vs vaccine comparisons
+- Background theory
 
-DO NOT:
-- Mention documents, sources, models, or training material
-- Rephrase step definitions
+DO NOT explain anything.
+DO NOT educate the reader.
+ONLY simulate the call dialogue.
 """
 
     user_context = f"""
 Brand: {bconf['display']}
 Persona: {persona}
 Specialty: {specialty}
-Segment: {segment}
 Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 
-Request:
+User request:
 {user_prompt}
 """
 
@@ -213,11 +198,11 @@ Request:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_context}
             ],
-            temperature=st.session_state.temperature
+            temperature=0.6
         )
         ai_text = response.choices[0].message.content
     except:
-        ai_text = "⚠️ Unable to generate response."
+        ai_text = "⚠️ Unable to generate simulation."
 
     st.session_state.chat_history.append({
         "role": "assistant",
@@ -228,9 +213,9 @@ Request:
 # -------------------------
 # UI
 # -------------------------
-st.title(f"AI Sales Call Assistant — {bconf['display']}")
+st.title(f"AI Sales Call Simulation — {bconf['display']}")
 
-user_input = st.text_area("Ask your question:")
+user_input = st.text_area("What do you want to simulate?")
 if st.button("Send") and user_input.strip():
     st.session_state.chat_history.append({
         "role": "user",
@@ -245,7 +230,7 @@ for entry in st.session_state.chat_history:
     if entry["role"] == "user":
         st.markdown(f"🧑‍💼 **You:** {escape(entry['content'])}")
     else:
-        st.markdown(f"🤖 **AI Response:**\n\n{entry['content']}")
+        st.markdown(entry["content"])
         if entry.get("citation"):
             st.markdown("📚 **References**")
             st.markdown(entry["citation"])
@@ -254,6 +239,6 @@ for entry in st.session_state.chat_history:
 # Footer
 # -------------------------
 st.markdown(
-    "<hr><small>Internal use only. Medical content must follow local compliance.</small>",
+    "<hr><small>Internal use only – promotional content must follow local compliance.</small>",
     unsafe_allow_html=True
 )
