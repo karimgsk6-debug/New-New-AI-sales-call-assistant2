@@ -39,7 +39,7 @@ st.set_page_config(page_title="AI Sales Call Assistant", page_icon="💡", layou
 # ----------------------------
 # Set your GROQ_API_KEY in the environment for safety:
 # export GROQ_API_KEY="your_real_key"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 client = Groq(api_key=GROQ_API_KEY) if (GROQ_API_KEY and Groq is not None and "PUT_YOUR" not in GROQ_API_KEY) else None
 if client is None:
     st.info("Groq AI client not configured. Set environment variable GROQ_API_KEY with a valid key to enable AI summarization/answers.")
