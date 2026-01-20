@@ -7,4 +7,12 @@ python-docx
 beautifulsoup4
 numpy
 tqdm
+streamlit
+groq
 PyPDF2>=3.0.0
+scikit-learn
+gTTS
+Pillow
+python-docx
+requests
+
