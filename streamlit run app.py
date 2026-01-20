@@ -55,7 +55,7 @@ REPO_NAME = "New-New-AI-sales-call-assistant2"
 COMMIT = "845b8f1ae98e46440e840c0a906f3610dd343c9a"
 REPO_BLOB_BASE = f"https://github.com/{REPO_USER}/{REPO_NAME}/blob/{COMMIT}/.devcontainer"
 REPO_RAW_BASE = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/{COMMIT}/.devcontainer"
-BACKGROUND_URL = REPO_RAW_BASE + "/background1.png"
+BACKGROUND_URL = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/MR mentor final.png"
 GSK_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/GSK1-logo.png"
 AI_LOGO_RAW = f"https://raw.githubusercontent.com/{REPO_USER}/{REPO_NAME}/main/.devcontainer/AURA1.png"
 
@@ -66,7 +66,7 @@ defaults = {
     "chat_history": [],
     "main_input": "",
     "selected_brand": "shingrix",
-    "temperature": 0.62,
+    "temperature": 0.75,
     "search_mode": "deep",
     "medical_summary": "",
     "sales_summary": "",
@@ -90,7 +90,7 @@ CSS = f"""
   background-attachment: fixed;
 }}
 .title-box {{
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.7);
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 12px;
@@ -101,8 +101,8 @@ CSS = f"""
 }}
 .title-box img.left-logo {{ position:absolute; left:12px; height:64px; }}
 .title-box img.right-logo {{ position:absolute; right:12px; height:64px; }}
-.chat-container {{ max-height: 60vh; overflow-y:auto; padding:12px; background: rgba(255,255,255,0.95); border-radius:8px; margin-bottom:160px; }}
-.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:auto; }}
+.chat-container {{ max-height: 60vh; overflow-y:fix; padding:12px; background: rgba(255,255,255,0.7); border-radius:8px; margin-bottom:160px; }}
+.chat-bubble-user {{ background:#0078D7; color:white; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; margin-left:fix; }}
 .chat-bubble-ai {{ background:#eef9ff; color:#000; padding:10px; border-radius:12px; margin:8px 0; max-width:78%; }}
 .suggestion-pill {{ background:#fff; border:1px solid #ddd; padding:8px 12px; border-radius:20px; margin:6px; cursor:pointer; display:inline-block; }}
 .suggestion-pill:hover {{ background:#f0f8ff; }}
@@ -119,7 +119,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 # -------------------------
 # Initialize GROQ client
 # -------------------------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 client = None
 if Groq and GROQ_API_KEY:
     try:
@@ -436,3 +436,9 @@ with chat_container:
 
 # -------------------------
 # Footer disclaimer
+# -------------------------
+st.markdown("""
+<div class="fixed-disclaimer">
+💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
+</div>
+""",unsafe_allow_html=True)
