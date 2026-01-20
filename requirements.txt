@@ -7,3 +7,4 @@ python-docx
 beautifulsoup4
 numpy
 tqdm
+PyPDF2>=3.0.0
