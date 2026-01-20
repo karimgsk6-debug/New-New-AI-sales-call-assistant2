@@ -423,8 +423,8 @@ def call_groq_with_retry(prompt: str, language: str, max_retries: int = 3, base_
     if client is None:
         return "⚠️ AI service not configured. Set GROQ_API_KEY in environment to enable AI generation."
     models = [
-        "meta-llama/llama-4-scout-17b-16e-instruct",
-        "meta-llama/llama-4-scout-13b-instruct",
+        "llama-3.3-70b-versatile",
+        "llama-3.3-70b-versatile",
     ]
     last_err = None
     for model in models:
@@ -508,7 +508,7 @@ if uploaded_pdf:
                 ) + chunk[:6000]
                 try:
                     resp = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
+                        model="llama-3.3-70b-versatile",
                         messages=[{"role":"system","content":"You are a concise medical summarizer."},{"role":"user","content":summary_prompt}],
                         temperature=0.2,
                     )
