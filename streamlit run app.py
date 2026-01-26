@@ -189,7 +189,7 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
 # TITLE
 # ==========================================================
 st.markdown("<h1>🧠 AI Sales Call Assistant</h1>", unsafe_allow_html=True)
-col_main, col_side = st.columns([3,1])
+col_main, col_side = st.columns([5,1])
 
 # ==========================================================
 # 1. Selected Guideline Snippet
