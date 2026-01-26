@@ -1,8 +1,8 @@
 import streamlit as st
-from groq import Groq
 from datetime import datetime
+from groq import Groq
 import os
-from io import BytesIO
+from PyPDF2 import PdfReader
 
 # =========================
 # OPTIONAL WORD DOWNLOAD
@@ -13,15 +13,6 @@ try:
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
-
-# =========================
-# OPTIONAL PDF READING (RAG)
-# =========================
-try:
-    import PyPDF2
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
 
 # =========================
 # GROQ CLIENT
@@ -39,7 +30,6 @@ brand_data = {
         "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
         "specialties":["GP","Dermatologist","Geriatrician"],
         "references_path":".devcontainer/references/shingrix/",
-        "sales_path":".devcontainer/SalesModule/shingrix/",
         "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"],
         "leaflet":"https://example.com/shingrix-leaflet"
     },
@@ -50,7 +40,6 @@ brand_data = {
         "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
         "specialties":["Oncologist","Medical Oncologist"],
         "references_path":".devcontainer/references/jemperli/",
-        "sales_path":".devcontainer/SalesModule/jemperli/",
         "call_flow":["COCO","Anchor","Engage","Close"],
         "leaflet":"https://example.com/jemperli-leaflet"
     },
@@ -61,32 +50,29 @@ brand_data = {
         "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
         "specialties":["GP","Pulmonologist","Respiratory Specialist"],
         "references_path":".devcontainer/references/trelegy/",
-        "sales_path":".devcontainer/SalesModule/trelegy/",
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
         "leaflet":"https://example.com/trelegy-leaflet"
     }
 }
 
 # =========================
-# RAG: LOAD PDF GUIDELINES
+# LOAD PDF GUIDELINES (RAG)
 # =========================
-def load_guidelines_text(folder_path):
-    if not PDF_AVAILABLE or not os.path.exists(folder_path):
-        return "No approved guidelines available."
+def load_brand_guidelines_text(path, max_chars=4000):
+    text = ""
+    if not os.path.exists(path):
+        return "No guideline text available."
 
-    text_chunks = []
-    for file in os.listdir(folder_path):
+    for file in os.listdir(path):
         if file.lower().endswith(".pdf"):
             try:
-                with open(os.path.join(folder_path, file), "rb") as f:
-                    reader = PyPDF2.PdfReader(f)
-                    for page in reader.pages:
-                        text_chunks.append(page.extract_text())
-            except Exception:
-                continue
+                reader = PdfReader(os.path.join(path, file))
+                for page in reader.pages:
+                    text += page.extract_text() or ""
+            except:
+                pass
 
-    joined_text = "\n".join(text_chunks)
-    return joined_text[:6000]  # token-safe truncation
+    return text[:max_chars] if text else "No guideline text available."
 
 # =========================
 # SESSION STATE
@@ -95,14 +81,14 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # =========================
-# UI HEADER
+# HEADER
 # =========================
 st.title("🧠 AI Sales Call Assistant")
 
 language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
 
 # =========================
-# SIDEBAR (BRAND-DRIVEN)
+# SIDEBAR
 # =========================
 st.sidebar.header("Filters & Options")
 
@@ -131,12 +117,11 @@ if st.button("🗑️ Clear Chat"):
 # =========================
 # CHAT DISPLAY
 # =========================
-def display_chat():
-    for msg in st.session_state.chat_history:
-        role = "🧑 You" if msg["role"] == "user" else "🤖 AI"
-        st.markdown(f"**{role}:** {msg['content']}")
-
-display_chat()
+for msg in st.session_state.chat_history:
+    if msg["role"] == "user":
+        st.markdown(f"**🧑 You:** {msg['content']}")
+    else:
+        st.markdown(f"**🤖 AI:** {msg['content']}")
 
 # =========================
 # CHAT INPUT
@@ -146,45 +131,46 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 # =========================
-# AI GENERATION
+# AI LOGIC (WITH RAG)
 # =========================
 if submitted and user_input.strip():
 
     st.session_state.chat_history.append({
-        "role": "user",
-        "content": user_input,
-        "time": datetime.now().strftime("%H:%M")
+        "role":"user",
+        "content":user_input,
+        "time":datetime.now().strftime("%H:%M")
     })
 
-    approved_guidelines = load_guidelines_text(brand_cfg["references_path"])
+    guideline_text = load_brand_guidelines_text(brand_cfg["references_path"])
     flow_str = " → ".join(brand_cfg["call_flow"])
 
     prompt = f"""
 Language: {language}
 
-User Request:
+CRITICAL COMPLIANCE RULES:
+- Use ONLY the approved indications provided below
+- NEVER use placeholders such as [specific patient population]
+- Do NOT speculate or generalize beyond the indication text
+
+APPROVED PRODUCT INDICATIONS (SOURCE: GUIDELINES):
+{guideline_text}
+
+USER REQUEST:
 {user_input}
 
+CONTEXT:
 Brand: {brand_cfg['display']}
 Segment: {segment}
 Persona: {persona}
 Specialty: {specialty}
-Doctor Barriers: {', '.join(barrier) if barrier else 'None'}
+Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 
-Approved Product Indications & Guidelines (STRICT SOURCE OF TRUTH):
-{approved_guidelines}
-
-Sales Call Flow:
+SALES CALL FLOW:
 {flow_str}
 
-RULES:
-- Use ONLY the approved indications above
-- DO NOT say vague terms like "specific patient population"
-- Mention exact eligible patient profiles when relevant
-- Do NOT create off-label claims
-- Use APACT objection handling
-
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
+Ensure medically accurate, indication-aligned messaging.
 Tone: {response_tone}
 Length: {response_length}
 """
@@ -192,21 +178,21 @@ Length: {response_length}
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system", "content": "You are a compliant pharmaceutical sales excellence assistant."},
-            {"role": "user", "content": prompt}
+            {"role":"system","content":f"You are a compliant pharmaceutical sales AI responding in {language}."},
+            {"role":"user","content":prompt}
         ],
-        temperature=0.5
+        temperature=0.4
     )
 
     ai_output = response.choices[0].message.content
 
     st.session_state.chat_history.append({
-        "role": "ai",
-        "content": ai_output,
-        "time": datetime.now().strftime("%H:%M")
+        "role":"ai",
+        "content":ai_output,
+        "time":datetime.now().strftime("%H:%M")
     })
 
-    display_chat()
+    st.rerun()
 
 # =========================
 # WORD DOWNLOAD
@@ -222,15 +208,30 @@ if DOCX_AVAILABLE:
         st.download_button("📥 Download Word", buffer.getvalue(), file_name="AI_Sales_Call.docx")
 
 # =========================
-# FIXED DISCLAIMER
+# DISCLAIMER BUBBLE (FIXED)
 # =========================
-st.markdown("---")
-st.caption(
-    "⚠️ **Disclaimer:** This tool is for internal training and educational purposes only. "
-    "Content is generated based on approved guidelines provided and does not replace "
-    "local prescribing information, SmPC, or medical judgment. Always refer to the latest "
-    "approved product information and local regulations."
-)
+st.markdown("""
+<style>
+.disclaimer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #f5f5f5;
+    color: #333;
+    font-size: 12px;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+    z-index: 9999;
+}
+</style>
+
+<div class="disclaimer">
+⚠️ <b>Disclaimer:</b> This tool is for internal training and sales excellence support only. 
+Content is AI-generated, non-promotional, and must not replace approved medical, legal, or regulatory materials. 
+Always follow local compliance guidelines.
+</div>
+""", unsafe_allow_html=True)
 
 # =========================
 # BRAND LEAFLET
