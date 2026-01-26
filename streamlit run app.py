@@ -29,10 +29,12 @@ client = Groq(
 # VISUAL ASSETS
 # ==========================================================
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
+GSK_LOGO = ".devcontainer/Visuals/GSK-logo.png"
+AURA_LOGO = ".devcontainer/Visuals/AURA.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ==========================================================
-# LIGHT BACKGROUND
+# LIGHT BACKGROUND REMOVED
 # ==========================================================
 def set_background(image_path):
     if os.path.exists(image_path):
@@ -43,7 +45,6 @@ def set_background(image_path):
             <style>
             [data-testid="stAppViewContainer"] {{
                 background:
-                    linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
                     url("data:image/png;base64,{encoded}");
                 background-size: cover;
             }}
@@ -75,6 +76,8 @@ st.markdown("""
     z-index:100;
 }
 .citation-link {cursor:pointer; color:#0073e6; text-decoration:underline;}
+.title-container {display:flex; align-items:center; justify-content:space-between;}
+.title-container img {height:40px; margin-left:8px; margin-right:8px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -190,9 +193,27 @@ def detect_off_label(answer, refs):
 # ==========================================================
 # MAIN PAGE – CHAT
 # ==========================================================
-st.title("🧠 AI Sales Call Assistant")
-
 col1, col2 = st.columns([3,2])
+
+# ------------------ Title with Logos ------------------
+with col1:
+    st.markdown(
+        f"""
+        <div class='title-container'>
+            <img src='{AURA_LOGO}'>
+            <h1>🧠 AI Sales Call Assistant</h1>
+            <img src='{GSK_LOGO}'>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+# ------------------ Citation Viewer (moved above chat) ------------------
+with col2:
+    st.markdown("### 📖 Selected Guideline Snippet")
+    if st.session_state.selected_citation:
+        p = st.session_state.selected_citation
+        st.markdown(f"**{p['source']} – Page {p['page']}**")
+        st.markdown(p['text'])
 
 # ------------------ Chat Column ------------------
 with col1:
@@ -209,14 +230,6 @@ with col1:
     with st.form("chat_form", clear_on_submit=True):
         question = st.text_input("Ask a medical question or generate a sales call flow…")
         submit = st.form_submit_button("Generate")
-
-# ------------------ Citation Viewer ------------------
-with col2:
-    st.markdown("### 📖 Selected Guideline Snippet")
-    if st.session_state.selected_citation:
-        p = st.session_state.selected_citation
-        st.markdown(f"**{p['source']} – Page {p['page']}**")
-        st.markdown(p['text'])
 
 # ==========================================================
 # AI PIPELINE
