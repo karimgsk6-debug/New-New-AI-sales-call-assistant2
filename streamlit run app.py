@@ -4,16 +4,8 @@ from groq import Groq
 import os
 from PyPDF2 import PdfReader
 import re
-
-# =========================
-# OPTIONAL WORD DOWNLOAD
-# =========================
-try:
-    from docx import Document
-    from io import BytesIO as io_bytes
-    DOCX_AVAILABLE = True
-except ImportError:
-    DOCX_AVAILABLE = False
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # =========================
 # GROQ CLIENT
@@ -43,61 +35,49 @@ brand_data = {
         "references_path":".devcontainer/references/jemperli/",
         "call_flow":["COCO","Anchor","Engage","Close"],
         "leaflet":"https://example.com/jemperli-leaflet"
-    },
-    "trelegy": {
-        "display":"Trelegy",
-        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
-        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
-        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
-        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
-        "references_path":".devcontainer/references/trelegy/",
-        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
-        "leaflet":"https://example.com/trelegy-leaflet"
     }
 }
 
 # =========================
-# LOAD GUIDELINES WITH PAGE CITATION
+# LOAD & INDEX PDF PAGES
 # =========================
-def load_guidelines_with_pages(path, max_chars=5000):
+@st.cache_data(show_spinner=False)
+def load_guidelines_pages(path):
     pages = []
-    if not os.path.exists(path):
-        return ""
-
     for file in os.listdir(path):
         if file.lower().endswith(".pdf"):
             reader = PdfReader(os.path.join(path, file))
             for i, page in enumerate(reader.pages):
                 text = page.extract_text()
                 if text:
-                    pages.append(f"[Guideline Page {i+1}]\n{text}")
+                    pages.append({
+                        "page": i + 1,
+                        "source": file,
+                        "text": text.strip()
+                    })
+    return pages
 
-    combined = "\n\n".join(pages)
-    return combined[:max_chars]
+# =========================
+# SEMANTIC RETRIEVAL
+# =========================
+def retrieve_relevant_pages(question, pages, top_k=3):
+    corpus = [p["text"] for p in pages]
+    vectorizer = TfidfVectorizer(stop_words="english")
+    tfidf = vectorizer.fit_transform(corpus + [question])
+    scores = cosine_similarity(tfidf[-1], tfidf[:-1]).flatten()
+    top_indices = scores.argsort()[-top_k:][::-1]
+    return [pages[i] for i in top_indices]
 
 # =========================
 # OFF-LABEL DETECTION
 # =========================
-def detect_off_label(ai_text, guideline_text):
-    risky_phrases = [
-        "any patient",
-        "all patients",
-        "including children",
-        "off-label",
-        "unapproved",
-        "broader population",
-        "outside indication"
-    ]
+def detect_off_label(ai_text, retrieved_pages):
+    combined_text = " ".join(p["text"].lower() for p in retrieved_pages)
+    risky_terms = ["children", "pediatric", "pregnant", "off-label", "unapproved"]
 
-    for phrase in risky_phrases:
-        if phrase.lower() in ai_text.lower():
+    for term in risky_terms:
+        if term in ai_text.lower() and term not in combined_text:
             return True
-
-    # crude population extension check
-    populations = re.findall(r"(children|pregnant|immunocompromised|pediatric)", ai_text.lower())
-    if populations and not any(p in guideline_text.lower() for p in populations):
-        return True
-
     return False
 
 # =========================
@@ -105,9 +85,11 @@ def detect_off_label(ai_text, guideline_text):
 # =========================
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "last_citations" not in st.session_state:
+    st.session_state.last_citations = []
 
 # =========================
-# HEADER
+# UI
 # =========================
 st.title("🧠 AI Sales Call Assistant")
 language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
@@ -119,10 +101,9 @@ st.sidebar.header("Filters & Options")
 
 brand_key = st.sidebar.selectbox(
     "Select Brand",
-    options=list(brand_data.keys()),
+    list(brand_data.keys()),
     format_func=lambda x: brand_data[x]["display"]
 )
-
 brand_cfg = brand_data[brand_key]
 
 segment = st.sidebar.selectbox("Segment", brand_cfg["segments"])
@@ -130,21 +111,15 @@ persona = st.sidebar.selectbox("Persona", brand_cfg["personas"])
 barrier = st.sidebar.multiselect("Doctor Barriers", brand_cfg["barriers"])
 specialty = st.sidebar.selectbox("Specialty", brand_cfg["specialties"])
 objective = st.sidebar.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
-response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
-
-# =========================
-# CLEAR CHAT
-# =========================
-if st.button("🗑️ Clear Chat"):
-    st.session_state.chat_history = []
+tone = st.sidebar.selectbox("Tone", ["Formal", "Friendly", "Persuasive"])
+length = st.sidebar.selectbox("Length", ["Short", "Medium", "Long"])
 
 # =========================
 # CHAT DISPLAY
 # =========================
 for msg in st.session_state.chat_history:
-    role_icon = "🧑" if msg["role"] == "user" else "🤖"
-    st.markdown(f"**{role_icon}:** {msg['content']}")
+    icon = "🧑" if msg["role"] == "user" else "🤖"
+    st.markdown(f"**{icon}:** {msg['content']}")
 
 # =========================
 # INPUT
@@ -154,31 +129,38 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 # =========================
-# AI + RAG + GUARDRAILS
+# AI PIPELINE
 # =========================
 if submitted and user_input.strip():
 
     st.session_state.chat_history.append({
         "role":"user",
-        "content":user_input,
-        "time":datetime.now().strftime("%H:%M")
+        "content":user_input
     })
 
-    guideline_text = load_guidelines_with_pages(brand_cfg["references_path"])
-    flow_str = " → ".join(brand_cfg["call_flow"])
+    all_pages = load_guidelines_pages(brand_cfg["references_path"])
+    retrieved_pages = retrieve_relevant_pages(user_input, all_pages)
+
+    citation_block = "\n\n".join(
+        f"[Guideline {p['source']} – Page {p['page']}]\n{p['text'][:1200]}"
+        for p in retrieved_pages
+    )
+
+    st.session_state.last_citations = retrieved_pages
+
+    flow = " → ".join(brand_cfg["call_flow"])
 
     prompt = f"""
 STRICT COMPLIANCE RULES:
-- Use ONLY approved indications from guideline text
-- Cite page numbers for every clinical or indication statement
-- NEVER generalize populations
-- NEVER use placeholders
-- If indication is unclear, say so explicitly
+- Use ONLY the content below
+- Cite page numbers like [p.X]
+- Never generalize populations
+- Never mention off-label use
 
-GUIDELINES (WITH PAGE NUMBERS):
-{guideline_text}
+APPROVED GUIDELINE EXCERPTS:
+{citation_block}
 
-USER REQUEST:
+USER QUESTION:
 {user_input}
 
 CONTEXT:
@@ -186,15 +168,14 @@ Brand: {brand_cfg['display']}
 Segment: {segment}
 Persona: {persona}
 Specialty: {specialty}
-Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
+Barriers: {', '.join(barrier) if barrier else 'None'}
 
 CALL FLOW:
-{flow_str}
+{flow}
 
-Use APACT framework.
-Tone: {response_tone}
-Length: {response_length}
+Tone: {tone}
+Length: {length}
 """
 
     response = client.chat.completions.create(
@@ -206,49 +187,50 @@ Length: {response_length}
         temperature=0.3
     )
 
-    ai_output = response.choices[0].message.content
+    ai_text = response.choices[0].message.content
 
-    # =========================
-    # OFF-LABEL VALIDATION
-    # =========================
-    if detect_off_label(ai_output, guideline_text):
-        ai_output = (
-            "⚠️ **Compliance Notice:**\n\n"
-            "Your request may involve off-label or non-approved use. "
-            "This assistant can only discuss **approved indications explicitly stated in official guidelines**. "
-            "Please rephrase your request within the approved label."
+    if detect_off_label(ai_text, retrieved_pages):
+        ai_text = (
+            "⚠️ **Compliance Block**\n\n"
+            "The requested information may fall outside approved indications. "
+            "Please rephrase your question using approved label language."
         )
 
     st.session_state.chat_history.append({
         "role":"ai",
-        "content":ai_output,
-        "time":datetime.now().strftime("%H:%M")
+        "content":ai_text
     })
 
     st.rerun()
 
 # =========================
-# DISCLAIMER (FIXED)
+# CITATION HIGHLIGHT PANEL
+# =========================
+if st.session_state.last_citations:
+    with st.expander("📖 View cited guideline pages"):
+        for p in st.session_state.last_citations:
+            st.markdown(
+                f"**📄 {p['source']} – Page {p['page']}**\n\n"
+                f"{p['text'][:1500]}..."
+            )
+
+# =========================
+# DISCLAIMER
 # =========================
 st.markdown("""
 <style>
 .disclaimer {
     position: fixed;
     bottom: 0;
-    left: 0;
     width: 100%;
     background: #f5f5f5;
-    color: #333;
+    padding: 8px;
     font-size: 12px;
-    padding: 10px;
-    border-top: 1px solid #ddd;
-    z-index: 9999;
+    border-top: 1px solid #ccc;
 }
 </style>
-
 <div class="disclaimer">
-⚠️ <b>Disclaimer:</b> Internal training use only. Non-promotional.
-AI-generated content does not replace approved medical, legal, or regulatory materials.
+⚠️ Internal training use only. AI-generated content is non-promotional and must align with approved product labels.
 </div>
 """, unsafe_allow_html=True)
 
