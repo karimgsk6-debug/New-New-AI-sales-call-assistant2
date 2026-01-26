@@ -35,8 +35,17 @@ brand_data = {
         "references_path":".devcontainer/references/jemperli/",
         "call_flow":["COCO","Anchor","Engage","Close"],
         "leaflet":"https://example.com/jemperli-leaflet"
+    },
+    "trelegy": {
+        "display":"Trelegy",
+        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
+        "references_path":".devcontainer/references/trelegy/",
+        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
+        "leaflet":"https://example.com/trelegy-leaflet"
     }
-}
 
 # =========================
 # LOAD & INDEX PDF PAGES
