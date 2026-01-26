@@ -76,7 +76,7 @@ brand_data = {
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
         "personas": ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
         "barriers": ["HZ perceived as low risk","Time constraints","Cost concerns","Doubts on vaccine necessity"],
-        "specialties": ["GP","Dermatologist","Geriatrician"],
+        "specialties": ["GP","Dermatologist","Cardiology","Diabetes","Internal Medicine","Nephrology","Neurology","Oncology","Pneumology","Rheumatology"],
         "references_path": ".devcontainer/references/shingrix/",
         "call_flow": ["Prepare","Engage","Create Opportunity","Influence","Impact GSO","Post-Call Review"]
     },
