@@ -101,16 +101,6 @@ response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "L
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
 
 # =========================
-# BRAND IMAGE
-# =========================
-try:
-    img_response = requests.get(brand_cfg["image"])
-    img = Image.open(BytesIO(img_response.content))
-    st.image(img, width=220)
-except:
-    st.image("https://via.placeholder.com/220x120.png?text=No+Image")
-
-# =========================
 # CLEAR CHAT
 # =========================
 if st.button("🗑️ Clear Chat"):
@@ -204,3 +194,11 @@ if DOCX_AVAILABLE:
 # BRAND LEAFLET
 # =========================
 st.markdown(f"[📄 Brand Leaflet – {brand_cfg['display']}]({brand_cfg['leaflet']})")
+# -------------------------
+# Footer disclaimer
+# -------------------------
+st.markdown("""
+<div class="fixed-disclaimer">
+💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
+</div>
+""",unsafe_allow_html=True)
