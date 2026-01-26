@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – FULL FIXED VERSION
+# AI SALES CALL ASSISTANT – WHITE BUBBLES + Brand Call Flow
 # ==========================================================
 
 import streamlit as st
@@ -28,7 +28,7 @@ AURA_LOGO = ".devcontainer/Visuals/AURA.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ==========================================================
-# BACKGROUND SETUP (NO WHITE OVERLAY)
+# BACKGROUND
 # ==========================================================
 def set_background(image_path):
     if os.path.exists(image_path):
@@ -45,20 +45,21 @@ def set_background(image_path):
 set_background(BACKGROUND_PATH)
 
 # ==========================================================
-# CSS STYLING
+# CSS
 # ==========================================================
 st.markdown("""
 <style>
-.ai-box {background:rgba(0,255,255,0.06); padding:16px; border-radius:16px; border:1px solid rgba(0,255,255,0.2);}
 .user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
-.avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,255,255,0.9); margin-bottom:8px;}
+.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px;}
+.citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px;}
+.avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,0,0,0.2); margin-bottom:8px;}
 .section-title {color:#0a3; font-weight:700; font-size:20px;}
 .disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
-.citation-link {cursor:pointer; color:#0073e6; text-decoration:underline;}
 .title-container {display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
 .title-container img {height:40px; margin-left:8px; margin-right:8px;}
 .prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin-bottom:8px; cursor:pointer;}
 .feedback-container {display:flex; gap:10px; margin-top:8px;}
+.call-flow-step {background:#f8f8f8; padding:12px; border-radius:12px; margin-bottom:6px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -121,7 +122,7 @@ def load_guidelines(path):
     return pages
 
 # ==========================================================
-# SEMANTIC RAG RETRIEVAL
+# RAG RETRIEVAL
 # ==========================================================
 def retrieve_pages(question, pages, top_k=3):
     corpus = [p["text"] for p in pages]
@@ -166,7 +167,7 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
                 st.session_state.selected_citation = p
 
 # ==========================================================
-# MAIN LAYOUT
+# TITLE
 # ==========================================================
 st.markdown(f"""
 <div class='title-container'>
@@ -178,15 +179,18 @@ st.markdown(f"""
 
 col_main, col_side = st.columns([3,1])
 
-# ------------------ 1. Selected Guideline Snippet ------------------
+# ==========================================================
+# 1. Selected Guideline Snippet (white collapsible)
+# ==========================================================
 with col_main:
-    st.markdown("### 📖 Selected Guideline Snippet")
     if st.session_state.selected_citation:
         p = st.session_state.selected_citation
-        st.markdown(f"**{p['source']} – Page {p['page']}**")
-        st.markdown(p['text'])
+        with st.expander(f"📖 {p['source']} – Page {p['page']}", expanded=True):
+            st.markdown(f"<div class='citation-box'>{p['text']}</div>", unsafe_allow_html=True)
 
-# ------------------ 2. Prompt Suggestions (Clickable) ------------------
+# ==========================================================
+# 2. Prompt Suggestions (copilot-style)
+# ==========================================================
 with col_main:
     with st.expander("💡 Prompt Suggestions", expanded=False):
         suggestions = [
@@ -199,7 +203,9 @@ with col_main:
             if st.button(s, key=f"prompt_{s}"):
                 st.session_state.input_text = s
 
-# ------------------ 3. Sales Conversation ------------------
+# ==========================================================
+# 3. Sales Conversation + AI Response
+# ==========================================================
 with col_main:
     st.markdown("### 💬 Sales Conversation")
     for msg in st.session_state.chat:
@@ -208,7 +214,7 @@ with col_main:
         else:
             st.markdown(f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>", unsafe_allow_html=True)
 
-    # ------------------ Chat Input ------------------
+    # Chat input form
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("Ask a medical question or generate a sales call flow…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
@@ -232,7 +238,19 @@ GUIDELINES:
 
 QUESTION:
 {user_input}
+
+CONTEXT:
+Brand: {brand['display']}
+Segment: {segment}
+Persona: {persona}
+Specialty: {specialty}
+Objective: {objective}
+Barriers: {', '.join(barriers) if barriers else 'None'}
+Tone: {tone}
+
+Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
 """
+
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
@@ -245,15 +263,17 @@ QUESTION:
                 answer = "⚠️ **Compliance Alert** – Outside approved indications."
 
             st.session_state.chat.append({"role":"ai","content":answer})
-
-            # Clear input after submission
             st.session_state.input_text = ""
 
-# ------------------ TTS Placeholder ------------------
+# ==========================================================
+# 4. TTS Placeholder
+# ==========================================================
 with col_main:
-    st.audio(None)  # Placeholder for TTS
+    st.audio(None)
 
-# ------------------ Feedback Cycle ------------------
+# ==========================================================
+# 5. Feedback Cycle
+# ==========================================================
 with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
@@ -262,7 +282,7 @@ with col_main:
     with col3: st.button("⏳ Need More", key="need_more")
 
 # ==========================================================
-# FIXED DISCLAIMER
+# DISCLAIMER
 # ==========================================================
 st.markdown("""
 <div class="disclaimer">
