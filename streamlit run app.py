@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – IMPROVED UI
+# AI SALES CALL ASSISTANT – FULL WIDTH RESPONSE + COLLAPSIBLE CALL FLOW
 # ==========================================================
 import streamlit as st
 import os, io
@@ -8,7 +8,6 @@ from PyPDF2 import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from gtts import gTTS
-import pandas as pd
 
 # ==========================================================
 # PAGE CONFIG
@@ -46,12 +45,12 @@ set_background(BACKGROUND_PATH)
 # ==========================================================
 st.markdown("""
 <style>
-/* Freeze title */
-h1.title-center {text-align:center; margin-top:0px; margin-bottom:10px; position:sticky; top:0; background:white; z-index:1000; padding:10px 0;}
+/* Freeze title at top */
+h1.title-center {text-align:center; margin-top:0; margin-bottom:10px; position:sticky; top:0; background:white; z-index:1000; padding:10px 0;}
 
 /* Chat bubbles */
 .user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px; max-width:90%;}
-.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space:pre-wrap; max-width:95%; word-break:break-word;}
+.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space:pre-wrap; word-break:break-word; width:100%;}
 
 /* Guideline snippet */
 .citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px; white-space:pre-wrap;}
@@ -64,6 +63,9 @@ h1.title-center {text-align:center; margin-top:0px; margin-bottom:10px; position
 
 /* Feedback faces */
 .feedback-face {font-size:30px; cursor:pointer; margin-right:10px;}
+
+/* Call flow steps */
+.call-flow-step {background:#f8f8f8; padding:12px; border-radius:12px; margin-bottom:6px;}
 
 /* Misc */
 .section-title {color:#0a3; font-weight:700; font-size:20px;}
@@ -239,7 +241,14 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
             tts.write_to_fp(audio_bytes)
             st.audio(audio_bytes.getvalue(), format="audio/mp3")
 
-# 4. Feedback using faces
+# 4. Call Flow Steps as collapsible cards
+with col_main:
+    st.markdown("### 📋 Sales Call Steps")
+    for step in brand["call_flow"]:
+        with st.expander(step):
+            st.markdown(f"<div class='call-flow-step'>Guidance for **{step}** goes here.</div>", unsafe_allow_html=True)
+
+# 5. Feedback using faces
 with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
