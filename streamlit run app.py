@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – MULTI-BRAND COMPLIANT RAG PLATFORM
+# AI SALES CALL ASSISTANT – FULL FEATURED
 # ==========================================================
 
 import streamlit as st
@@ -12,18 +12,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 # ==========================================================
 # PAGE CONFIG
 # ==========================================================
-st.set_page_config(
-    page_title="AI Sales Call Assistant",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================================
 # GROQ CLIENT
 # ==========================================================
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY", "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")
-)
+client = Groq(api_key=os.getenv("GROQ_API_KEY","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"))
 
 # ==========================================================
 # VISUAL ASSETS
@@ -34,55 +28,42 @@ AURA_LOGO = ".devcontainer/Visuals/AURA.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ==========================================================
-# LIGHT BACKGROUND REMOVED
+# BACKGROUND SETUP (NO WHITE OVERLAY)
 # ==========================================================
 def set_background(image_path):
     if os.path.exists(image_path):
-        with open(image_path, "rb") as f:
+        with open(image_path,"rb") as f:
             encoded = base64.b64encode(f.read()).decode()
-        st.markdown(
-            f"""
-            <style>
-            [data-testid="stAppViewContainer"] {{
-                background:
-                    url("data:image/png;base64,{encoded}");
-                background-size: cover;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
+        st.markdown(f"""
+        <style>
+        [data-testid="stAppViewContainer"] {{
+            background: url("data:image/png;base64,{encoded}");
+            background-size: cover;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 set_background(BACKGROUND_PATH)
 
 # ==========================================================
-# CSS
+# CSS STYLING
 # ==========================================================
 st.markdown("""
 <style>
-.ai-box {background:rgba(0,255,255,0.06); padding:16px; border-radius:16px; border:1px solid rgba(0,255,255,0.2)}
+.ai-box {background:rgba(0,255,255,0.06); padding:16px; border-radius:16px; border:1px solid rgba(0,255,255,0.2);}
 .user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
 .avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,255,255,0.9); margin-bottom:8px;}
 .section-title {color:#0a3; font-weight:700; font-size:20px;}
-.disclaimer {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: rgba(245,245,245,0.95);
-    color:#555;
-    font-size:12px;
-    padding:8px;
-    border-top:1px solid #ccc;
-    z-index:100;
-}
+.disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
 .citation-link {cursor:pointer; color:#0073e6; text-decoration:underline;}
-.title-container {display:flex; align-items:center; justify-content:space-between;}
+.title-container {display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
 .title-container img {height:40px; margin-left:8px; margin-right:8px;}
+.prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin-bottom:8px; cursor:pointer;}
+.feedback-container {display:flex; gap:10px; margin-top:8px;}
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================================
-# BRAND MASTER DATA (FULL)
+# BRAND DATA
 # ==========================================================
 brand_data = {
     "shingrix": {
@@ -120,38 +101,8 @@ brand_data = {
 st.session_state.setdefault("chat", [])
 st.session_state.setdefault("citations", [])
 st.session_state.setdefault("selected_citation", None)
-
-# ==========================================================
-# SIDEBAR CONFIGURATION
-# ==========================================================
-st.sidebar.header("🎯 Call Configuration")
-
-brand_key = st.sidebar.selectbox(
-    "Brand",
-    list(brand_data.keys()),
-    format_func=lambda x: brand_data[x]["display"]
-)
-brand = brand_data[brand_key]
-
-segment = st.sidebar.selectbox("Segment", brand["segments"])
-persona = st.sidebar.selectbox("Persona", brand["personas"])
-specialty = st.sidebar.selectbox("Specialty", brand["specialties"])
-barriers = st.sidebar.multiselect("HCP Barriers", brand["barriers"])
-objective = st.sidebar.selectbox("Objective", ["Awareness","Adoption","Retention"])
-tone = st.sidebar.selectbox("Tone", ["Executive","Scientific","Friendly"])
-
-# ------------------ Sales Module Flow (collapsible) ------------------
-with st.sidebar.expander("📊 Sales Module Flow", expanded=True):
-    for step in brand["call_flow"]:
-        st.markdown(f"- **{step}**")
-
-# ------------------ Medical References (collapsible, clickable) ------------------
-with st.sidebar.expander("📚 Medical References", expanded=True):
-    st.caption("Click page to view snippet")
-    if st.session_state.citations:
-        for i, p in enumerate(st.session_state.citations):
-            if st.button(f"{p['source']} – Page {p['page']}", key=f"cit_{i}"):
-                st.session_state.selected_citation = p
+st.session_state.setdefault("feedback", {})
+st.session_state.setdefault("input_text", "")
 
 # ==========================================================
 # LOAD GUIDELINES
@@ -170,7 +121,7 @@ def load_guidelines(path):
     return pages
 
 # ==========================================================
-# SEMANTIC RAG
+# SEMANTIC RAG RETRIEVAL
 # ==========================================================
 def retrieve_pages(question, pages, top_k=3):
     corpus = [p["text"] for p in pages]
@@ -191,59 +142,85 @@ def detect_off_label(answer, refs):
     return False
 
 # ==========================================================
-# MAIN PAGE – CHAT
+# SIDEBAR CONFIG
 # ==========================================================
-col1, col2 = st.columns([3,2])
+st.sidebar.header("🎯 Call Configuration")
+brand_key = st.sidebar.selectbox("Brand", list(brand_data.keys()), format_func=lambda x: brand_data[x]["display"])
+brand = brand_data[brand_key]
+segment = st.sidebar.selectbox("Segment", brand["segments"])
+persona = st.sidebar.selectbox("Persona", brand["personas"])
+specialty = st.sidebar.selectbox("Specialty", brand["specialties"])
+barriers = st.sidebar.multiselect("HCP Barriers", brand["barriers"])
+objective = st.sidebar.selectbox("Objective", ["Awareness","Adoption","Retention"])
+tone = st.sidebar.selectbox("Tone", ["Executive","Scientific","Friendly"])
 
-# ------------------ Title with Logos ------------------
-with col1:
-    st.markdown(
-        f"""
-        <div class='title-container'>
-            <img src='{AURA_LOGO}'>
-            <h1>🧠 AI Sales Call Assistant</h1>
-            <img src='{GSK_LOGO}'>
-        </div>
-        """, unsafe_allow_html=True
-    )
+with st.sidebar.expander("📊 Sales Module Flow", expanded=True):
+    for step in brand["call_flow"]:
+        st.markdown(f"- **{step}**")
 
-# ------------------ Citation Viewer (moved above chat) ------------------
-with col2:
+with st.sidebar.expander("📚 Medical References", expanded=True):
+    st.caption("Click page to view snippet")
+    if st.session_state.citations:
+        for i, p in enumerate(st.session_state.citations):
+            if st.button(f"{p['source']} – Page {p['page']}", key=f"cit_{i}"):
+                st.session_state.selected_citation = p
+
+# ==========================================================
+# MAIN LAYOUT
+# ==========================================================
+st.markdown(f"""
+<div class='title-container'>
+    <img src='{AURA_LOGO}'>
+    <h1>🧠 AI Sales Call Assistant</h1>
+    <img src='{GSK_LOGO}'>
+</div>
+""", unsafe_allow_html=True)
+
+col_main, col_side = st.columns([3,1])
+
+# ------------------ 1. Selected Guideline Snippet ------------------
+with col_main:
     st.markdown("### 📖 Selected Guideline Snippet")
     if st.session_state.selected_citation:
         p = st.session_state.selected_citation
         st.markdown(f"**{p['source']} – Page {p['page']}**")
         st.markdown(p['text'])
 
-# ------------------ Chat Column ------------------
-with col1:
+# ------------------ 2. Prompt Suggestions (Clickable) ------------------
+with col_main:
+    with st.expander("💡 Prompt Suggestions", expanded=False):
+        suggestions = [
+            "Generate sales call flow for selected HCP persona",
+            "Summarize guideline snippet for HCP",
+            "Provide objection handling strategies",
+            "Explain safety considerations"
+        ]
+        for s in suggestions:
+            if st.button(s, key=f"prompt_{s}"):
+                st.session_state.input_text = s
+
+# ------------------ 3. Sales Conversation ------------------
+with col_main:
     st.markdown("### 💬 Sales Conversation")
     for msg in st.session_state.chat:
         if msg["role"]=="user":
             st.markdown(f"<div class='user-box'>{msg['content']}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(
-                f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>", unsafe_allow_html=True)
 
+    # ------------------ Chat Input ------------------
     with st.form("chat_form", clear_on_submit=True):
-        question = st.text_input("Ask a medical question or generate a sales call flow…")
+        user_input = st.text_input("Ask a medical question or generate a sales call flow…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
 
-# ==========================================================
-# AI PIPELINE
-# ==========================================================
-if submit and question:
-    st.session_state.chat.append({"role": "user", "content": question})
+# ------------------ AI Response + TTS + Feedback ------------------
+if submit and user_input:
     pages = load_guidelines(brand["references_path"])
-    retrieved = retrieve_pages(question, pages)
+    retrieved = retrieve_pages(user_input, pages)
     st.session_state.citations = retrieved
+    st.session_state.chat.append({"role":"user","content":user_input})
 
-    citations_text = "\n".join(
-        f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved
-    )
-
+    citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved)
     prompt = f"""
 STRICT COMPLIANCE RULES:
 - Use ONLY approved guideline content
@@ -255,37 +232,33 @@ GUIDELINES:
 {citations_text}
 
 QUESTION:
-{question}
-
-CONTEXT:
-Brand: {brand['display']}
-Segment: {segment}
-Persona: {persona}
-Specialty: {specialty}
-Objective: {objective}
-Barriers: {', '.join(barriers) if barriers else 'None'}
-Tone: {tone}
+{user_input}
 """
-
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": "You are a compliant pharmaceutical sales AI."},
-            {"role": "user", "content": prompt}
-        ],
+        messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
+                  {"role":"user","content":prompt}],
         temperature=0.2
     )
 
     answer = response.choices[0].message.content
     if detect_off_label(answer, retrieved):
-        answer = (
-            "⚠️ **Compliance Alert**\n\n"
-            "The requested response may fall outside approved product indications. "
-            "Please rephrase using approved label language."
-        )
+        answer = "⚠️ **Compliance Alert** – Outside approved indications."
 
-    st.session_state.chat.append({"role": "ai", "content": answer})
-    st.rerun()
+    st.session_state.chat.append({"role":"ai","content":answer})
+
+    # ------------------ TTS Placeholder ------------------
+    st.audio(None)
+
+    # ------------------ Feedback ------------------
+    st.markdown("### Feedback")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.button("👍 Like", key="like")
+    with col2: st.button("👎 Dislike", key="dislike")
+    with col3: st.button("⏳ Need More", key="need_more")
+
+    st.session_state.input_text = ""
+    st.experimental_rerun()
 
 # ==========================================================
 # FIXED DISCLAIMER
