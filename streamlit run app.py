@@ -46,6 +46,7 @@ brand_data = {
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
         "leaflet":"https://example.com/trelegy-leaflet"
     }
+}
 
 # =========================
 # LOAD & INDEX PDF PAGES
