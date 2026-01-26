@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – PROMPT ABOVE CHAT + FACES FEEDBACK + FIXED HEADER
+# AI SALES CALL ASSISTANT – IMPROVED UI
 # ==========================================================
 import streamlit as st
 import os, io
@@ -21,8 +21,9 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 client = Groq(api_key=os.getenv("GROQ_API_KEY","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"))
 
 # ==========================================================
-# BACKGROUND & CSS
+# VISUAL ASSETS
 # ==========================================================
+AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
 
 def set_background(image_path):
@@ -40,17 +41,33 @@ def set_background(image_path):
         """, unsafe_allow_html=True)
 set_background(BACKGROUND_PATH)
 
+# ==========================================================
+# CSS
+# ==========================================================
 st.markdown("""
 <style>
-/* Title fixed top 20% */
-h1.title-center {text-align:center; margin-top:20px; margin-bottom:20px; position: sticky; top:0; background: rgba(255,255,255,0.8); z-index: 1000; padding:10px;}
-.user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
-.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space: pre-wrap;}
-.citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px; white-space: pre-wrap;}
+/* Freeze title */
+h1.title-center {text-align:center; margin-top:0px; margin-bottom:10px; position:sticky; top:0; background:white; z-index:1000; padding:10px 0;}
+
+/* Chat bubbles */
+.user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px; max-width:90%;}
+.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space:pre-wrap; max-width:95%; word-break:break-word;}
+
+/* Guideline snippet */
+.citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px; white-space:pre-wrap;}
+
+/* Avatar */
 .avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,0,0,0.2); margin-bottom:8px;}
-.prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin:4px 0; cursor:pointer; display:inline-block;}
-.feedback-container {display:flex; gap:10px; margin-top:8px;}
-.feedback-btn {font-size:28px; cursor:pointer;}
+
+/* Prompt suggestions */
+.prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin-bottom:8px; cursor:pointer; display:inline-block; margin-right:6px;}
+
+/* Feedback faces */
+.feedback-face {font-size:30px; cursor:pointer; margin-right:10px;}
+
+/* Misc */
+.section-title {color:#0a3; font-weight:700; font-size:20px;}
+.disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,7 +139,7 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
                 st.session_state.selected_citation = p
 
 # ==========================================================
-# TITLE CENTERED
+# TITLE CENTERED AND STICKY
 # ==========================================================
 st.markdown("<h1 class='title-center'>🧠 AI Sales Call Assistant</h1>", unsafe_allow_html=True)
 
@@ -138,18 +155,8 @@ with col_main:
         with st.expander(f"📖 {p['source']} – Page {p['page']}", expanded=True):
             st.markdown(f"<div class='citation-box'>{p['text']}</div>", unsafe_allow_html=True)
 
-# ==========================================================
-# 2. Sales Chat & Prompt Suggestions ABOVE INPUT
-# ==========================================================
+# 2. Prompt Suggestions – ABOVE CHAT
 with col_main:
-    st.markdown("### 💬 Sales Conversation")
-    for msg in st.session_state.chat:
-        if msg["role"]=="user":
-            st.markdown(f"<div class='user-box'>{msg['content']}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='ai-box'>{msg['content']}</div>", unsafe_allow_html=True)
-
-    # Prompt Suggestions above input
     st.markdown("### 💡 Prompt Suggestions")
     suggestions = [
         "Generate sales call flow for selected HCP persona",
@@ -162,34 +169,34 @@ with col_main:
             st.session_state.input_text = s
             st.session_state.metrics["prompts"] += 1
 
-    # Chat input form
+# 3. Sales Conversation + AI Response + TTS
+with col_main:
+    st.markdown("### 💬 Sales Conversation")
+    for msg in st.session_state.chat:
+        if msg["role"]=="user":
+            st.markdown(f"<div class='user-box'>{msg['content']}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='ai-box'>{msg['content']}</div>", unsafe_allow_html=True)
+
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("Type your question…", value=st.session_state.input_text)
+        user_input = st.text_input("Ask a medical question…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
         if submit and user_input:
-            # Load PDFs & RAG
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.metrics.pairwise import cosine_similarity
+            # Load guidelines and retrieve
             pages = []
-            path = brand["references_path"]
-            if os.path.exists(path):
-                for file in os.listdir(path):
-                    if file.lower().endswith(".pdf"):
-                        reader = PdfReader(os.path.join(path, file))
+            if os.path.exists(brand["references_path"]):
+                for f in os.listdir(brand["references_path"]):
+                    if f.lower().endswith(".pdf"):
+                        reader = PdfReader(os.path.join(brand["references_path"], f))
                         for i, page in enumerate(reader.pages):
                             text = page.extract_text()
-                            if text:
-                                pages.append({"source": file,"page": i+1,"text": text})
-            corpus = [p["text"] for p in pages]
-            tfidf = TfidfVectorizer(stop_words="english").fit_transform(corpus + [user_input])
-            scores = cosine_similarity(tfidf[-1], tfidf[:-1]).flatten()
-            top_idx = scores.argsort()[-3:][::-1]
-            retrieved = [pages[i] for i in top_idx]
-            st.session_state.citations = retrieved
+                            if text: pages.append({"source":f,"page":i+1,"text":text})
+            st.session_state.citations = pages[:3]
             st.session_state.chat.append({"role":"user","content":user_input})
             st.session_state.metrics["prompts"] += 1
 
-            citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved)
+            # Build AI prompt
+            citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in pages[:3])
             prompt = f"""
 STRICT COMPLIANCE RULES:
 - Use ONLY approved guideline content
@@ -214,6 +221,7 @@ Tone: {tone}
 
 Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
 """
+            # AI response
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
@@ -231,9 +239,7 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
             tts.write_to_fp(audio_bytes)
             st.audio(audio_bytes.getvalue(), format="audio/mp3")
 
-# ==========================================================
-# 3. Feedback as Faces
-# ==========================================================
+# 4. Feedback using faces
 with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
