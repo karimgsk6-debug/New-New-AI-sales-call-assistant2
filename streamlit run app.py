@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – CENTERED TITLE + WHITE RESPONSE BUBBLE
+# AI SALES CALL ASSISTANT – PROMPT ABOVE CHAT + FACES FEEDBACK + FIXED HEADER
 # ==========================================================
 import streamlit as st
 import os, io
@@ -9,7 +9,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from gtts import gTTS
 import pandas as pd
-import altair as alt
 
 # ==========================================================
 # PAGE CONFIG
@@ -22,9 +21,8 @@ st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_
 client = Groq(api_key=os.getenv("GROQ_API_KEY","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"))
 
 # ==========================================================
-# VISUAL ASSETS
+# BACKGROUND & CSS
 # ==========================================================
-AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
 
 def set_background(image_path):
@@ -42,21 +40,17 @@ def set_background(image_path):
         """, unsafe_allow_html=True)
 set_background(BACKGROUND_PATH)
 
-# ==========================================================
-# CSS
-# ==========================================================
 st.markdown("""
 <style>
-h1.title-center {text-align:center; margin-top:20px; margin-bottom:20px;}
+/* Title fixed top 20% */
+h1.title-center {text-align:center; margin-top:20px; margin-bottom:20px; position: sticky; top:0; background: rgba(255,255,255,0.8); z-index: 1000; padding:10px;}
 .user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
 .ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space: pre-wrap;}
 .citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px; white-space: pre-wrap;}
 .avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,0,0,0.2); margin-bottom:8px;}
-.section-title {color:#0a3; font-weight:700; font-size:20px;}
-.disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
-.prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin-bottom:8px; cursor:pointer;}
+.prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin:4px 0; cursor:pointer; display:inline-block;}
 .feedback-container {display:flex; gap:10px; margin-top:8px;}
-.call-flow-step {background:#f8f8f8; padding:12px; border-radius:12px; margin-bottom:6px;}
+.feedback-btn {font-size:28px; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -104,64 +98,6 @@ st.session_state.setdefault("input_text", "")
 st.session_state.setdefault("metrics", {"prompts":0,"responses":0})
 
 # ==========================================================
-# DASHBOARD PAGE
-# ==========================================================
-pages = ["Chat Assistant", "Utilization Dashboard"]
-page = st.sidebar.radio("Navigate", pages)
-
-if page=="Utilization Dashboard":
-    st.markdown("## 📊 Utilization Dashboard")
-    st.metric("Total prompts asked", st.session_state.metrics["prompts"])
-    st.metric("Total AI responses generated", st.session_state.metrics["responses"])
-    st.metric("Likes", st.session_state.feedback["like"])
-    st.metric("Dislikes", st.session_state.feedback["dislike"])
-    st.metric("Need More", st.session_state.feedback["need_more"])
-
-    # ================= Charts =================
-    df = pd.DataFrame([st.session_state.metrics])
-    df = df.rename(columns={"like":"Likes","dislike":"Dislikes","need_more":"NeedMore",
-                            "prompts":"Prompts","responses":"Responses"})
-    st.line_chart(df)
-    st.stop()
-
-# ==========================================================
-# LOAD GUIDELINES
-# ==========================================================
-@st.cache_data
-def load_guidelines(path):
-    pages = []
-    if os.path.exists(path):
-        for file in os.listdir(path):
-            if file.lower().endswith(".pdf"):
-                reader = PdfReader(os.path.join(path, file))
-                for i, page in enumerate(reader.pages):
-                    text = page.extract_text()
-                    if text:
-                        pages.append({"source": file,"page": i+1,"text": text})
-    return pages
-
-# ==========================================================
-# RAG RETRIEVAL
-# ==========================================================
-def retrieve_pages(question, pages, top_k=3):
-    corpus = [p["text"] for p in pages]
-    tfidf = TfidfVectorizer(stop_words="english").fit_transform(corpus + [question])
-    scores = cosine_similarity(tfidf[-1], tfidf[:-1]).flatten()
-    top_idx = scores.argsort()[-top_k:][::-1]
-    return [pages[i] for i in top_idx]
-
-# ==========================================================
-# OFF-LABEL DETECTION
-# ==========================================================
-def detect_off_label(answer, refs):
-    combined = " ".join(p["text"].lower() for p in refs)
-    risky_terms = ["children","pediatric","pregnant","off-label","unapproved"]
-    for t in risky_terms:
-        if t in answer.lower() and t not in combined:
-            return True
-    return False
-
-# ==========================================================
 # SIDEBAR CONFIG
 # ==========================================================
 st.sidebar.header("🎯 Call Configuration")
@@ -202,35 +138,53 @@ with col_main:
         with st.expander(f"📖 {p['source']} – Page {p['page']}", expanded=True):
             st.markdown(f"<div class='citation-box'>{p['text']}</div>", unsafe_allow_html=True)
 
-# 2. Prompt Suggestions
-with col_main:
-    with st.expander("💡 Prompt Suggestions", expanded=False):
-        suggestions = [
-            "Generate sales call flow for selected HCP persona",
-            "Summarize guideline snippet for HCP",
-            "Provide objection handling strategies",
-            "Explain safety considerations"
-        ]
-        for s in suggestions:
-            if st.button(s, key=f"prompt_{s}"):
-                st.session_state.input_text = s
-                st.session_state.metrics["prompts"] += 1
-
-# 3. Sales Conversation + AI Response + TTS
+# ==========================================================
+# 2. Sales Chat & Prompt Suggestions ABOVE INPUT
+# ==========================================================
 with col_main:
     st.markdown("### 💬 Sales Conversation")
     for msg in st.session_state.chat:
         if msg["role"]=="user":
             st.markdown(f"<div class='user-box'>{msg['content']}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ai-box'>{msg['content']}</div>", unsafe_allow_html=True)
 
+    # Prompt Suggestions above input
+    st.markdown("### 💡 Prompt Suggestions")
+    suggestions = [
+        "Generate sales call flow for selected HCP persona",
+        "Summarize guideline snippet for HCP",
+        "Provide objection handling strategies",
+        "Explain safety considerations"
+    ]
+    for s in suggestions:
+        if st.button(s, key=f"prompt_{s}"):
+            st.session_state.input_text = s
+            st.session_state.metrics["prompts"] += 1
+
+    # Chat input form
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("Ask a medical question or generate a sales call flow…", value=st.session_state.input_text)
+        user_input = st.text_input("Type your question…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
         if submit and user_input:
-            pages = load_guidelines(brand["references_path"])
-            retrieved = retrieve_pages(user_input, pages)
+            # Load PDFs & RAG
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            pages = []
+            path = brand["references_path"]
+            if os.path.exists(path):
+                for file in os.listdir(path):
+                    if file.lower().endswith(".pdf"):
+                        reader = PdfReader(os.path.join(path, file))
+                        for i, page in enumerate(reader.pages):
+                            text = page.extract_text()
+                            if text:
+                                pages.append({"source": file,"page": i+1,"text": text})
+            corpus = [p["text"] for p in pages]
+            tfidf = TfidfVectorizer(stop_words="english").fit_transform(corpus + [user_input])
+            scores = cosine_similarity(tfidf[-1], tfidf[:-1]).flatten()
+            top_idx = scores.argsort()[-3:][::-1]
+            retrieved = [pages[i] for i in top_idx]
             st.session_state.citations = retrieved
             st.session_state.chat.append({"role":"user","content":user_input})
             st.session_state.metrics["prompts"] += 1
@@ -266,31 +220,26 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
                           {"role":"user","content":prompt}],
                 temperature=0.2
             )
-
             answer = response.choices[0].message.content
-            if detect_off_label(answer, retrieved):
-                answer = "⚠️ **Compliance Alert** – Outside approved indications."
-
             st.session_state.chat.append({"role":"ai","content":answer})
             st.session_state.metrics["responses"] += 1
             st.session_state.input_text = ""
 
-            # ================= TTS =================
+            # TTS
             tts = gTTS(text=answer, lang='en')
             audio_bytes = io.BytesIO()
             tts.write_to_fp(audio_bytes)
             st.audio(audio_bytes.getvalue(), format="audio/mp3")
 
-# 4. Feedback Cycle
+# ==========================================================
+# 3. Feedback as Faces
+# ==========================================================
 with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
-    if col1.button("👍 Like"):
-        st.session_state.feedback["like"] += 1
-    if col2.button("👎 Dislike"):
-        st.session_state.feedback["dislike"] += 1
-    if col3.button("⏳ Need More"):
-        st.session_state.feedback["need_more"] += 1
+    if col1.button("😀"): st.session_state.feedback["like"] += 1
+    if col2.button("😞"): st.session_state.feedback["dislike"] += 1
+    if col3.button("🤔"): st.session_state.feedback["need_more"] += 1
 
 # ==========================================================
 # DISCLAIMER
