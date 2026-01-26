@@ -23,7 +23,6 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY","gsk_rsoppklsXlzgSHCXIW8kWGdyb3FY
 # VISUAL ASSETS
 # ==========================================================
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
-
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
 
 def image_to_base64(path):
@@ -32,8 +31,6 @@ def image_to_base64(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-GSK_LOGO = image_to_base64(GSK_LOGO_PATH)
-AURA_LOGO = image_to_base64(AURA_LOGO_PATH)
 
 # ==========================================================
 # BACKGROUND
