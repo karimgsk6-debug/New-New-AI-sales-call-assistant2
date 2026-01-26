@@ -3,6 +3,7 @@ from datetime import datetime
 from groq import Groq
 import os
 from PyPDF2 import PdfReader
+import re
 
 # =========================
 # OPTIONAL WORD DOWNLOAD
@@ -56,23 +57,48 @@ brand_data = {
 }
 
 # =========================
-# LOAD PDF GUIDELINES (RAG)
+# LOAD GUIDELINES WITH PAGE CITATION
 # =========================
-def load_brand_guidelines_text(path, max_chars=4000):
-    text = ""
+def load_guidelines_with_pages(path, max_chars=5000):
+    pages = []
     if not os.path.exists(path):
-        return "No guideline text available."
+        return ""
 
     for file in os.listdir(path):
         if file.lower().endswith(".pdf"):
-            try:
-                reader = PdfReader(os.path.join(path, file))
-                for page in reader.pages:
-                    text += page.extract_text() or ""
-            except:
-                pass
+            reader = PdfReader(os.path.join(path, file))
+            for i, page in enumerate(reader.pages):
+                text = page.extract_text()
+                if text:
+                    pages.append(f"[Guideline Page {i+1}]\n{text}")
 
-    return text[:max_chars] if text else "No guideline text available."
+    combined = "\n\n".join(pages)
+    return combined[:max_chars]
+
+# =========================
+# OFF-LABEL DETECTION
+# =========================
+def detect_off_label(ai_text, guideline_text):
+    risky_phrases = [
+        "any patient",
+        "all patients",
+        "including children",
+        "off-label",
+        "unapproved",
+        "broader population",
+        "outside indication"
+    ]
+
+    for phrase in risky_phrases:
+        if phrase.lower() in ai_text.lower():
+            return True
+
+    # crude population extension check
+    populations = re.findall(r"(children|pregnant|immunocompromised|pediatric)", ai_text.lower())
+    if populations and not any(p in guideline_text.lower() for p in populations):
+        return True
+
+    return False
 
 # =========================
 # SESSION STATE
@@ -84,7 +110,6 @@ if "chat_history" not in st.session_state:
 # HEADER
 # =========================
 st.title("🧠 AI Sales Call Assistant")
-
 language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
 
 # =========================
@@ -118,20 +143,18 @@ if st.button("🗑️ Clear Chat"):
 # CHAT DISPLAY
 # =========================
 for msg in st.session_state.chat_history:
-    if msg["role"] == "user":
-        st.markdown(f"**🧑 You:** {msg['content']}")
-    else:
-        st.markdown(f"**🤖 AI:** {msg['content']}")
+    role_icon = "🧑" if msg["role"] == "user" else "🤖"
+    st.markdown(f"**{role_icon}:** {msg['content']}")
 
 # =========================
-# CHAT INPUT
+# INPUT
 # =========================
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Type your message...")
     submitted = st.form_submit_button("Send")
 
 # =========================
-# AI LOGIC (WITH RAG)
+# AI + RAG + GUARDRAILS
 # =========================
 if submitted and user_input.strip():
 
@@ -141,18 +164,18 @@ if submitted and user_input.strip():
         "time":datetime.now().strftime("%H:%M")
     })
 
-    guideline_text = load_brand_guidelines_text(brand_cfg["references_path"])
+    guideline_text = load_guidelines_with_pages(brand_cfg["references_path"])
     flow_str = " → ".join(brand_cfg["call_flow"])
 
     prompt = f"""
-Language: {language}
+STRICT COMPLIANCE RULES:
+- Use ONLY approved indications from guideline text
+- Cite page numbers for every clinical or indication statement
+- NEVER generalize populations
+- NEVER use placeholders
+- If indication is unclear, say so explicitly
 
-CRITICAL COMPLIANCE RULES:
-- Use ONLY the approved indications provided below
-- NEVER use placeholders such as [specific patient population]
-- Do NOT speculate or generalize beyond the indication text
-
-APPROVED PRODUCT INDICATIONS (SOURCE: GUIDELINES):
+GUIDELINES (WITH PAGE NUMBERS):
 {guideline_text}
 
 USER REQUEST:
@@ -166,11 +189,10 @@ Specialty: {specialty}
 Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 
-SALES CALL FLOW:
+CALL FLOW:
 {flow_str}
 
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
-Ensure medically accurate, indication-aligned messaging.
+Use APACT framework.
 Tone: {response_tone}
 Length: {response_length}
 """
@@ -178,13 +200,24 @@ Length: {response_length}
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role":"system","content":f"You are a compliant pharmaceutical sales AI responding in {language}."},
+            {"role":"system","content":"You are a compliant pharmaceutical sales AI."},
             {"role":"user","content":prompt}
         ],
-        temperature=0.4
+        temperature=0.3
     )
 
     ai_output = response.choices[0].message.content
+
+    # =========================
+    # OFF-LABEL VALIDATION
+    # =========================
+    if detect_off_label(ai_output, guideline_text):
+        ai_output = (
+            "⚠️ **Compliance Notice:**\n\n"
+            "Your request may involve off-label or non-approved use. "
+            "This assistant can only discuss **approved indications explicitly stated in official guidelines**. "
+            "Please rephrase your request within the approved label."
+        )
 
     st.session_state.chat_history.append({
         "role":"ai",
@@ -195,20 +228,7 @@ Length: {response_length}
     st.rerun()
 
 # =========================
-# WORD DOWNLOAD
-# =========================
-if DOCX_AVAILABLE:
-    ai_msgs = [m["content"] for m in st.session_state.chat_history if m["role"] == "ai"]
-    if ai_msgs:
-        doc = Document()
-        doc.add_heading("AI Sales Call Output", 0)
-        doc.add_paragraph(ai_msgs[-1])
-        buffer = io_bytes()
-        doc.save(buffer)
-        st.download_button("📥 Download Word", buffer.getvalue(), file_name="AI_Sales_Call.docx")
-
-# =========================
-# DISCLAIMER BUBBLE (FIXED)
+# DISCLAIMER (FIXED)
 # =========================
 st.markdown("""
 <style>
@@ -227,13 +247,12 @@ st.markdown("""
 </style>
 
 <div class="disclaimer">
-⚠️ <b>Disclaimer:</b> This tool is for internal training and sales excellence support only. 
-Content is AI-generated, non-promotional, and must not replace approved medical, legal, or regulatory materials. 
-Always follow local compliance guidelines.
+⚠️ <b>Disclaimer:</b> Internal training use only. Non-promotional.
+AI-generated content does not replace approved medical, legal, or regulatory materials.
 </div>
 """, unsafe_allow_html=True)
 
 # =========================
-# BRAND LEAFLET
+# LEAFLET
 # =========================
 st.markdown(f"[📄 Brand Leaflet – {brand_cfg['display']}]({brand_cfg['leaflet']})")
