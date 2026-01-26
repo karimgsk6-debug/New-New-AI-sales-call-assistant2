@@ -1,9 +1,8 @@
 import streamlit as st
-from PIL import Image
-import requests
-from io import BytesIO
-from datetime import datetime
 from groq import Groq
+from datetime import datetime
+import os
+from io import BytesIO
 
 # =========================
 # OPTIONAL WORD DOWNLOAD
@@ -14,6 +13,15 @@ try:
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
+
+# =========================
+# OPTIONAL PDF READING (RAG)
+# =========================
+try:
+    import PyPDF2
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
 
 # =========================
 # GROQ CLIENT
@@ -33,8 +41,7 @@ brand_data = {
         "references_path":".devcontainer/references/shingrix/",
         "sales_path":".devcontainer/SalesModule/shingrix/",
         "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"],
-        "leaflet":"https://example.com/shingrix-leaflet",
-        "image":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png"
+        "leaflet":"https://example.com/shingrix-leaflet"
     },
     "jemperli": {
         "display":"Jemperli",
@@ -45,8 +52,7 @@ brand_data = {
         "references_path":".devcontainer/references/jemperli/",
         "sales_path":".devcontainer/SalesModule/jemperli/",
         "call_flow":["COCO","Anchor","Engage","Close"],
-        "leaflet":"https://example.com/jemperli-leaflet",
-        "image":"https://via.placeholder.com/300x150.png?text=Jemperli"
+        "leaflet":"https://example.com/jemperli-leaflet"
     },
     "trelegy": {
         "display":"Trelegy",
@@ -57,10 +63,30 @@ brand_data = {
         "references_path":".devcontainer/references/trelegy/",
         "sales_path":".devcontainer/SalesModule/trelegy/",
         "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
-        "leaflet":"https://example.com/trelegy-leaflet",
-        "image":"https://www.example.com/trelegy.png"
+        "leaflet":"https://example.com/trelegy-leaflet"
     }
 }
+
+# =========================
+# RAG: LOAD PDF GUIDELINES
+# =========================
+def load_guidelines_text(folder_path):
+    if not PDF_AVAILABLE or not os.path.exists(folder_path):
+        return "No approved guidelines available."
+
+    text_chunks = []
+    for file in os.listdir(folder_path):
+        if file.lower().endswith(".pdf"):
+            try:
+                with open(os.path.join(folder_path, file), "rb") as f:
+                    reader = PyPDF2.PdfReader(f)
+                    for page in reader.pages:
+                        text_chunks.append(page.extract_text())
+            except Exception:
+                continue
+
+    joined_text = "\n".join(text_chunks)
+    return joined_text[:6000]  # token-safe truncation
 
 # =========================
 # SESSION STATE
@@ -69,17 +95,14 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # =========================
-# LANGUAGE
-# =========================
-language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
-
-# =========================
-# HEADER
+# UI HEADER
 # =========================
 st.title("🧠 AI Sales Call Assistant")
 
+language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
+
 # =========================
-# SIDEBAR – BRAND DRIVEN
+# SIDEBAR (BRAND-DRIVEN)
 # =========================
 st.sidebar.header("Filters & Options")
 
@@ -95,7 +118,6 @@ segment = st.sidebar.selectbox("Segment", brand_cfg["segments"])
 persona = st.sidebar.selectbox("Persona", brand_cfg["personas"])
 barrier = st.sidebar.multiselect("Doctor Barriers", brand_cfg["barriers"])
 specialty = st.sidebar.selectbox("Specialty", brand_cfg["specialties"])
-
 objective = st.sidebar.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
 response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
 response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
@@ -111,10 +133,8 @@ if st.button("🗑️ Clear Chat"):
 # =========================
 def display_chat():
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            st.markdown(f"**🧑 You:** {msg['content']}")
-        else:
-            st.markdown(f"**🤖 AI:** {msg['content']}")
+        role = "🧑 You" if msg["role"] == "user" else "🤖 AI"
+        st.markdown(f"**{role}:** {msg['content']}")
 
 display_chat()
 
@@ -126,21 +146,24 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 # =========================
-# AI LOGIC
+# AI GENERATION
 # =========================
 if submitted and user_input.strip():
 
     st.session_state.chat_history.append({
-        "role":"user",
-        "content":user_input,
-        "time":datetime.now().strftime("%H:%M")
+        "role": "user",
+        "content": user_input,
+        "time": datetime.now().strftime("%H:%M")
     })
 
+    approved_guidelines = load_guidelines_text(brand_cfg["references_path"])
     flow_str = " → ".join(brand_cfg["call_flow"])
 
     prompt = f"""
 Language: {language}
-User Request: {user_input}
+
+User Request:
+{user_input}
 
 Brand: {brand_cfg['display']}
 Segment: {segment}
@@ -149,11 +172,19 @@ Specialty: {specialty}
 Doctor Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
 
+Approved Product Indications & Guidelines (STRICT SOURCE OF TRUTH):
+{approved_guidelines}
+
 Sales Call Flow:
 {flow_str}
 
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
-Provide compliant, practical sales guidance.
+RULES:
+- Use ONLY the approved indications above
+- DO NOT say vague terms like "specific patient population"
+- Mention exact eligible patient profiles when relevant
+- Do NOT create off-label claims
+- Use APACT objection handling
+
 Tone: {response_tone}
 Length: {response_length}
 """
@@ -161,18 +192,18 @@ Length: {response_length}
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role":"system","content":f"You are a pharmaceutical sales excellence AI responding in {language}."},
-            {"role":"user","content":prompt}
+            {"role": "system", "content": "You are a compliant pharmaceutical sales excellence assistant."},
+            {"role": "user", "content": prompt}
         ],
-        temperature=0.7
+        temperature=0.5
     )
 
     ai_output = response.choices[0].message.content
 
     st.session_state.chat_history.append({
-        "role":"ai",
-        "content":ai_output,
-        "time":datetime.now().strftime("%H:%M")
+        "role": "ai",
+        "content": ai_output,
+        "time": datetime.now().strftime("%H:%M")
     })
 
     display_chat()
@@ -191,14 +222,17 @@ if DOCX_AVAILABLE:
         st.download_button("📥 Download Word", buffer.getvalue(), file_name="AI_Sales_Call.docx")
 
 # =========================
+# FIXED DISCLAIMER
+# =========================
+st.markdown("---")
+st.caption(
+    "⚠️ **Disclaimer:** This tool is for internal training and educational purposes only. "
+    "Content is generated based on approved guidelines provided and does not replace "
+    "local prescribing information, SmPC, or medical judgment. Always refer to the latest "
+    "approved product information and local regulations."
+)
+
+# =========================
 # BRAND LEAFLET
 # =========================
 st.markdown(f"[📄 Brand Leaflet – {brand_cfg['display']}]({brand_cfg['leaflet']})")
-# -------------------------
-# Footer disclaimer
-# -------------------------
-st.markdown("""
-<div class="fixed-disclaimer">
-💡 This tool is for internal sales support purposes only. All medical info should be verified from official sources. 
-</div>
-""",unsafe_allow_html=True)
