@@ -32,7 +32,7 @@ AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 # ==========================================================
-# BACKGROUND
+# LIGHT BACKGROUND
 # ==========================================================
 def set_background(image_path):
     if os.path.exists(image_path):
@@ -43,7 +43,7 @@ def set_background(image_path):
             <style>
             [data-testid="stAppViewContainer"] {{
                 background:
-                    linear-gradient(rgba(5,10,20,0.92), rgba(5,10,20,0.92)),
+                    linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
                     url("data:image/png;base64,{encoded}");
                 background-size: cover;
             }}
@@ -60,20 +60,21 @@ set_background(BACKGROUND_PATH)
 st.markdown("""
 <style>
 .ai-box {background:rgba(0,255,255,0.06); padding:16px; border-radius:16px; border:1px solid rgba(0,255,255,0.2)}
-.user-box {background:rgba(255,255,255,0.08); padding:12px; border-radius:12px}
-.avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,255,255,0.9)}
-.section-title {color:#7ff; font-weight:700; font-size:20px}
+.user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
+.avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,255,255,0.9); margin-bottom:8px;}
+.section-title {color:#0a3; font-weight:700; font-size:20px;}
 .disclaimer {
     position: fixed;
     bottom: 0;
     width: 100%;
-    background: rgba(10,10,10,0.95);
-    color:#bbb;
+    background: rgba(245,245,245,0.95);
+    color:#555;
     font-size:12px;
     padding:8px;
-    border-top:1px solid #333;
+    border-top:1px solid #ccc;
     z-index:100;
 }
+.citation-link {cursor:pointer; color:#0073e6; text-decoration:underline;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,77 +85,29 @@ brand_data = {
     "shingrix": {
         "display": "Shingrix",
         "segments": ["R – Reach", "A – Acquisition", "C – Conversion", "E – Engagement"],
-        "personas": [
-            "Uncommitted Vaccinator",
-            "Reluctant Efficiency",
-            "Patient Influenced",
-            "Committed Vaccinator"
-        ],
-        "barriers": [
-            "HZ perceived as low risk",
-            "Time constraints",
-            "Cost concerns",
-            "Doubts on vaccine necessity"
-        ],
-        "specialties": ["GP", "Dermatologist", "Geriatrician"],
+        "personas": ["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
+        "barriers": ["HZ perceived as low risk","Time constraints","Cost concerns","Doubts on vaccine necessity"],
+        "specialties": ["GP","Dermatologist","Geriatrician"],
         "references_path": ".devcontainer/references/shingrix/",
-        "call_flow": [
-            "Prepare",
-            "Engage",
-            "Create Opportunity",
-            "Influence",
-            "Impact GSO",
-            "Post-Call Review"
-        ]
+        "call_flow": ["Prepare","Engage","Create Opportunity","Influence","Impact GSO","Post-Call Review"]
     },
     "jemperli": {
         "display": "Jemperli",
-        "segments": ["Targeting", "Initiation", "Optimization", "Advocacy"],
-        "personas": [
-            "Data-Driven Oncologist",
-            "Skeptical Prescriber",
-            "Innovator",
-            "Late Adopter"
-        ],
-        "barriers": [
-            "Eligibility uncertainty",
-            "Safety concerns",
-            "Limited experience with IO",
-            "Access / reimbursement"
-        ],
-        "specialties": ["Oncologist", "Medical Oncologist"],
+        "segments": ["Targeting","Initiation","Optimization","Advocacy"],
+        "personas": ["Data-Driven Oncologist","Skeptical Prescriber","Innovator","Late Adopter"],
+        "barriers": ["Eligibility uncertainty","Safety concerns","Limited experience with IO","Access / reimbursement"],
+        "specialties": ["Oncologist","Medical Oncologist"],
         "references_path": ".devcontainer/references/jemperli/",
-        "call_flow": [
-            "COCO Framework",
-            "Scientific Anchor",
-            "Eligibility Confirmation",
-            "Clinical Confidence",
-            "Access Alignment"
-        ]
+        "call_flow": ["COCO Framework","Scientific Anchor","Eligibility Confirmation","Clinical Confidence","Access Alignment"]
     },
     "trelegy": {
         "display": "Trelegy",
-        "segments": ["Awareness", "Diagnosis", "Adoption", "Adherence"],
-        "personas": [
-            "Primary Care COPD Prescriber",
-            "Pulmonologist",
-            "Respiratory Nurse Specialist"
-        ],
-        "barriers": [
-            "Formulary restrictions",
-            "Inhaler technique concerns",
-            "ICS safety perception",
-            "Cost & access"
-        ],
-        "specialties": ["GP", "Pulmonologist", "Respiratory Specialist"],
+        "segments": ["Awareness","Diagnosis","Adoption","Adherence"],
+        "personas": ["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse Specialist"],
+        "barriers": ["Formulary restrictions","Inhaler technique concerns","ICS safety perception","Cost & access"],
+        "specialties": ["GP","Pulmonologist","Respiratory Specialist"],
         "references_path": ".devcontainer/references/trelegy/",
-        "call_flow": [
-            "Prepare",
-            "Engage",
-            "Demonstrate Value",
-            "Address Access",
-            "Close & Commit"
-        ]
+        "call_flow": ["Prepare","Engage","Demonstrate Value","Address Access","Close & Commit"]
     }
 }
 
@@ -163,9 +116,10 @@ brand_data = {
 # ==========================================================
 st.session_state.setdefault("chat", [])
 st.session_state.setdefault("citations", [])
+st.session_state.setdefault("selected_citation", None)
 
 # ==========================================================
-# SIDEBAR – CONFIGURATION
+# SIDEBAR CONFIGURATION
 # ==========================================================
 st.sidebar.header("🎯 Call Configuration")
 
@@ -180,8 +134,21 @@ segment = st.sidebar.selectbox("Segment", brand["segments"])
 persona = st.sidebar.selectbox("Persona", brand["personas"])
 specialty = st.sidebar.selectbox("Specialty", brand["specialties"])
 barriers = st.sidebar.multiselect("HCP Barriers", brand["barriers"])
-objective = st.sidebar.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
-tone = st.sidebar.selectbox("Tone", ["Executive", "Scientific", "Friendly"])
+objective = st.sidebar.selectbox("Objective", ["Awareness","Adoption","Retention"])
+tone = st.sidebar.selectbox("Tone", ["Executive","Scientific","Friendly"])
+
+# ------------------ Sales Module Flow (collapsible) ------------------
+with st.sidebar.expander("📊 Sales Module Flow", expanded=True):
+    for step in brand["call_flow"]:
+        st.markdown(f"- **{step}**")
+
+# ------------------ Medical References (collapsible, clickable) ------------------
+with st.sidebar.expander("📚 Medical References", expanded=True):
+    st.caption("Click page to view snippet")
+    if st.session_state.citations:
+        for i, p in enumerate(st.session_state.citations):
+            if st.button(f"{p['source']} – Page {p['page']}", key=f"cit_{i}"):
+                st.session_state.selected_citation = p
 
 # ==========================================================
 # LOAD GUIDELINES
@@ -189,17 +156,14 @@ tone = st.sidebar.selectbox("Tone", ["Executive", "Scientific", "Friendly"])
 @st.cache_data(show_spinner=False)
 def load_guidelines(path):
     pages = []
-    for file in os.listdir(path):
-        if file.lower().endswith(".pdf"):
-            reader = PdfReader(os.path.join(path, file))
-            for i, page in enumerate(reader.pages):
-                text = page.extract_text()
-                if text:
-                    pages.append({
-                        "source": file,
-                        "page": i + 1,
-                        "text": text
-                    })
+    if os.path.exists(path):
+        for file in os.listdir(path):
+            if file.lower().endswith(".pdf"):
+                reader = PdfReader(os.path.join(path, file))
+                for i, page in enumerate(reader.pages):
+                    text = page.extract_text()
+                    if text:
+                        pages.append({"source": file,"page": i+1,"text": text})
     return pages
 
 # ==========================================================
@@ -217,65 +181,54 @@ def retrieve_pages(question, pages, top_k=3):
 # ==========================================================
 def detect_off_label(answer, refs):
     combined = " ".join(p["text"].lower() for p in refs)
-    risky_terms = ["children", "pediatric", "pregnant", "off-label", "unapproved"]
+    risky_terms = ["children","pediatric","pregnant","off-label","unapproved"]
     for t in risky_terms:
         if t in answer.lower() and t not in combined:
             return True
     return False
 
 # ==========================================================
-# MAIN UI
+# MAIN PAGE – CHAT
 # ==========================================================
 st.title("🧠 AI Sales Call Assistant")
 
 col1, col2 = st.columns([3,2])
 
-# ------------------ CHAT ------------------
+# ------------------ Chat Column ------------------
 with col1:
     st.markdown("### 💬 Sales Conversation")
-
     for msg in st.session_state.chat:
-        if msg["role"] == "user":
+        if msg["role"]=="user":
             st.markdown(f"<div class='user-box'>{msg['content']}</div>", unsafe_allow_html=True)
         else:
             st.markdown(
-                f"""
-                <div class='ai-box'>
-                    <img src="{AI_AVATAR}" class="avatar"><br><br>
-                    {msg['content']}
-                </div>
-                """,
+                f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>",
                 unsafe_allow_html=True
             )
 
-    with st.form("chat_form"):
+    with st.form("chat_form", clear_on_submit=True):
         question = st.text_input("Ask a medical question or generate a sales call flow…")
         submit = st.form_submit_button("Generate")
 
-# ------------------ MODULES ------------------
+# ------------------ Citation Viewer ------------------
 with col2:
-    st.markdown("### 📊 Sales Module Flow")
-    for step in brand["call_flow"]:
-        st.markdown(f"- **{step}**")
-
-    st.markdown("---")
-    st.markdown("### 📚 Medical References")
-    st.caption("Auto-retrieved guideline pages only")
+    st.markdown("### 📖 Selected Guideline Snippet")
+    if st.session_state.selected_citation:
+        p = st.session_state.selected_citation
+        st.markdown(f"**{p['source']} – Page {p['page']}**")
+        st.markdown(p['text'])
 
 # ==========================================================
 # AI PIPELINE
 # ==========================================================
 if submit and question:
     st.session_state.chat.append({"role": "user", "content": question})
-
     pages = load_guidelines(brand["references_path"])
     retrieved = retrieve_pages(question, pages)
-
     st.session_state.citations = retrieved
 
     citations_text = "\n".join(
-        f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}"
-        for p in retrieved
+        f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved
     )
 
     prompt = f"""
@@ -311,7 +264,6 @@ Tone: {tone}
     )
 
     answer = response.choices[0].message.content
-
     if detect_off_label(answer, retrieved):
         answer = (
             "⚠️ **Compliance Alert**\n\n"
@@ -321,16 +273,6 @@ Tone: {tone}
 
     st.session_state.chat.append({"role": "ai", "content": answer})
     st.rerun()
-
-# ==========================================================
-# CITATION VIEWER
-# ==========================================================
-if st.session_state.citations:
-    with st.expander("📖 View cited guideline snippets"):
-        for p in st.session_state.citations:
-            st.markdown(
-                f"**{p['source']} – Page {p['page']}**\n\n{p['text'][:1500]}..."
-            )
 
 # ==========================================================
 # FIXED DISCLAIMER
