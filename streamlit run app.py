@@ -15,7 +15,7 @@ except ImportError:
     st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
 # --- Initialize Groq client ---
-client = Groq(api_key="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")  # Add your Groq API key here
+client = Groq(api_key="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")  # Add your Groq API key here
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
