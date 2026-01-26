@@ -25,7 +25,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY","gsk_rsoppklsXlzgSHCXIW8kWGdyb3FY
 # VISUAL ASSETS
 # ==========================================================
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
-BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
+BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
 
 def set_background(image_path):
     if os.path.exists(image_path):
