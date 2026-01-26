@@ -23,7 +23,7 @@ AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-
 GSK_LOGO_PATH = ".devcontainer/Visuals/GSK-logo.png"
 AURA_LOGO_PATH = ".devcontainer/Visuals/AURA.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
-LOGO_SIZE = 40  # adjustable
+LOGO_SIZE = 80  # adjustable
 
 def image_to_base64(path):
     if os.path.exists(path):
