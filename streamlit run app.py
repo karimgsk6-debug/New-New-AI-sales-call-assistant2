@@ -1,199 +1,206 @@
 import streamlit as st
 from PIL import Image
 import requests
-from io import BytesIO, BytesIO as io_bytes
-import groq
-from groq import Groq
+from io import BytesIO
 from datetime import datetime
+from groq import Groq
 
-# --- Optional dependency for Word download ---
+# =========================
+# OPTIONAL WORD DOWNLOAD
+# =========================
 try:
     from docx import Document
+    from io import BytesIO as io_bytes
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
-    st.warning("⚠️ python-docx not installed. Word download unavailable.")
 
-# --- Initialize Groq client ---
-client = Groq(api_key="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")  # Add your Groq API key here
+# =========================
+# GROQ CLIENT
+# =========================
+client = Groq(api_key="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")
 
-# --- Session state ---
+# =========================
+# BRAND MASTER DATA
+# =========================
+brand_data = {
+    "shingrix": {
+        "display":"Shingrix",
+        "segments":["R – Reach","A – Acquisition","C – Conversion","E – Engagement"],
+        "personas":["Uncommitted Vaccinator","Reluctant Efficiency","Patient Influenced","Committed Vaccinator"],
+        "barriers":["HCP does not consider HZ a risk","No time for discussion","Cost concerns","Not convinced of efficacy"],
+        "specialties":["GP","Dermatologist","Geriatrician"],
+        "references_path":".devcontainer/references/shingrix/",
+        "sales_path":".devcontainer/SalesModule/shingrix/",
+        "call_flow":["Prepare","Engage","Create Opportunities","Influence","Impact GSO","Post-call Analysis"],
+        "leaflet":"https://example.com/shingrix-leaflet",
+        "image":"https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png"
+    },
+    "jemperli": {
+        "display":"Jemperli",
+        "segments":["Target Identification","Trial Adoption","Routine Use","Advocacy"],
+        "personas":["Data-Driven Oncologist","Skeptical Specialist","Innovator Prescriber","Late Adopter"],
+        "barriers":["Unfamiliar with immunotherapy","Safety concerns","Limited eligibility","Access/reimbursement issues"],
+        "specialties":["Oncologist","Medical Oncologist"],
+        "references_path":".devcontainer/references/jemperli/",
+        "sales_path":".devcontainer/SalesModule/jemperli/",
+        "call_flow":["COCO","Anchor","Engage","Close"],
+        "leaflet":"https://example.com/jemperli-leaflet",
+        "image":"https://via.placeholder.com/300x150.png?text=Jemperli"
+    },
+    "trelegy": {
+        "display":"Trelegy",
+        "segments":["Awareness","Diagnosis","Adoption","Adherence"],
+        "personas":["Primary Care COPD Prescriber","Pulmonologist","Respiratory Nurse"],
+        "barriers":["Formulary access","Inhaler technique","Side effect concerns","Cost/coverage"],
+        "specialties":["GP","Pulmonologist","Respiratory Specialist"],
+        "references_path":".devcontainer/references/trelegy/",
+        "sales_path":".devcontainer/SalesModule/trelegy/",
+        "call_flow":["Prepare","Engage","Demonstrate","Address Access","Close"],
+        "leaflet":"https://example.com/trelegy-leaflet",
+        "image":"https://www.example.com/trelegy.png"
+    }
+}
+
+# =========================
+# SESSION STATE
+# =========================
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- Language ---
-language = st.radio("Select Language / اختر اللغة", options=["English", "العربية"])
+# =========================
+# LANGUAGE
+# =========================
+language = st.radio("Select Language / اختر اللغة", ["English", "العربية"])
 
-# --- GSK Logo ---
-logo_local_path = "images/gsk_logo.png"
-logo_fallback_url = "https://www.tungsten-network.com/wp-content/uploads/2020/05/GSK_Logo_Full_Colour_RGB.png"
-col1, col2 = st.columns([1,5])
-with col1:
-    try:
-        logo_img = Image.open(logo_local_path)
-        st.image(logo_img, width=120)
-    except:
-        st.image(logo_fallback_url, width=120)
-with col2:
-    st.title("🧠 AI Sales Call Assistant")
+# =========================
+# HEADER
+# =========================
+st.title("🧠 AI Sales Call Assistant")
 
-# --- Brand & product data ---
-gsk_brands = {
-    "Shingrix": "https://example.com/shingrix-leaflet",
-    "Trelegy": "https://example.com/trelegy-leaflet",
-    "Zejula": "https://example.com/zejula-leaflet",
-}
-gsk_brands_images = {
-    "Trelegy": "https://www.example.com/trelegy.png",
-    "Shingrix": "https://www.oma-apteekki.fi/WebRoot/NA/Shops/na/67D6/48DA/D0B0/D959/ECAF/0A3C/0E02/D573/3ad67c4e-e1fb-4476-a8a0-873423d8db42_3Dimage.png",
-    "Zejula": "https://cdn.salla.sa/QeZox/eyy7B0bg8D7a0Wwcov6UshWFc04R6H8qIgbfFq8u.png",
-}
-
-# --- Filters & options ---
-race_segments = [
-    "R – Reach: Did not start to prescribe yet and Don't believe that vaccination is his responsibility.",
-    "A – Acquisition: Prescribe to patient who initiate discussion about the vaccine but Convinced about Shingrix data.",
-    "C – Conversion: Proactively initiate discussion with specific patient profile but For other patient profiles he is not prescribing yet.",
-    "E – Engagement: Proactively prescribe to different patient profiles"
-]
-doctor_barriers = [
-    "HCP does not consider HZ as risk",
-    "No time to discuss preventive measures",
-    "Cost considerations",
-    "Not convinced HZ Vx effective",
-    "Accessibility issues"
-]
-objectives = ["Awareness", "Adoption", "Retention"]
-specialties = ["GP", "Cardiologist", "Dermatologist", "Endocrinologist", "Pulmonologist"]
-personas = [
-    "Uncommitted Vaccinator",
-    "Reluctant Efficiency",
-    "Patient Influenced",
-    "Committed Vaccinator"
-]
-gsk_approaches = [
-    "Use data-driven evidence",
-    "Focus on patient outcomes",
-    "Leverage storytelling techniques"
-]
-sales_call_flow = ["Prepare", "Engage", "Create Opportunities", "Influence", "Drive Impact", "Post Call Analysis"]
-
-# --- Sidebar filters ---
+# =========================
+# SIDEBAR – BRAND DRIVEN
+# =========================
 st.sidebar.header("Filters & Options")
-brand = st.sidebar.selectbox("Select Brand / اختر العلامة التجارية", options=list(gsk_brands.keys()))
-segment = st.sidebar.selectbox("Select RACE Segment / اختر شريحة RACE", race_segments)
-barrier = st.sidebar.multiselect("Select Doctor Barrier / اختر حاجز الطبيب", options=doctor_barriers, default=[])
-objective = st.sidebar.selectbox("Select Objective / اختر الهدف", options=objectives)
-specialty = st.sidebar.selectbox("Select Doctor Specialty / اختر تخصص الطبيب", options=specialties)
-persona = st.sidebar.selectbox("Select HCP Persona / اختر شخصية الطبيب", options=personas)
-response_length = st.sidebar.selectbox("Response Length / اختر طول الرد", ["Short", "Medium", "Long"])
-response_tone = st.sidebar.selectbox("Response Tone / اختر نبرة الرد", ["Formal", "Casual", "Friendly", "Persuasive"])
-interface_mode = st.sidebar.radio("Interface Mode / اختر واجهة", ["Chatbot", "Card Dashboard", "Flow Visualization"])
 
-# --- Display brand image safely ---
-image_path = gsk_brands_images.get(brand)
+brand_key = st.sidebar.selectbox(
+    "Select Brand",
+    options=list(brand_data.keys()),
+    format_func=lambda x: brand_data[x]["display"]
+)
+
+brand_cfg = brand_data[brand_key]
+
+segment = st.sidebar.selectbox("Segment", brand_cfg["segments"])
+persona = st.sidebar.selectbox("Persona", brand_cfg["personas"])
+barrier = st.sidebar.multiselect("Doctor Barriers", brand_cfg["barriers"])
+specialty = st.sidebar.selectbox("Specialty", brand_cfg["specialties"])
+
+objective = st.sidebar.selectbox("Objective", ["Awareness", "Adoption", "Retention"])
+response_length = st.sidebar.selectbox("Response Length", ["Short", "Medium", "Long"])
+response_tone = st.sidebar.selectbox("Response Tone", ["Formal", "Casual", "Friendly", "Persuasive"])
+
+# =========================
+# BRAND IMAGE
+# =========================
 try:
-    if image_path.startswith("http"):
-        response = requests.get(image_path)
-        img = Image.open(BytesIO(response.content))
-    else:
-        img = Image.open(image_path)
-    st.image(img, width=200)
+    img_response = requests.get(brand_cfg["image"])
+    img = Image.open(BytesIO(img_response.content))
+    st.image(img, width=220)
 except:
-    st.warning(f"⚠️ Could not load image for {brand}. Using placeholder.")
-    st.image("https://via.placeholder.com/200x100.png?text=No+Image", width=200)
+    st.image("https://via.placeholder.com/220x120.png?text=No+Image")
 
-# --- Clear chat ---
-if st.button("🗑️ Clear Chat / مسح المحادثة"):
+# =========================
+# CLEAR CHAT
+# =========================
+if st.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
 
-# --- Chat history display ---
-st.subheader("💬 Chatbot Interface")
-chat_placeholder = st.empty()
-
+# =========================
+# CHAT DISPLAY
+# =========================
 def display_chat():
-    chat_html = ""
     for msg in st.session_state.chat_history:
-        time = msg.get("time", "")
-        content = msg["content"].replace('\n', '<br>')
-
-        # Bold APACT steps
-        apact_steps = ["Acknowledge", "Probing", "Answer", "Confirm", "Transition"]
-        for step in apact_steps:
-            content = content.replace(step, f"<b>{step}</b><br>")
-
         if msg["role"] == "user":
-            chat_html += f"""
-            <div style='text-align:right; background:#dcf8c6; padding:10px; border-radius:15px 15px 0px 15px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
+            st.markdown(f"**🧑 You:** {msg['content']}")
         else:
-            chat_html += f"""
-            <div style='text-align:left; background:#f0f2f6; padding:10px; border-radius:15px 15px 15px 0px; margin:5px; display:inline-block; max-width:80%;'>
-                {content}<span style='font-size:10px; color:gray;'><br>{time}</span>
-            </div>
-            """
-    chat_placeholder.markdown(chat_html, unsafe_allow_html=True)
+            st.markdown(f"**🤖 AI:** {msg['content']}")
 
 display_chat()
 
-# --- Chat input using Streamlit form ---
+# =========================
+# CHAT INPUT
+# =========================
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Type your message...", key="user_input_box")
-    submitted = st.form_submit_button("➤")
+    user_input = st.text_input("Type your message...")
+    submitted = st.form_submit_button("Send")
 
+# =========================
+# AI LOGIC
+# =========================
 if submitted and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input, "time": datetime.now().strftime("%H:%M")})
-    
-    # --- Prepare AI prompt ---
-    approaches_str = "\n".join(gsk_approaches)
-    flow_str = " → ".join(sales_call_flow)
+
+    st.session_state.chat_history.append({
+        "role":"user",
+        "content":user_input,
+        "time":datetime.now().strftime("%H:%M")
+    })
+
+    flow_str = " → ".join(brand_cfg["call_flow"])
 
     prompt = f"""
 Language: {language}
-User input: {user_input}
-RACE Segment: {segment}
-Doctor Barrier: {', '.join(barrier) if barrier else 'None'}
+User Request: {user_input}
+
+Brand: {brand_cfg['display']}
+Segment: {segment}
+Persona: {persona}
+Specialty: {specialty}
+Doctor Barriers: {', '.join(barrier) if barrier else 'None'}
 Objective: {objective}
-Brand: {brand}
-Doctor Specialty: {specialty}
-HCP Persona: {persona}
-Approved Sales Approaches:
-{approaches_str}
-Sales Call Flow Steps:
+
+Sales Call Flow:
 {flow_str}
-Use APACT (Acknowledge → Probing → Answer → Confirm → Transition) technique for handling objections.
-Response Length: {response_length}
-Response Tone: {response_tone}
-Provide actionable suggestions tailored to this persona in a friendly and professional manner.
+
+Use APACT (Acknowledge → Probing → Answer → Confirm → Transition).
+Provide compliant, practical sales guidance.
+Tone: {response_tone}
+Length: {response_length}
 """
 
-    # --- Call Groq API ---
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
-            {"role": "user", "content": prompt}
+            {"role":"system","content":f"You are a pharmaceutical sales excellence AI responding in {language}."},
+            {"role":"user","content":prompt}
         ],
         temperature=0.7
     )
 
     ai_output = response.choices[0].message.content
-    st.session_state.chat_history.append({"role": "ai", "content": ai_output, "time": datetime.now().strftime("%H:%M")})
-    
+
+    st.session_state.chat_history.append({
+        "role":"ai",
+        "content":ai_output,
+        "time":datetime.now().strftime("%H:%M")
+    })
+
     display_chat()
 
-# --- Word download outside the form ---
-if DOCX_AVAILABLE and st.session_state.chat_history:
-    latest_ai = [msg["content"] for msg in st.session_state.chat_history if msg["role"] == "ai"]
-    if latest_ai:
+# =========================
+# WORD DOWNLOAD
+# =========================
+if DOCX_AVAILABLE:
+    ai_msgs = [m["content"] for m in st.session_state.chat_history if m["role"] == "ai"]
+    if ai_msgs:
         doc = Document()
-        doc.add_heading("AI Sales Call Response", 0)
-        doc.add_paragraph(latest_ai[-1])
-        word_buffer = io_bytes()
-        doc.save(word_buffer)
-        st.download_button("📥 Download as Word (.docx)", word_buffer.getvalue(), file_name="AI_Response.docx")
+        doc.add_heading("AI Sales Call Output", 0)
+        doc.add_paragraph(ai_msgs[-1])
+        buffer = io_bytes()
+        doc.save(buffer)
+        st.download_button("📥 Download Word", buffer.getvalue(), file_name="AI_Sales_Call.docx")
 
-# --- Brand leaflet ---
-st.markdown(f"[Brand Leaflet - {brand}]({gsk_brands[brand]})")
+# =========================
+# BRAND LEAFLET
+# =========================
+st.markdown(f"[📄 Brand Leaflet – {brand_cfg['display']}]({brand_cfg['leaflet']})")
