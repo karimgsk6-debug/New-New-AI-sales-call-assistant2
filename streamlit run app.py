@@ -1,13 +1,13 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – WHITE BUBBLES + Brand Call Flow
+# AI SALES CALL ASSISTANT – FULL FEATURED WITH DASHBOARD
 # ==========================================================
-
 import streamlit as st
-import os, base64
+import os, base64, io
 from groq import Groq
 from PyPDF2 import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from gtts import gTTS
 
 # ==========================================================
 # PAGE CONFIG
@@ -23,9 +23,18 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY","gsk_rsoppklsXlzgSHCXIW8kWGdyb3FY
 # VISUAL ASSETS
 # ==========================================================
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
-GSK_LOGO = ".devcontainer/Visuals/GSK-logo.png"
-AURA_LOGO = ".devcontainer/Visuals/AURA.png"
+GSK_LOGO_PATH = ".devcontainer/Visuals/GSK-logo.png"
+AURA_LOGO_PATH = ".devcontainer/Visuals/AURA.png"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
+
+def image_to_base64(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return None
+
+GSK_LOGO = image_to_base64(GSK_LOGO_PATH)
+AURA_LOGO = image_to_base64(AURA_LOGO_PATH)
 
 # ==========================================================
 # BACKGROUND
@@ -102,13 +111,29 @@ brand_data = {
 st.session_state.setdefault("chat", [])
 st.session_state.setdefault("citations", [])
 st.session_state.setdefault("selected_citation", None)
-st.session_state.setdefault("feedback", {})
+st.session_state.setdefault("feedback", {"like":0,"dislike":0,"need_more":0})
 st.session_state.setdefault("input_text", "")
+st.session_state.setdefault("metrics", {"prompts":0,"responses":0})
+
+# ==========================================================
+# DASHBOARD PAGE
+# ==========================================================
+pages = ["Chat Assistant", "Utilization Dashboard"]
+page = st.sidebar.radio("Navigate", pages)
+
+if page=="Utilization Dashboard":
+    st.markdown("## 📊 Utilization Dashboard")
+    st.metric("Total prompts asked", st.session_state.metrics["prompts"])
+    st.metric("Total AI responses generated", st.session_state.metrics["responses"])
+    st.metric("Likes", st.session_state.feedback["like"])
+    st.metric("Dislikes", st.session_state.feedback["dislike"])
+    st.metric("Need More", st.session_state.feedback["need_more"])
+    st.stop()  # stop here on dashboard page
 
 # ==========================================================
 # LOAD GUIDELINES
 # ==========================================================
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def load_guidelines(path):
     pages = []
     if os.path.exists(path):
@@ -122,7 +147,7 @@ def load_guidelines(path):
     return pages
 
 # ==========================================================
-# RAG RETRIEVAL
+# RAG
 # ==========================================================
 def retrieve_pages(question, pages, top_k=3):
     corpus = [p["text"] for p in pages]
@@ -171,9 +196,9 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
 # ==========================================================
 st.markdown(f"""
 <div class='title-container'>
-    <img src='{AURA_LOGO}'>
+    <img src='data:image/png;base64,{AURA_LOGO}'>
     <h1>🧠 AI Sales Call Assistant</h1>
-    <img src='{GSK_LOGO}'>
+    <img src='data:image/png;base64,{GSK_LOGO}'>
 </div>
 """, unsafe_allow_html=True)
 
@@ -189,7 +214,7 @@ with col_main:
             st.markdown(f"<div class='citation-box'>{p['text']}</div>", unsafe_allow_html=True)
 
 # ==========================================================
-# 2. Prompt Suggestions (copilot-style)
+# 2. Prompt Suggestions
 # ==========================================================
 with col_main:
     with st.expander("💡 Prompt Suggestions", expanded=False):
@@ -202,9 +227,10 @@ with col_main:
         for s in suggestions:
             if st.button(s, key=f"prompt_{s}"):
                 st.session_state.input_text = s
+                st.session_state.metrics["prompts"] += 1
 
 # ==========================================================
-# 3. Sales Conversation + AI Response
+# 3. Sales Conversation + AI Response + Voice
 # ==========================================================
 with col_main:
     st.markdown("### 💬 Sales Conversation")
@@ -214,16 +240,15 @@ with col_main:
         else:
             st.markdown(f"<div class='ai-box'><img src='{AI_AVATAR}' class='avatar'><br>{msg['content']}</div>", unsafe_allow_html=True)
 
-    # Chat input form
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("Ask a medical question or generate a sales call flow…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
-
         if submit and user_input:
             pages = load_guidelines(brand["references_path"])
             retrieved = retrieve_pages(user_input, pages)
             st.session_state.citations = retrieved
             st.session_state.chat.append({"role":"user","content":user_input})
+            st.session_state.metrics["prompts"] += 1
 
             citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved)
             prompt = f"""
@@ -263,29 +288,11 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
                 answer = "⚠️ **Compliance Alert** – Outside approved indications."
 
             st.session_state.chat.append({"role":"ai","content":answer})
+            st.session_state.metrics["responses"] += 1
             st.session_state.input_text = ""
 
-# ==========================================================
-# 4. TTS Placeholder
-# ==========================================================
-with col_main:
-    st.audio(None)
-
-# ==========================================================
-# 5. Feedback Cycle
-# ==========================================================
-with col_main:
-    st.markdown("### Feedback")
-    col1, col2, col3 = st.columns(3)
-    with col1: st.button("👍 Like", key="like")
-    with col2: st.button("👎 Dislike", key="dislike")
-    with col3: st.button("⏳ Need More", key="need_more")
-
-# ==========================================================
-# DISCLAIMER
-# ==========================================================
-st.markdown("""
-<div class="disclaimer">
-⚠️ Internal training use only. AI-generated content is non-promotional and must strictly comply with approved product labels and local compliance policies.
-</div>
-""", unsafe_allow_html=True)
+            # ================= TTS =================
+            tts = gTTS(text=answer, lang='en')
+            audio_bytes = io.BytesIO()
+            tts.write_to_fp(audio_bytes)
+            st.audio(audio_bytes.getvalue(), format="audio/mp3")
