@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – FULL FEATURED
+# AI SALES CALL ASSISTANT – FULL FIXED VERSION
 # ==========================================================
 
 import streamlit as st
@@ -213,15 +213,14 @@ with col_main:
         user_input = st.text_input("Ask a medical question or generate a sales call flow…", value=st.session_state.input_text)
         submit = st.form_submit_button("Generate")
 
-# ------------------ AI Response + TTS + Feedback ------------------
-if submit and user_input:
-    pages = load_guidelines(brand["references_path"])
-    retrieved = retrieve_pages(user_input, pages)
-    st.session_state.citations = retrieved
-    st.session_state.chat.append({"role":"user","content":user_input})
+        if submit and user_input:
+            pages = load_guidelines(brand["references_path"])
+            retrieved = retrieve_pages(user_input, pages)
+            st.session_state.citations = retrieved
+            st.session_state.chat.append({"role":"user","content":user_input})
 
-    citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved)
-    prompt = f"""
+            citations_text = "\n".join(f"[{p['source']} p.{p['page']}]\n{p['text'][:900]}" for p in retrieved)
+            prompt = f"""
 STRICT COMPLIANCE RULES:
 - Use ONLY approved guideline content
 - Cite page numbers like [p.X]
@@ -234,31 +233,33 @@ GUIDELINES:
 QUESTION:
 {user_input}
 """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
-                  {"role":"user","content":prompt}],
-        temperature=0.2
-    )
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
+                          {"role":"user","content":prompt}],
+                temperature=0.2
+            )
 
-    answer = response.choices[0].message.content
-    if detect_off_label(answer, retrieved):
-        answer = "⚠️ **Compliance Alert** – Outside approved indications."
+            answer = response.choices[0].message.content
+            if detect_off_label(answer, retrieved):
+                answer = "⚠️ **Compliance Alert** – Outside approved indications."
 
-    st.session_state.chat.append({"role":"ai","content":answer})
+            st.session_state.chat.append({"role":"ai","content":answer})
 
-    # ------------------ TTS Placeholder ------------------
-    st.audio(None)
+            # Clear input after submission
+            st.session_state.input_text = ""
 
-    # ------------------ Feedback ------------------
+# ------------------ TTS Placeholder ------------------
+with col_main:
+    st.audio(None)  # Placeholder for TTS
+
+# ------------------ Feedback Cycle ------------------
+with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
     with col1: st.button("👍 Like", key="like")
     with col2: st.button("👎 Dislike", key="dislike")
     with col3: st.button("⏳ Need More", key="need_more")
-
-    st.session_state.input_text = ""
-    st.experimental_rerun()
 
 # ==========================================================
 # FIXED DISCLAIMER
