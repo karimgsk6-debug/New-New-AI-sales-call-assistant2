@@ -1,5 +1,5 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – FULL FEATURED WITH DASHBOARD + CHARTS
+# AI SALES CALL ASSISTANT – CENTERED TITLE + WHITE RESPONSE BUBBLE
 # ==========================================================
 import streamlit as st
 import os, io
@@ -25,7 +25,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY","gsk_rsoppklsXlzgSHCXIW8kWGdyb3FY
 # VISUAL ASSETS
 # ==========================================================
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
-BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
+BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final1.png"
 
 def set_background(image_path):
     if os.path.exists(image_path):
@@ -47,9 +47,10 @@ set_background(BACKGROUND_PATH)
 # ==========================================================
 st.markdown("""
 <style>
+h1.title-center {text-align:center; margin-top:20px; margin-bottom:20px;}
 .user-box {background:rgba(240,240,240,1); padding:12px; border-radius:12px; margin-bottom:6px;}
-.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px;}
-.citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px;}
+.ai-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:6px; white-space: pre-wrap;}
+.citation-box {background:white; padding:16px; border-radius:16px; border:1px solid rgba(200,200,200,0.3); margin-bottom:8px; white-space: pre-wrap;}
 .avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,0,0,0.2); margin-bottom:8px;}
 .section-title {color:#0a3; font-weight:700; font-size:20px;}
 .disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
@@ -101,7 +102,6 @@ st.session_state.setdefault("selected_citation", None)
 st.session_state.setdefault("feedback", {"like":0,"dislike":0,"need_more":0})
 st.session_state.setdefault("input_text", "")
 st.session_state.setdefault("metrics", {"prompts":0,"responses":0})
-st.session_state.setdefault("dashboard_history", pd.DataFrame(columns=["Prompts","Responses","Likes","Dislikes","NeedMore"]))
 
 # ==========================================================
 # DASHBOARD PAGE
@@ -186,23 +186,23 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
                 st.session_state.selected_citation = p
 
 # ==========================================================
-# TITLE
+# TITLE CENTERED
 # ==========================================================
-st.markdown("<h1>🧠 AI Sales Call Assistant</h1>", unsafe_allow_html=True)
-col_main, col_side = st.columns([5,1])
+st.markdown("<h1 class='title-center'>🧠 AI Sales Call Assistant</h1>", unsafe_allow_html=True)
 
 # ==========================================================
-# 1. Selected Guideline Snippet
+# MAIN LAYOUT
 # ==========================================================
+col_main, col_side = st.columns([3,1])
+
+# 1. Selected Guideline Snippet
 with col_main:
     if st.session_state.selected_citation:
         p = st.session_state.selected_citation
         with st.expander(f"📖 {p['source']} – Page {p['page']}", expanded=True):
             st.markdown(f"<div class='citation-box'>{p['text']}</div>", unsafe_allow_html=True)
 
-# ==========================================================
 # 2. Prompt Suggestions
-# ==========================================================
 with col_main:
     with st.expander("💡 Prompt Suggestions", expanded=False):
         suggestions = [
@@ -216,9 +216,7 @@ with col_main:
                 st.session_state.input_text = s
                 st.session_state.metrics["prompts"] += 1
 
-# ==========================================================
 # 3. Sales Conversation + AI Response + TTS
-# ==========================================================
 with col_main:
     st.markdown("### 💬 Sales Conversation")
     for msg in st.session_state.chat:
@@ -283,9 +281,7 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
             tts.write_to_fp(audio_bytes)
             st.audio(audio_bytes.getvalue(), format="audio/mp3")
 
-# ==========================================================
 # 4. Feedback Cycle
-# ==========================================================
 with col_main:
     st.markdown("### Feedback")
     col1, col2, col3 = st.columns(3)
