@@ -171,7 +171,7 @@ Provide actionable suggestions tailored to this persona in a friendly and profes
 
     # --- Call Groq API ---
     response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": f"You are a helpful sales assistant chatbot that responds in {language}."},
             {"role": "user", "content": prompt}
