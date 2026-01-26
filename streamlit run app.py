@@ -1,13 +1,15 @@
 # ==========================================================
-# AI SALES CALL ASSISTANT – FULL FEATURED WITH DASHBOARD
+# AI SALES CALL ASSISTANT – FULL FEATURED WITH DASHBOARD + CHARTS
 # ==========================================================
 import streamlit as st
-import os, base64, io
+import os, io
 from groq import Groq
 from PyPDF2 import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from gtts import gTTS
+import pandas as pd
+import altair as alt
 
 # ==========================================================
 # PAGE CONFIG
@@ -25,18 +27,9 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY","gsk_rsoppklsXlzgSHCXIW8kWGdyb3FY
 AI_AVATAR = "https://raw.githubusercontent.com/karimgsk6-debug/New-New-AI-sales-call-assistant2/main/.devcontainer/Visuals/futuristic_hologram_ai.gif"
 BACKGROUND_PATH = ".devcontainer/Visuals/MR mentor final.png"
 
-def image_to_base64(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
-
-
-# ==========================================================
-# BACKGROUND
-# ==========================================================
 def set_background(image_path):
     if os.path.exists(image_path):
+        import base64
         with open(image_path,"rb") as f:
             encoded = base64.b64encode(f.read()).decode()
         st.markdown(f"""
@@ -60,8 +53,6 @@ st.markdown("""
 .avatar {width:64px; border-radius:50%; box-shadow:0 0 20px rgba(0,0,0,0.2); margin-bottom:8px;}
 .section-title {color:#0a3; font-weight:700; font-size:20px;}
 .disclaimer {position:fixed; bottom:0; width:100%; background: rgba(245,245,245,0.95); color:#555; font-size:12px; padding:8px; border-top:1px solid #ccc; z-index:100;}
-.title-container {display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
-.title-container img {height:40px; margin-left:8px; margin-right:8px;}
 .prompt-bubble {background:#f0f8ff; padding:12px; border-radius:16px; margin-bottom:8px; cursor:pointer;}
 .feedback-container {display:flex; gap:10px; margin-top:8px;}
 .call-flow-step {background:#f8f8f8; padding:12px; border-radius:12px; margin-bottom:6px;}
@@ -110,6 +101,7 @@ st.session_state.setdefault("selected_citation", None)
 st.session_state.setdefault("feedback", {"like":0,"dislike":0,"need_more":0})
 st.session_state.setdefault("input_text", "")
 st.session_state.setdefault("metrics", {"prompts":0,"responses":0})
+st.session_state.setdefault("dashboard_history", pd.DataFrame(columns=["Prompts","Responses","Likes","Dislikes","NeedMore"]))
 
 # ==========================================================
 # DASHBOARD PAGE
@@ -124,7 +116,13 @@ if page=="Utilization Dashboard":
     st.metric("Likes", st.session_state.feedback["like"])
     st.metric("Dislikes", st.session_state.feedback["dislike"])
     st.metric("Need More", st.session_state.feedback["need_more"])
-    st.stop()  # stop here on dashboard page
+
+    # ================= Charts =================
+    df = pd.DataFrame([st.session_state.metrics])
+    df = df.rename(columns={"like":"Likes","dislike":"Dislikes","need_more":"NeedMore",
+                            "prompts":"Prompts","responses":"Responses"})
+    st.line_chart(df)
+    st.stop()
 
 # ==========================================================
 # LOAD GUIDELINES
@@ -143,7 +141,7 @@ def load_guidelines(path):
     return pages
 
 # ==========================================================
-# RAG
+# RAG RETRIEVAL
 # ==========================================================
 def retrieve_pages(question, pages, top_k=3):
     corpus = [p["text"] for p in pages]
@@ -190,18 +188,11 @@ with st.sidebar.expander("📚 Medical References", expanded=True):
 # ==========================================================
 # TITLE
 # ==========================================================
-st.markdown(f"""
-<div class='title-container'>
-    <img src='data:image/png;base64,{AURA_LOGO}'>
-    <h1>🧠 AI Sales Call Assistant</h1>
-    <img src='data:image/png;base64,{GSK_LOGO}'>
-</div>
-""", unsafe_allow_html=True)
-
+st.markdown("<h1>🧠 AI Sales Call Assistant</h1>", unsafe_allow_html=True)
 col_main, col_side = st.columns([3,1])
 
 # ==========================================================
-# 1. Selected Guideline Snippet (white collapsible)
+# 1. Selected Guideline Snippet
 # ==========================================================
 with col_main:
     if st.session_state.selected_citation:
@@ -226,7 +217,7 @@ with col_main:
                 st.session_state.metrics["prompts"] += 1
 
 # ==========================================================
-# 3. Sales Conversation + AI Response + Voice
+# 3. Sales Conversation + AI Response + TTS
 # ==========================================================
 with col_main:
     st.markdown("### 💬 Sales Conversation")
@@ -271,7 +262,6 @@ Tone: {tone}
 
 Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
 """
-
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":"You are a compliant pharmaceutical sales AI."},
@@ -292,3 +282,25 @@ Follow the brand-specific sales call steps: {', '.join(brand['call_flow'])}
             audio_bytes = io.BytesIO()
             tts.write_to_fp(audio_bytes)
             st.audio(audio_bytes.getvalue(), format="audio/mp3")
+
+# ==========================================================
+# 4. Feedback Cycle
+# ==========================================================
+with col_main:
+    st.markdown("### Feedback")
+    col1, col2, col3 = st.columns(3)
+    if col1.button("👍 Like"):
+        st.session_state.feedback["like"] += 1
+    if col2.button("👎 Dislike"):
+        st.session_state.feedback["dislike"] += 1
+    if col3.button("⏳ Need More"):
+        st.session_state.feedback["need_more"] += 1
+
+# ==========================================================
+# DISCLAIMER
+# ==========================================================
+st.markdown("""
+<div class="disclaimer">
+⚠️ Internal training use only. AI-generated content is non-promotional and must strictly comply with approved product labels and local compliance policies.
+</div>
+""", unsafe_allow_html=True)
