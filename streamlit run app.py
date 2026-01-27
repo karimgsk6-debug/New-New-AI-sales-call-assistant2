@@ -19,7 +19,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-client = Groq(api_key=os.getenv("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"))
+client = Groq(api_key="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")
+
 
 # ==========================================================
 # ASSETS & LOGOS
