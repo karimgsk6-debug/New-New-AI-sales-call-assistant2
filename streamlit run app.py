@@ -14,7 +14,7 @@ from gtts import gTTS
 # ==========================================================
 st.set_page_config(page_title="AI Sales Call Assistant", layout="wide", initial_sidebar_state="expanded")
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY","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"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY","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"))
 
 # ==========================================================
 # ASSETS & LOGOS
